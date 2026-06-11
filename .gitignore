@@ -1,0 +1,20 @@
+# Données lourdes
+data/raw/
+data/processed/
+outputs/
+
+# Python
+__pycache__/
+*.pyc
+.env
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# QGIS
+*.qgz~
+
+# OS
+.DS_Store
+Thumbs.db
