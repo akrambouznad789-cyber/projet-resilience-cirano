@@ -1,55 +1,45 @@
 """
-algo_graphe_reseau_v2.py
+algo_graphe_reseau_v4.py
 ========================
 Projet CIRANO II — Construction du graphe routier enrichi
-VERSION 2 — Correction de l'algorithme de liaison segment-arc
+VERSION 4 — Réseau OSM (229 villes) + corrections algo
 
-PROBLÈMES CORRIGÉS PAR RAPPORT À V1
--------------------------------------
-V1 utilisait un corridor rectangulaire orienté A→B + intersection booléenne.
-Deux défauts observés visuellement dans QGIS :
+DIFFÉRENCES PAR RAPPORT À V2
+------------------------------
+  1. geometry.distance() au lieu de centroid.distance() au filtre 1
+     → capture les segments longs dont le centroïde est décalé du tracé
 
-  1. SOUS-CAPTURE : le clip rectangulaire éliminait des segments DJMA sur
-     la route réelle dès que celle-ci s'écartait de l'axe direct A→B
-     (virage, contournement). Des portions de route avec comptage disponible
-     étaient ignorées, biaisant le djma_1 à la baisse.
+  2. Filtre 4 (nouveau) — exclusion intraurbaine A et B
+     → exclut les segments à < 3km du centroïde de A ou B
+     → élimine le trafic de distribution locale près des villes d'origine/dest
 
-  2. FAUX POSITIFS : certains segments entraient dans le corridor rectangulaire
-     géographiquement sans être sur le bon chemin (route adjacente ou
-     perpendiculaire). Leur inclusion polluait le calcul DJMA.
+  3. Clip Québec (nouveau) — masque RTSS 2km
+     → clip le tracé OSRM aux portions couvertes par le réseau RTSS
+     → supprime les détours par d'autres provinces avant la recherche DJMA
+     → résultat peut être MultiLineString (route sort et rentre au QC)
 
-MÉTHODE V2 — Trois filtres séquentiels
-----------------------------------------
-  Filtre 1 — Distance au tracé OSRM (remplace le corridor rectangulaire)
-    On mesure la distance du centroïde de chaque segment à la polyline OSRM.
-    Seuil : 400 m. Capture les segments géométriquement décalés par rapport
-    à OSRM mais représentant la même route (divergence entre référentiels MTQ
-    et OSRM fréquente hors zones urbaines).
+  4. Source DJMA → debits_completes_v2.gpkg
+     → toutes les valeurs garanties renseignées (annee_1 toujours valide)
 
-  Filtre 2 — Alignement directionnel (élimine les faux positifs)
-    On compare l'orientation locale du segment DJMA à celle du tracé OSRM
-    au point le plus proche. Si l'angle dépasse 45°, le segment est sur une
-    autre route (perpendiculaire ou parallèle adjacente) → exclu.
-
-  Filtre 3 — Proximité aux noeuds (conservé de v1)
-    Exclut les segments dont le centroïde est plus proche d'un noeud du
-    réseau autre que A ou B, évitant l'attribution à un arc voisin.
+  5. angle_local_trace() gère MultiLineString en entrée
 
 PARAMÈTRES AJUSTABLES
 ---------------------
-BUFFER_RECHERCHE_M   : zone de candidats autour du tracé OSRM (défaut 1500m)
-DIST_MAX_TRACE_M     : distance max centroïde→tracé OSRM (défaut 400m)
-ANGLE_MAX_DEG        : écart angulaire maximal toléré (défaut 45°)
-BUFFER_EXCLUSION_M   : zone d'exclusion autour de chaque noeud (défaut 2000m)
-SAMPLE_N_ARCS        : nombre d'arcs à traiter (None = tous)
-PILOT_ID_ARC         : tester sur un seul arc (prioritaire sur SAMPLE_N_ARCS)
-PAUSE_API_S          : pause entre requêtes OSRM (défaut 0.5s)
+BUFFER_QC_RTSS_M    : buffer RTSS → masque territoire québécois (défaut 2000m)
+BUFFER_RECHERCHE_M  : zone de candidats autour du tracé (défaut 1500m)
+DIST_MAX_TRACE_M    : distance max segment→tracé (défaut 400m)
+ANGLE_MAX_DEG       : écart angulaire maximal toléré (défaut 45°)
+BUFFER_EXCLUSION_M  : zone d'exclusion autour de chaque nœud tiers (défaut 2000m)
+BUFFER_NOEUDS_AB_M  : exclusion intraurbaine autour de A et B (défaut 3000m)
+SAMPLE_N_ARCS       : nombre d'arcs à traiter (None = tous les 307)
+PILOT_ID_ARC        : tester un seul arc (prioritaire sur SAMPLE_N_ARCS)
+PAUSE_API_S         : pause entre requêtes OSRM (défaut 0.5s)
 
 SORTIES (3 couches dans le gpkg)
 ---------------------------------
-arcs_enrichis_v2     Arcs avec segments DJMA et métadonnées v2
-trajets_segments_v2  Un enregistrement par segment DJMA retenu
-trace_osrm_v2        Tracé brut OSRM par arc
+arcs_enrichis_v4     Arcs avec segments DJMA et métadonnées v4
+trajets_segments_v4  Un enregistrement par segment DJMA retenu
+trace_osrm_v4        Tracé OSRM complet A→B
 """
 
 import os
@@ -59,11 +49,12 @@ import pandas as pd
 import numpy as np
 import requests
 import time
-from shapely.geometry import LineString, Point
-from shapely.ops import nearest_points, unary_union
+from shapely.geometry import LineString, Point, MultiLineString
+from shapely.ops import unary_union
 import warnings
 
 warnings.filterwarnings("ignore")
+
 
 # ============================================================
 # CONFIGURATION
@@ -71,24 +62,27 @@ warnings.filterwarnings("ignore")
 
 PATH_ARCS   = os.path.expanduser("~/projects/projet-resilience-cirano/data/raw/reseau_arcs.gpkg")
 PATH_RTSS   = os.path.expanduser("~/projects/projet-resilience-cirano/data/raw/ReseauRoutier_RTSS.gpkg")
-PATH_DJMA   = os.path.expanduser("~/projects/projet-resilience-cirano/data/raw/DebitCirculation.gpkg")
-OUTPUT_FILE = os.path.expanduser("~/projects/projet-resilience-cirano/data/processed/graphe_routier_v2.gpkg")
+PATH_DJMA   = os.path.expanduser("~/projects/projet-resilience-cirano/data/processed/debits_completes_v2.gpkg")
+OUTPUT_FILE = os.path.expanduser("~/projects/projet-resilience-cirano/data/processed/graphe_routier_v4.gpkg")
 
 LAYER_ARCS   = "arcs"
 LAYER_NOEUDS = "noeuds"
 LAYER_RTSS   = "bgr_v_sous_route_res_sup_act"
-LAYER_DJMA   = "circulation_routier"
+LAYER_DJMA   = "debits_completes_v2"
 
 CRS_WORK = "EPSG:32198"
 CRS_WGS  = "EPSG:4326"
 
-BUFFER_RECHERCHE_M = 1500   # zone de candidats autour du tracé OSRM
-DIST_MAX_TRACE_M   = 400    # distance max centroïde → tracé OSRM (filtre 1)
-ANGLE_MAX_DEG      = 45     # écart angulaire max segment vs OSRM (filtre 2)
-BUFFER_EXCLUSION_M = 2000   # zone autour de chaque noeud exclue (filtre 3)
-PAUSE_API_S        = 0.5
-SAMPLE_N_ARCS      = None   # None = tous les arcs
-PILOT_ID_ARC       = None   # ex: 50 pour tester un seul arc
+BUFFER_QC_RTSS_M    = 2000
+BUFFER_RECHERCHE_M  = 1500
+DIST_MAX_TRACE_M    = 400
+ANGLE_MAX_DEG       = 45
+BUFFER_EXCLUSION_M  = 2000
+BUFFER_NOEUDS_AB_M  = 3000
+PAUSE_API_S         = 0.5
+SAMPLE_N_ARCS       = None  # None = tous les 307 arcs
+PILOT_ID_ARC        = None  # ex: 50 pour tester un seul arc
+SAMPLE_IDS          = None  # None = pas de filtre par IDs
 
 
 # ============================================================
@@ -96,37 +90,16 @@ PILOT_ID_ARC       = None   # ex: 50 pour tester un seul arc
 # ============================================================
 
 def charger_djma(path: str, layer: str, crs: str) -> gpd.GeoDataFrame:
-    """
-    Charge DebitCirculation et extrait la valeur DJMA et camion
-    la plus récente disponible par segment (colonnes annee_1 à annee_10).
-    """
-    print("  Chargement DebitCirculation...")
+    """Charge debits_completes_v2 — annee_1 toujours renseigné après complétion."""
+    print("  Chargement debits_completes_v2...")
     djma = gpd.read_file(path, layer=layer).to_crs(crs)
     djma["longueur_m"] = djma.geometry.length
-    djma["djma_val"]   = np.nan
-    djma["djma_annee"] = None
-    djma["cam_val"]    = np.nan
-    djma["cam_annee"]  = None
-
-    for yr in range(1, 11):
-        col_v = f"val_djma_annee_{yr}"
-        col_a = f"djma_annee_{yr}"
-        if col_v in djma.columns:
-            mask = djma["djma_val"].isna()
-            vals = pd.to_numeric(djma.loc[mask, col_v], errors="coerce")
-            djma.loc[mask & vals.notna(), "djma_val"]   = vals[vals.notna()]
-            djma.loc[mask & vals.notna(), "djma_annee"] = djma.loc[mask & vals.notna(), col_a]
-
-        col_v = f"val_cam_annee_{yr}"
-        col_a = f"cam_annee_{yr}"
-        if col_v in djma.columns:
-            mask = djma["cam_val"].isna()
-            vals = pd.to_numeric(djma.loc[mask, col_v], errors="coerce")
-            djma.loc[mask & vals.notna(), "cam_val"]   = vals[vals.notna()]
-            djma.loc[mask & vals.notna(), "cam_annee"] = djma.loc[mask & vals.notna(), col_a]
-
+    djma["djma_val"]   = pd.to_numeric(djma["val_djma_annee_1"], errors="coerce")
+    djma["djma_annee"] = pd.to_numeric(djma["djma_annee_1"],     errors="coerce")
+    djma["cam_val"]    = pd.to_numeric(djma["val_cam_annee_1"],  errors="coerce")
+    djma["cam_annee"]  = pd.to_numeric(djma["cam_annee_1"],      errors="coerce")
     n_avec = djma["djma_val"].notna().sum()
-    print(f"  DJMA : {n_avec}/{len(djma)} segments avec valeur de comptage")
+    print(f"  DJMA : {n_avec}/{len(djma)} segments avec valeur (annee_1)")
     return djma
 
 
@@ -145,10 +118,7 @@ def charger_rtss(path: str, layer: str, crs: str) -> gpd.GeoDataFrame:
 
 def obtenir_trace_osrm(lon_a: float, lat_a: float,
                         lon_b: float, lat_b: float) -> tuple:
-    """
-    Appelle l'API OSRM publique.
-    Retourne (LineString WGS84, statut, distance_m) ou (None, code_erreur, 0).
-    """
+    """Appelle l'API OSRM publique. Retourne (LineString WGS84, statut, distance_m)."""
     url = (f"http://router.project-osrm.org/route/v1/driving/"
            f"{lon_a},{lat_a};{lon_b},{lat_b}"
            f"?overview=full&geometries=geojson")
@@ -157,7 +127,7 @@ def obtenir_trace_osrm(lon_a: float, lat_a: float,
         data = resp.json()
         if data.get("code") != "Ok":
             return None, "echec_osrm", 0
-        coords    = data["routes"][0]["geometry"]["coordinates"]
+        coords     = data["routes"][0]["geometry"]["coordinates"]
         distance_m = data["routes"][0]["distance"]
         return LineString(coords), "ok", distance_m
     except Exception:
@@ -169,27 +139,19 @@ def obtenir_trace_osrm(lon_a: float, lat_a: float,
 # ============================================================
 
 def angle_linestring(geom) -> float:
-    """
-    Retourne l'angle dominant d'une LineString en degrés [0, 180[.
-    Calculé entre le premier et le dernier sommet pour représenter
-    l'orientation générale du segment.
-    Accepte aussi un MultiLineString : on utilise la sous-géométrie la plus longue.
-    """
     if geom.geom_type == "MultiLineString":
         geom = max(geom.geoms, key=lambda g: g.length)
     coords = list(geom.coords)
     dx = coords[-1][0] - coords[0][0]
     dy = coords[-1][1] - coords[0][1]
-    angle = math.degrees(math.atan2(dy, dx)) % 180
-    return angle
+    return math.degrees(math.atan2(dy, dx)) % 180
 
 
-def angle_local_trace(trace: LineString, pt: Point) -> float:
-    """
-    Retourne l'angle local du tracé OSRM au point le plus proche de pt.
-    On prend les deux sommets encadrant le point de projection.
-    """
-    coords = list(trace.coords)
+def angle_local_trace(trace, pt: Point) -> float:
+    """Angle local du tracé au point le plus proche de pt. Gère MultiLineString."""
+    if trace.geom_type == "MultiLineString":
+        trace = min(trace.geoms, key=lambda g: g.distance(pt))
+    coords   = list(trace.coords)
     min_dist = float("inf")
     best_i   = 0
     for i in range(len(coords) - 1):
@@ -204,51 +166,80 @@ def angle_local_trace(trace: LineString, pt: Point) -> float:
 
 
 def diff_angle(a1: float, a2: float) -> float:
-    """Différence angulaire minimale entre deux angles [0, 180[ en degrés."""
     diff = abs(a1 - a2) % 180
     return min(diff, 180 - diff)
 
 
+def longueur_geom(geom) -> float:
+    if geom is None or geom.is_empty:
+        return 0.0
+    if geom.geom_type == "MultiLineString":
+        return sum(g.length for g in geom.geoms)
+    return geom.length
+
+
 # ============================================================
-# FILTRES V2
+# CLIP QUÉBEC — NOUVEAUTÉ V4
+# ============================================================
+
+def clipper_trace_a_quebec(trace, rtss_gdf: gpd.GeoDataFrame, rtss_sindex):
+    """
+    Clip le tracé OSRM aux portions couvertes par le réseau RTSS québécois.
+    Supprime les détours par d'autres provinces.
+    Retourne None si le résultat est vide.
+    """
+    zone_recherche = trace.buffer(5000)
+    cands = list(rtss_sindex.intersection(zone_recherche.bounds))
+    if not cands:
+        return None
+
+    rtss_proches = rtss_gdf.iloc[cands]
+    rtss_proches = rtss_proches[rtss_proches.geometry.intersects(zone_recherche)]
+    if rtss_proches.empty:
+        return None
+
+    masque_qc = rtss_proches.geometry.unary_union.buffer(BUFFER_QC_RTSS_M)
+    trace_qc  = trace.intersection(masque_qc)
+
+    if trace_qc.is_empty:
+        return None
+
+    if trace_qc.geom_type == "GeometryCollection":
+        parties = [
+            g for g in trace_qc.geoms
+            if g.geom_type in ("LineString", "MultiLineString") and g.length > 100
+        ]
+        if not parties:
+            return None
+        trace_qc = unary_union(parties)
+
+    return trace_qc
+
+
+# ============================================================
+# FILTRES
 # ============================================================
 
 def filtre_distance_trace(segs: gpd.GeoDataFrame,
-                           trace: LineString,
-                           dist_max_m: float) -> gpd.GeoDataFrame:
-    """
-    Filtre 1 — Distance centroïde → tracé OSRM.
-
-    Conserve les segments dont le centroïde est à moins de dist_max_m
-    de la polyline OSRM. Remplace le corridor rectangulaire de v1 qui
-    éliminait des segments légitimes sur les portions de route déviant
-    de l'axe direct A→B.
-    """
+                           trace, dist_max_m: float) -> gpd.GeoDataFrame:
+    """Filtre 1 — distance segment complet → tracé (pas du centroïde)."""
     if segs.empty:
         return segs
-    distances = segs.geometry.centroid.distance(trace)
+    distances = segs.geometry.distance(trace)
     return segs[distances <= dist_max_m].copy()
 
 
 def filtre_direction(segs: gpd.GeoDataFrame,
-                     trace: LineString,
-                     angle_max_deg: float) -> gpd.GeoDataFrame:
-    """
-    Filtre 2 — Alignement directionnel segment vs tracé OSRM.
-
-    Exclut les segments dont l'orientation diverge de plus de angle_max_deg
-    par rapport à l'orientation locale du tracé OSRM au point le plus proche.
-    Élimine les faux positifs (routes perpendiculaires ou parallèles adjacentes)
-    qui passaient le filtre de distance malgré un tracé incohérent.
-    """
+                     trace, angle_max_deg: float) -> gpd.GeoDataFrame:
+    """Filtre 2 — alignement directionnel segment vs tracé."""
     if segs.empty:
         return segs
     masque = []
     for _, row in segs.iterrows():
-        centroid    = row.geometry.centroid
-        angle_seg   = angle_linestring(row.geometry)
-        angle_osrm  = angle_local_trace(trace, centroid)
-        masque.append(diff_angle(angle_seg, angle_osrm) <= angle_max_deg)
+        centroid  = row.geometry.centroid
+        angle_seg = angle_linestring(row.geometry)
+        angle_tr  = angle_local_trace(trace, centroid)
+        masque.append(diff_angle(angle_seg, angle_tr) <= angle_max_deg)
     return segs[masque].copy()
 
 
@@ -256,30 +247,17 @@ def filtre_noeud_proximite(segs: gpd.GeoDataFrame,
                             pt_a: Point, pt_b: Point,
                             tous_noeuds: gpd.GeoDataFrame,
                             exclusion_m: float) -> gpd.GeoDataFrame:
-    """
-    Filtre 3 — Proximité aux noeuds (conservé de v1).
-
-    Exclut les segments dont le centroïde est plus proche d'un noeud du
-    réseau autre que A ou B, et dont la distance à ce noeud tiers est
-    inférieure à exclusion_m. Évite d'attribuer à l'arc A→B des segments
-    qui appartiennent logiquement à un arc voisin.
-
-    Désactivé si la distance A-B est inférieure à 2 × exclusion_m
-    (villes très proches où la zone d'exclusion couvrirait tout le trajet).
-    """
+    """Filtre 3 — exclut les segments plus proches d'un nœud tiers que de A ou B."""
     if segs.empty:
         return segs
     dist_ab = pt_a.distance(pt_b)
     if dist_ab <= 2 * exclusion_m:
         return segs
-
     autres_noeuds = tous_noeuds[
         ~tous_noeuds.geometry.isin([pt_a, pt_b])
     ].geometry
-
     if autres_noeuds.empty:
         return segs
-
     masque = []
     for _, row in segs.iterrows():
         centroid    = row.geometry.centroid
@@ -287,9 +265,26 @@ def filtre_noeud_proximite(segs: gpd.GeoDataFrame,
         dist_b      = centroid.distance(pt_b)
         dist_ab_min = min(dist_a, dist_b)
         dist_tiers  = autres_noeuds.distance(centroid).min()
-        # Exclure seulement si un noeud tiers est plus proche ET dans la zone d'exclusion
         masque.append(not (dist_tiers < dist_ab_min and dist_tiers < exclusion_m))
+    return segs[masque].copy()
 
+
+def filtre_proximite_ab(segs: gpd.GeoDataFrame,
+                         pt_a: Point, pt_b: Point,
+                         buffer_ab_m: float) -> gpd.GeoDataFrame:
+    """Filtre 4 — exclut les segments trop proches de A ou B (trafic intraurbain)."""
+    if segs.empty:
+        return segs
+    if pt_a.distance(pt_b) < 2 * buffer_ab_m:
+        return segs
+    masque = []
+    for _, row in segs.iterrows():
+        centroid = row.geometry.centroid
+        trop_proche = (
+            centroid.distance(pt_a) < buffer_ab_m
+            or centroid.distance(pt_b) < buffer_ab_m
+        )
+        masque.append(not trop_proche)
     return segs[masque].copy()
 
 
@@ -297,9 +292,7 @@ def filtre_noeud_proximite(segs: gpd.GeoDataFrame,
 # EXTRACTION DES SEGMENTS
 # ============================================================
 
-def extraire_rtss(zone_recherche, rtss_gdf: gpd.GeoDataFrame,
-                   rtss_sindex) -> list:
-    """Extraction simple des segments RTSS intersectant la zone de recherche."""
+def extraire_rtss(zone_recherche, rtss_gdf: gpd.GeoDataFrame, rtss_sindex) -> list:
     cands = list(rtss_sindex.intersection(zone_recherche.bounds))
     segs  = rtss_gdf.iloc[cands][rtss_gdf.iloc[cands].geometry.intersects(zone_recherche)]
     if segs.empty:
@@ -312,19 +305,11 @@ def extraire_rtss(zone_recherche, rtss_gdf: gpd.GeoDataFrame,
     ]
 
 
-def extraire_djma_v2(trace: LineString,
+def extraire_djma_v4(trace,
                       djma_gdf: gpd.GeoDataFrame,
                       djma_sindex,
-                      pt_a: Point, pt_b: Point,
-                      tous_noeuds: gpd.GeoDataFrame) -> list:
-    """
-    Extraction des segments DJMA avec les trois filtres v2.
-
-    Étape 1 : candidats dans le buffer de recherche (1500m)
-    Étape 2 : filtre distance centroïde → tracé (400m)
-    Étape 3 : filtre directionnel (45°)
-    Étape 4 : filtre proximité noeud (2000m)
-    """
+                      pt_a: Point, pt_b: Point) -> list:
+    """3 filtres séquentiels sur le tracé clippé au Québec."""
     zone_recherche = trace.buffer(BUFFER_RECHERCHE_M)
     cands = list(djma_sindex.intersection(zone_recherche.bounds))
     if not cands:
@@ -336,8 +321,7 @@ def extraire_djma_v2(trace: LineString,
 
     candidats = filtre_distance_trace(candidats, trace, DIST_MAX_TRACE_M)
     candidats = filtre_direction(candidats, trace, ANGLE_MAX_DEG)
-    candidats = filtre_noeud_proximite(candidats, pt_a, pt_b,
-                                        tous_noeuds, BUFFER_EXCLUSION_M)
+    candidats = filtre_proximite_ab(candidats, pt_a, pt_b, BUFFER_NOEUDS_AB_M)
 
     if candidats.empty:
         return []
@@ -371,8 +355,8 @@ def calculer_statut_djma_pct(segs_djma: list) -> float | None:
 
 def main():
     print("=" * 65)
-    print("GRAPHE ROUTIER MTQ — Projet CIRANO II — VERSION 2")
-    print("Méthode : distance tracé + filtre directionnel + filtre noeud")
+    print("GRAPHE ROUTIER MTQ — Projet CIRANO II — VERSION 4")
+    print("Réseau OSM · clip QC · geometry.distance · buffer AB")
     print("=" * 65)
 
     print("\n[1/4] Chargement des données...")
@@ -389,12 +373,14 @@ def main():
 
     if PILOT_ID_ARC is not None:
         arcs_traiter = arcs[arcs["ID_ARC"] == PILOT_ID_ARC]
+    elif SAMPLE_IDS is not None:
+        arcs_traiter = arcs[arcs["ID_ARC"].isin(SAMPLE_IDS)]
     elif SAMPLE_N_ARCS is not None:
         arcs_traiter = arcs.head(SAMPLE_N_ARCS)
     else:
         arcs_traiter = arcs
 
-    print(f"\n[2/4] Routage OSRM + extraction v2 ({len(arcs_traiter)} arcs)...")
+    print(f"\n[2/4] Routage OSRM + extraction v4 ({len(arcs_traiter)} arcs)...")
 
     rows_arcs       = []
     rows_segs       = []
@@ -424,9 +410,10 @@ def main():
                 "ids_segs_djma_val_cam": None,
                 "statut_djma_pct"      : None,
                 "longueur_trace_km"    : None,
+                "longueur_qc_km"       : None,
                 "n_segs_djma"          : 0,
                 "statut"               : statut,
-                "methode"              : "v2",
+                "methode"              : "v4",
             })
             rows_arcs.append(base.copy())
 
@@ -461,12 +448,22 @@ def main():
             "geometry"         : trace_lambert,
         })
 
-        zone_recherche = trace_lambert.buffer(BUFFER_RECHERCHE_M)
+        # ── CLIP QUÉBEC ──────────────────────────────────────────
+        trace_qc = clipper_trace_a_quebec(trace_lambert, rtss, rtss_sindex)
+        if trace_qc is None:
+            print("[hors_quebec]")
+            echec("hors_quebec")
+            continue
+
+        longueur_qc_km = round(longueur_geom(trace_qc) / 1000, 2)
+
+        # ── EXTRACTION RTSS & DJMA ───────────────────────────────
+        zone_recherche = trace_qc.buffer(BUFFER_RECHERCHE_M)
         segs_rtss = extraire_rtss(zone_recherche, rtss, rtss_sindex)
 
-        segs_djma = extraire_djma_v2(
-            trace_lambert, djma, djma_sindex,
-            pt_a_lambert, pt_b_lambert, noeuds_lambert
+        segs_djma = extraire_djma_v4(
+            trace_qc, djma, djma_sindex,
+            pt_a_lambert, pt_b_lambert
         )
 
         if not segs_djma:
@@ -480,9 +477,10 @@ def main():
                 "ids_segs_djma_val_cam": None,
                 "statut_djma_pct"      : 0.0,
                 "longueur_trace_km"    : longueur_trace_km,
+                "longueur_qc_km"       : longueur_qc_km,
                 "n_segs_djma"          : 0,
                 "statut"               : "aucun_djma",
-                "methode"              : "v2",
+                "methode"              : "v4",
             })
             rows_arcs.append(base.copy())
             continue
@@ -512,9 +510,10 @@ def main():
             "ids_segs_djma_val_cam": formater_liste(cam_vals),
             "statut_djma_pct"      : statut_pct,
             "longueur_trace_km"    : longueur_trace_km,
+            "longueur_qc_km"       : longueur_qc_km,
             "n_segs_djma"          : len(segs_djma),
             "statut"               : "ok",
-            "methode"              : "v2",
+            "methode"              : "v4",
         })
         rows_arcs.append(base.copy())
 
@@ -532,14 +531,11 @@ def main():
             })
 
         pct = f"{statut_pct:.0f}%" if statut_pct is not None else "N/A"
-        print(f"[OK] {len(segs_rtss)} segs RTSS | "
-              f"{len(segs_djma)} segs DJMA | qualité {pct} | "
-              f"{longueur_trace_km:.1f}km")
+        print(f"[OK] {len(segs_rtss)} RTSS | {len(segs_djma)} DJMA | "
+              f"qualité {pct} | {longueur_trace_km:.1f}km → QC {longueur_qc_km:.1f}km")
 
-    # ============================================================
-    # EXPORT
-    # ============================================================
-    print(f"\n[3/4] Export vers {OUTPUT_FILE}...")
+    # ── EXPORT ──────────────────────────────────────────────────
+    print(f"\n[3/4] Export → {OUTPUT_FILE}")
 
     gdf_arcs  = gpd.GeoDataFrame(rows_arcs,      crs=CRS_WORK)
     gdf_segs  = gpd.GeoDataFrame(rows_segs,       crs=CRS_WORK)
@@ -549,40 +545,52 @@ def main():
         if "fid" in gdf.columns:
             gdf.drop(columns=["fid"], inplace=True)
 
-    # ID_ARC en première colonne → affichage QGIS cohérent
     cols_arcs = ["ID_ARC"] + [c for c in gdf_arcs.columns if c not in ("ID_ARC", "geometry")] + ["geometry"]
-    gdf_arcs = gdf_arcs[cols_arcs]
+    gdf_arcs  = gdf_arcs[cols_arcs]
 
-    gdf_arcs.to_file( OUTPUT_FILE, layer="arcs_enrichis_v2",   driver="GPKG")
-    gdf_segs.to_file( OUTPUT_FILE, layer="trajets_segments_v2", driver="GPKG", mode="a")
-    gdf_trace.to_file(OUTPUT_FILE, layer="trace_osrm_v2",       driver="GPKG", mode="a")
+    gdf_arcs.to_file( OUTPUT_FILE, layer="arcs_enrichis_v4",   driver="GPKG")
+    gdf_segs.to_file( OUTPUT_FILE, layer="trajets_segments_v4", driver="GPKG", mode="a")
+    gdf_trace.to_file(OUTPUT_FILE, layer="trace_osrm_v4",       driver="GPKG", mode="a")
 
+    # ── RÉSUMÉ ──────────────────────────────────────────────────
     print()
     print("=" * 65)
-    print("RÉSUMÉ — VERSION 2")
+    print("RÉSUMÉ — VERSION 4")
     print("=" * 65)
     ok    = gdf_arcs[gdf_arcs["statut"] == "ok"]
     n_err = (gdf_arcs["statut"] != "ok").sum()
+
     print(f"Arcs traités         : {len(gdf_arcs)}")
     print(f"Arcs ok              : {len(ok)}")
-    print(f"Arcs en échec        : {n_err}")
+    print(f"Arcs en échec/exclus : {n_err}")
+
+    if n_err > 0:
+        print("\nDétail des échecs :")
+        for statut, grp in gdf_arcs[gdf_arcs["statut"] != "ok"].groupby("statut"):
+            print(f"  {statut:<25} : {len(grp)} arc(s)")
+
     if len(ok) > 0:
-        print(f"\nLongueur tracés OSRM :")
-        print(f"  Médiane : {ok['longueur_trace_km'].median():.1f} km")
-        print(f"  Max     : {ok['longueur_trace_km'].max():.1f} km")
+        print(f"\nLongueurs :")
+        print(f"  Tracé OSRM médiane  : {ok['longueur_trace_km'].median():.1f} km")
+        print(f"  Portion QC médiane  : {ok['longueur_qc_km'].median():.1f} km")
+        red = (1 - ok['longueur_qc_km'].mean() / ok['longueur_trace_km'].mean()) * 100
+        print(f"  Exclusion hors-QC   : {red:.1f}% du tracé moyen")
         print(f"\nQualité DJMA (arcs ok) :")
         print(f"  Médiane statut_djma_pct : {ok['statut_djma_pct'].median():.0f}%")
         print(f"  Arcs à 100%             : {(ok['statut_djma_pct'] == 100).sum()}")
         print(f"  Arcs < 50%              : {(ok['statut_djma_pct'] < 50).sum()}")
         print(f"  Médiane segs DJMA/arc   : {ok['n_segs_djma'].median():.0f}")
-        print(f"  Max segs DJMA/arc       : {ok['n_segs_djma'].max():.0f}")
+
     print(f"\nSegments DJMA exportés : {len(gdf_segs)}")
-    print(f"\nParamètres v2 utilisés :")
-    print(f"  BUFFER_RECHERCHE_M = {BUFFER_RECHERCHE_M}m")
-    print(f"  DIST_MAX_TRACE_M   = {DIST_MAX_TRACE_M}m")
-    print(f"  ANGLE_MAX_DEG      = {ANGLE_MAX_DEG}°")
-    print(f"  BUFFER_EXCLUSION_M = {BUFFER_EXCLUSION_M}m")
-    print("\nTerminé — résultat dans data/processed/graphe_routier_v2.gpkg")
+    print(f"\nParamètres v4 utilisés :")
+    print(f"  BUFFER_QC_RTSS_M    = {BUFFER_QC_RTSS_M}m")
+    print(f"  BUFFER_RECHERCHE_M  = {BUFFER_RECHERCHE_M}m")
+    print(f"  DIST_MAX_TRACE_M    = {DIST_MAX_TRACE_M}m")
+    print(f"  BUFFER_NOEUDS_AB_M  = {BUFFER_NOEUDS_AB_M}m")
+    print(f"  ANGLE_MAX_DEG       = {ANGLE_MAX_DEG}°")
+    print(f"  BUFFER_EXCLUSION_M  = {BUFFER_EXCLUSION_M}m")
+    print(f"  SAMPLE_N_ARCS       = {SAMPLE_N_ARCS}")
+    print(f"\nTerminé — résultat dans {OUTPUT_FILE}")
 
 
 if __name__ == "__main__":
