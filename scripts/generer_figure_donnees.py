@@ -3,14 +3,20 @@ generer_figure_donnees.py
 ==========================
 Projet CIRANO — Figures de vulgarisation des données (README, section « Données »)
 
-Génère 4 figures dans figures/, cadrées sur la même emprise et le même gabarit
-(comme si elles pouvaient se superposer), sur un fond de carte neutre façon
-Google/Apple Maps (terre unie, eau bleue — Natural Earth) : la couleur reste
-réservée aux données (lignes/points), pas au fond :
-  - reseau_graphe.png      : nœuds et liens du graphe simplifié
-  - reseau_routier.png     : réseau routier MTQ (RTSS), coloré par type de route
-  - comptage_routier.png   : stations de comptage MTQ, colorées par complétude DJMA
-  - comptage_completude.png : complétude DJMA vs %camion (colonnes empilées)
+Génère 7 figures dans figures/ :
+  - reseau_graphe.png          : nœuds et liens du graphe simplifié
+  - reseau_routier.png         : réseau routier MTQ (RTSS), coloré par type de route
+  - comptage_routier.png       : stations de comptage MTQ, colorées par complétude DJMA
+  - comptage_completude.png    : complétude DJMA vs %camion (colonnes empilées)
+  - extrapolation_gradient.png : étape 1 (interpolation/extrapolation), segment réel
+  - knn_geographique.png       : étape 3 (KNN + IDW), segment réel et ses voisins
+  - evolution_completion.png   : synthèse — % complet après chaque étape de la cascade
+
+Les 4 premières sont cadrées sur la même emprise et le même gabarit (comme si
+elles pouvaient se superposer), sur un fond de carte neutre façon Google/Apple
+Maps (terre unie, eau bleue — Natural Earth) : la couleur reste réservée aux
+données (lignes/points), pas au fond. Les 3 dernières illustrent la cascade de
+complétion (cf. completion_donnees_randomforest.py) sur des exemples réels.
 
 Les dictionnaires de variables et tableaux de répartition correspondants sont
 présentés en texte dans le README, pas dans les figures.
@@ -21,8 +27,25 @@ from pathlib import Path
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from matplotlib.lines import Line2D
+from scipy.spatial import cKDTree
+from sklearn.linear_model import LinearRegression
+
+from completion_donnees_randomforest import (
+    ANNEES,
+    CAM_COLS,
+    CRS_PROJETE,
+    DJMA_COLS,
+    FENETRE_GRADIENT,
+    K_VOISINS,
+    _extrapoler_extremites,
+    mice_cam,
+    phase1_temporelle,
+    phase2_geographique,
+    voisins_ponderes,
+)
 
 RACINE  = Path(__file__).resolve().parent.parent
 FIG_DIR = RACINE / "figures"
@@ -30,6 +53,7 @@ FIG_DIR = RACINE / "figures"
 PATH_ARCS   = RACINE / "data" / "raw" / "reseau_arcs.gpkg"
 PATH_RTSS   = RACINE / "data" / "raw" / "ReseauRoutier_RTSS.gpkg"
 PATH_DEBITS = RACINE / "data" / "raw" / "DebitCirculation.gpkg"
+PATH_DEBITS_COMPLETES = RACINE / "data" / "processed" / "debits_completes.gpkg"
 
 DIR_REFERENCE = RACINE / "data" / "reference"
 PATH_FOND   = DIR_REFERENCE / "ne_50m_admin_1_states_provinces.zip"
@@ -82,6 +106,17 @@ COMPLETUDE = {   # clair et doux — pas de rouge/jaune/vert agressifs
     "Vide":    "#f7a19a",
 }
 ORDRE_COMPLETUDE = ["Complet", "Partiel", "Vide"]
+
+# Paire catégorielle DJMA / %camions — validée (validate_palette.js, mode light) :
+# CVD adjacent ΔE 17.3 (protan), normal-vision ΔE 24.3, PASS.
+SAUMON = "#e0857f"   # série %camions (DJMA reprend BLEU_NOEUD, déjà utilisé pour le graphe)
+
+# Segments réels choisis pour illustrer chaque étape de la cascade (cf. exploration
+# data/processed/debits_completes.gpkg) :
+#   - extrapolation : tendances locales de signe opposé aux deux bords (bon test du gradient local)
+#   - geo_knn       : 5 voisins de même index_agreg, distance médiane — carte lisible à un zoom raisonnable
+ID_SEGMENT_EXTRAPOLATION = 28787
+ID_SEGMENT_KNN            = 30014
 
 # Gabarit commun aux 3 cartes, pour qu'elles soient superposables
 MAP_FIGSIZE  = (10, 8)
@@ -339,6 +374,259 @@ def figure_comptage_completude(stats: dict) -> None:
           f"DJMA-complets aussi %camion-complets)")
 
 
+# ============================================================
+# FIGURE — Interpolation / extrapolation (gradient local par bord)
+# ============================================================
+
+def figure_extrapolation_gradient() -> None:
+    """Étape 1 de la cascade, sur un vrai segment : gradient local par bord.
+
+    Compare, point par point, l'ancienne méthode (une régression unique sur
+    toute la plage connue) à l'implémentation actuelle (_extrapoler_extremites,
+    une régression LOCALE par bord) sur un segment réel où les deux bords ont
+    des tendances de signe opposé — le cas où l'ancienne méthode se trompait.
+    """
+    raw = gpd.read_file(PATH_DEBITS)
+    ligne = raw.loc[raw["ide_sectn_trafc"] == ID_SEGMENT_EXTRAPOLATION].iloc[0]
+    vals_brut = pd.to_numeric(ligne[DJMA_COLS], errors="coerce").values.astype(float)
+
+    annees_arr = np.array(ANNEES)
+    ordre      = np.argsort(annees_arr)          # ordre chronologique croissant
+    annees_c   = annees_arr[ordre]
+    vals_c     = vals_brut[ordre]
+    mask_ok    = ~np.isnan(vals_c)
+    idx_ok     = np.where(mask_ok)[0]
+    manquants  = ~mask_ok
+
+    nouvelle_c = _extrapoler_extremites(vals_brut, list(ANNEES))[ordre]
+
+    reg_globale = LinearRegression().fit(annees_c[mask_ok].reshape(-1, 1), vals_c[mask_ok])
+    ancienne_c  = reg_globale.predict(annees_c.reshape(-1, 1))
+
+    fig, ax = plt.subplots(figsize=(8, 5.5))
+
+    for fenetre in (idx_ok[:FENETRE_GRADIENT], idx_ok[-FENETRE_GRADIENT:]):
+        ax.axvspan(annees_c[fenetre[0]] - 0.4, annees_c[fenetre[-1]] + 0.4,
+                  color=BLEU_NOEUD, alpha=0.08, zorder=0)
+
+    ax.plot(annees_c, ancienne_c, color=MUET, linewidth=1, linestyle="--", alpha=0.5, zorder=1)
+    ax.plot(annees_c[manquants], ancienne_c[manquants], color=MUET, linewidth=0, zorder=2,
+           marker="^", markersize=8, markerfacecolor=MUET, markeredgecolor=SURFACE, markeredgewidth=1.3)
+
+    ax.plot(annees_c[:idx_ok[0] + 1], nouvelle_c[:idx_ok[0] + 1], color=SAUMON, linewidth=1.8, zorder=2)
+    ax.plot(annees_c[idx_ok[-1]:], nouvelle_c[idx_ok[-1]:], color=SAUMON, linewidth=1.8, zorder=2)
+    ax.plot(annees_c[manquants], nouvelle_c[manquants], color=SAUMON, linewidth=0, zorder=4,
+           marker="D", markersize=8, markerfacecolor=SAUMON, markeredgecolor=SURFACE, markeredgewidth=1.3)
+
+    ax.plot(annees_c[mask_ok], vals_c[mask_ok], color=ENCRE, linewidth=2, zorder=3,
+           marker="o", markersize=8, markerfacecolor=ENCRE, markeredgecolor=SURFACE, markeredgewidth=1.3)
+
+    for xi, yi in zip(annees_c[manquants], nouvelle_c[manquants]):
+        ax.annotate(f"{yi:,.0f}".replace(",", " "), (xi, yi), textcoords="offset points",
+                   xytext=(0, 11), ha="center", fontsize=8.5, fontweight="bold", color=ENCRE, zorder=5)
+    for xi, yi in zip(annees_c[manquants], ancienne_c[manquants]):
+        ax.annotate(f"{yi:,.0f}".replace(",", " "), (xi, yi), textcoords="offset points",
+                   xytext=(0, -15), ha="center", fontsize=8, color=MUET, zorder=5)
+
+    fig.suptitle("Interpolation / extrapolation — gradient local par bord", fontsize=13,
+               fontweight="bold", color=ENCRE, y=0.99)
+    ax.set_title(f"Segment réel #{ID_SEGMENT_EXTRAPOLATION} · DJMA (véh./jour)",
+               fontsize=10, color=ENCRE_2, pad=10)
+    ax.set_xticks(annees_c)
+    ax.set_xticklabels(annees_c, fontsize=9, color=ENCRE_2)
+    ax.set_ylabel("DJMA (véh./jour)", fontsize=9.5, color=ENCRE_2)
+    ax.yaxis.grid(True, color=GRILLE, linewidth=1, zorder=0)
+    ax.set_axisbelow(True)
+    ax.tick_params(axis="both", length=0)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+    legende_carte(ax, [
+        Line2D([0], [0], color=ENCRE, lw=2, marker="o", markersize=7, label="Connu"),
+        Line2D([0], [0], color=MUET, lw=1, linestyle="--", marker="^", markersize=7,
+              label="Ancienne méthode (régression globale)"),
+        Line2D([0], [0], color=SAUMON, lw=1.8, marker="D", markersize=7,
+              label="Nouvelle méthode (gradient local)"),
+    ], loc="lower center")
+
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(FIG_DIR / "extrapolation_gradient.png", dpi=150)
+    plt.close(fig)
+    print(f"  extrapolation_gradient.png (segment {ID_SEGMENT_EXTRAPOLATION})")
+
+
+# ============================================================
+# FIGURE — Complétion géographique (KNN + IDW, exemple réel)
+# ============================================================
+
+def figure_knn_geographique() -> None:
+    """Étape 3 de la cascade, sur un vrai segment sans aucune mesure : KNN + IDW.
+
+    Reproduit exactement la sélection de voisins_ponderes() (même algorithme
+    que phase2_geographique) pour un segment cible réel, et montre les
+    K_VOISINS segments source qui ont déterminé sa valeur complétée, reliés
+    par des traits dont l'épaisseur encode le poids IDW (1/distance²).
+
+    Fond neutre uni (pas le fond de carte Québec/eau) : au zoom local requis
+    ici (quelques km), une grande étendue d'eau peut dominer visuellement le
+    cadre sans rien ajouter à la lecture du mécanisme KNN.
+    """
+    gdf = gpd.read_file(PATH_DEBITS_COMPLETES, layer="debits_completes")
+    gdf_proj   = gdf.to_crs(CRS_PROJETE)
+    centroides = gdf_proj.geometry.centroid
+
+    mask_knn = gdf["methode_djma"] == "geo_knn"
+    mask_src = ~mask_knn
+    src_idx    = gdf.index[mask_src].tolist()
+    coords_src = np.array([(c.x, c.y) for c in centroides[mask_src]])
+    types_src  = gdf.loc[mask_src, "index_agreg"].values
+    arbre      = cKDTree(coords_src)
+
+    idx_cible   = gdf.index[gdf["ide_sectn_trafc"] == ID_SEGMENT_KNN][0]
+    coord_cible = np.array([centroides.loc[idx_cible].x, centroides.loc[idx_cible].y])
+    type_cible  = gdf.loc[idx_cible, "index_agreg"]
+
+    idx_voisins, poids, distances = voisins_ponderes(
+        coord_cible, type_cible, coords_src, types_src, src_idx, arbre)
+
+    moyennes_voisins = gdf.loc[idx_voisins, DJMA_COLS].astype(float).mean(axis=1)
+    moyenne_cible     = gdf.loc[idx_cible, DJMA_COLS].astype(float).mean()
+
+    zone = gdf_proj.loc[[idx_cible] + idx_voisins]
+    minx, miny, maxx, maxy = zone.total_bounds
+    marge = max(600.0, 0.35 * max(maxx - minx, maxy - miny))
+    bbox_local = (minx - marge, miny - marge, maxx + marge, maxy + marge)
+
+    fig, ax = nouvelle_carte()
+    ax.set_facecolor(FOND_TERRE)
+    ax.set_xlim(bbox_local[0], bbox_local[2])
+    ax.set_ylim(bbox_local[1], bbox_local[3])
+    ax.set_aspect("equal")
+    ax.set_axis_off()
+
+    for idx_v, poids_v in zip(idx_voisins, poids):
+        cv = centroides.loc[idx_v]
+        ax.plot([coord_cible[0], cv.x], [coord_cible[1], cv.y], color=MUET,
+               linewidth=0.6 + 5.0 * poids_v, alpha=0.7, zorder=2, solid_capstyle="round")
+
+    gdf_proj.loc[idx_voisins].plot(ax=ax, color=BLEU_NOEUD, linewidth=2.2, zorder=3)
+    gdf_proj.loc[[idx_cible]].plot(ax=ax, color=SAUMON, linewidth=3, zorder=4)
+
+    # Étiquettes orientées radialement (centre du groupe → chaque point), pour
+    # limiter les collisions entre voisins proches sur l'image.
+    centre = np.array([coord_cible[0], coord_cible[1]])
+    for idx_v, poids_v in zip(idx_voisins, poids):
+        cv = centroides.loc[idx_v]
+        ax.plot(cv.x, cv.y, marker="o", markersize=8, markerfacecolor=BLEU_NOEUD,
+               markeredgecolor=SURFACE, markeredgewidth=1.5, zorder=5)
+        direction = np.array([cv.x, cv.y]) - centre
+        direction = direction / (np.linalg.norm(direction) or 1.0)
+        ax.annotate(f"{moyennes_voisins[idx_v]:,.0f} véh/j — poids {100*poids_v:.0f} %".replace(",", " "),
+                   (cv.x, cv.y), textcoords="offset points",
+                   xytext=(18 * direction[0], 18 * direction[1]),
+                   ha="center", va="center", fontsize=8.5, color=ENCRE_2, zorder=6)
+
+    ax.plot(coord_cible[0], coord_cible[1], marker="*", markersize=18, markerfacecolor=SAUMON,
+           markeredgecolor=SURFACE, markeredgewidth=1.5, zorder=6)
+    ax.annotate(f"Cible → {moyenne_cible:,.0f} véh/j (estimé)".replace(",", " "),
+               (coord_cible[0], coord_cible[1]), textcoords="offset points", xytext=(0, -18),
+               ha="center", fontsize=9.5, fontweight="bold", color=ENCRE, zorder=6)
+
+    entete_carte(ax, "Complétion géographique — KNN + IDW",
+               f"Segment réel #{ID_SEGMENT_KNN} · {len(idx_voisins)} voisins pondérés par 1/distance²")
+
+    legende_carte(ax, [
+        Line2D([0], [0], marker="*", color=SURFACE, markerfacecolor=SAUMON, markersize=14,
+              label="Segment cible (sans mesure)"),
+        Line2D([0], [0], marker="o", color=SURFACE, markerfacecolor=BLEU_NOEUD, markersize=9,
+              label="Voisins utilisés (IDW)"),
+        Line2D([0], [0], color=MUET, lw=2, label="Poids ∝ épaisseur du trait"),
+    ])
+
+    fig.savefig(FIG_DIR / "knn_geographique.png", dpi=150)
+    plt.close(fig)
+    print(f"  knn_geographique.png (segment {ID_SEGMENT_KNN}, {len(idx_voisins)} voisins)")
+
+
+# ============================================================
+# FIGURE 5 — Évolution de la complétude à travers la cascade
+# ============================================================
+
+ETAPES_CASCADE = ["Brut", "+ Interpolation /\nextrapolation", "+ RandomForest", "+ KNN géo"]
+
+
+def calculer_evolution_completion(deb: gpd.GeoDataFrame, stats: dict) -> dict:
+    """% de segments complets (DJMA, %camion) après chaque étape de la cascade de complétion.
+
+    Rejoue phase1_temporelle / mice_cam / phase2_geographique (les mêmes fonctions
+    que le pipeline de production) sur une copie, en mesurant la complétude réelle
+    (comptage direct des NaN restants) après chacune — pas les étiquettes internes
+    methode_djma/methode_cam, pour rester vrai même si leur sémantique évolue.
+    """
+    print("\n[Évolution complétion] Rejeu séquentiel des 3 étapes de la cascade...")
+
+    pct_djma = [float(stats["pct_djma"]["Complet"])]
+    pct_cam  = [float(stats["pct_cam"]["Complet"])]
+
+    gdf = phase1_temporelle(deb.copy())
+    pct_djma.append(100 * gdf[DJMA_COLS].notna().all(axis=1).mean())
+    pct_cam.append(100 * gdf[CAM_COLS].notna().all(axis=1).mean())
+
+    gdf = mice_cam(gdf)
+    pct_djma.append(pct_djma[-1])   # le RandomForest ne complète que %camion, jamais DJMA
+    pct_cam.append(100 * gdf[CAM_COLS].notna().all(axis=1).mean())
+
+    gdf = phase2_geographique(gdf)
+    pct_djma.append(100 * gdf[DJMA_COLS].notna().all(axis=1).mean())
+    pct_cam.append(100 * gdf[CAM_COLS].notna().all(axis=1).mean())
+
+    return {"etapes": ETAPES_CASCADE, "pct_djma": pct_djma, "pct_cam": pct_cam}
+
+
+def figure_evolution_completion(evolution: dict) -> None:
+    """Évolution du % de segments complets, DJMA vs %camions, à travers la cascade."""
+    etapes   = evolution["etapes"]
+    pct_djma = evolution["pct_djma"]
+    pct_cam  = evolution["pct_cam"]
+    x = list(range(len(etapes)))
+
+    fig, ax = plt.subplots(figsize=(7.5, 5.5))
+
+    for serie, couleur, label in [(pct_djma, BLEU_NOEUD, "DJMA"), (pct_cam, SAUMON, "% camions")]:
+        ax.plot(x, serie, color=couleur, linewidth=2, solid_capstyle="round", zorder=3,
+                marker="o", markersize=8, markerfacecolor=couleur,
+                markeredgecolor=SURFACE, markeredgewidth=2, label=label)
+        for xi, yi in zip(x, serie):
+            etiquette = f"{yi:.0f} %".replace(".", ",")
+            ax.annotate(etiquette, (xi, yi), textcoords="offset points", xytext=(0, 10),
+                       ha="center", fontsize=9, fontweight="bold", color=ENCRE, zorder=4)
+
+    ax.set_title("Évolution de la complétude des données — DJMA vs % camions", fontsize=13,
+                fontweight="bold", color=ENCRE, pad=14)
+    ax.set_xlim(-0.3, len(etapes) - 0.7)
+    ax.set_xticks(x)
+    ax.set_xticklabels(etapes, fontsize=9.5, color=ENCRE_2)
+    ax.set_ylim(0, 112)
+    ax.set_yticks([0, 25, 50, 75, 100])
+    ax.set_yticklabels([f"{v} %" for v in [0, 25, 50, 75, 100]], fontsize=8.5, color=MUET)
+    ax.tick_params(axis="both", length=0)
+    ax.yaxis.grid(True, color=GRILLE, linewidth=1, zorder=0)
+    ax.set_axisbelow(True)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+    legende_carte(ax, [
+        Line2D([0], [0], color=BLEU_NOEUD, lw=2, marker="o", markersize=7, label="DJMA"),
+        Line2D([0], [0], color=SAUMON, lw=2, marker="o", markersize=7, label="% camions"),
+    ], loc="lower right")
+
+    fig.tight_layout()
+    fig.savefig(FIG_DIR / "evolution_completion.png", dpi=150)
+    plt.close(fig)
+    print(f"  evolution_completion.png  (DJMA {pct_djma[0]:.1f}%→{pct_djma[-1]:.1f}% ; "
+          f"%camions {pct_cam[0]:.1f}%→{pct_cam[-1]:.1f}%)")
+
+
 def main() -> None:
     FIG_DIR.mkdir(exist_ok=True)
     print("Génération des figures de vulgarisation des données...")
@@ -353,6 +641,12 @@ def main() -> None:
     deb["cat_djma"] = stats["cat_djma"]
     figure_comptage_routier(bbox, fond, stats, deb)
     figure_comptage_completude(stats)
+
+    figure_extrapolation_gradient()
+    figure_knn_geographique()
+
+    evolution = calculer_evolution_completion(deb, stats)
+    figure_evolution_completion(evolution)
 
     print(f"\nTerminé — figures dans {FIG_DIR}")
 

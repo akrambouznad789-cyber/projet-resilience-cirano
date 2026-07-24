@@ -3,13 +3,15 @@ generer_figures_resultats.py
 =============================
 Projet CIRANO — Figures statiques pour la présentation du projet (README)
 
-Génère 5 PNG dans figures/ :
+Génère 6 PNG dans figures/ :
   1. validation_randomforest.png : validation croisée du RandomForest (%cam),
      prédit vs réel, avec R² et RMSE
-  2. distribution_djma.png       : distribution des DJMA par méthode (m1-m4)
-  3. comparaison_methodes.png    : comparaison des 4 méthodes par arc
-  4. carte_reseau_djma.png       : carte statique du réseau, arcs colorés par DJMA (m4)
-  5. carte_resultats.png         : carte statique OK (vert) / échec (rouge, orange)
+  2. randomforest_subsets.png    : la même validation croisée, facettée par type
+     de route — le "subset" que le modèle apprend à distinguer
+  3. distribution_djma.png       : distribution des DJMA par méthode (m1-m4)
+  4. comparaison_methodes.png    : comparaison des 4 méthodes par arc
+  5. carte_reseau_djma.png       : carte statique du réseau, arcs colorés par DJMA (m4)
+  6. carte_resultats.png         : carte statique OK (vert) / échec (rouge, orange)
 """
 
 from pathlib import Path
@@ -22,6 +24,13 @@ from matplotlib.colors import LogNorm
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import KFold, cross_val_predict
+
+from completion_donnees_randomforest import (
+    CATEGORIES_ROUTE,
+    FEATURES_SUPPLEMENTAIRES,
+    ROUTE_DUMMY_COLS,
+    construire_features_supplementaires,
+)
 
 RACINE      = Path(__file__).resolve().parent.parent
 FIG_DIR     = RACINE / "figures"
@@ -47,6 +56,19 @@ CRITIQUE   = "#d03b3b"   # statut : hors_quebec
 GRIS_AXE   = "#898781"
 COULEURS_M = {"m1": "#2a78d6", "m2": "#008300", "m3": "#e87ba4", "m4": "#eda100"}
 
+# Couleurs par type de route — DOIT rester synchronisé avec COULEURS_CLASSE /
+# COULEUR_AUTRE dans generer_figure_donnees.py (identité visuelle cohérente
+# dans tout le README). Redéfini ici plutôt qu'importé pour ne pas déclencher
+# les effets de bord de ce module au chargement (téléchargement de polices,
+# plt.rcParams global en Arimo).
+COULEURS_ROUTE = {
+    "Autoroute":   "#f2a0b5",
+    "Nationale":   "#8fa8f0",
+    "Régionale":   "#7ecfb0",
+    "Collectrice": "#b6a8d9",
+    "Autre":       "#cfcabd",
+}
+
 plt.rcParams.update({
     "font.family": "sans-serif",
     "axes.edgecolor": GRIS_AXE,
@@ -60,16 +82,27 @@ plt.rcParams.update({
 })
 
 
-def figure_validation_randomforest() -> None:
-    """Validation croisée (5-fold) du RandomForest utilisé pour compléter %cam."""
+def _validation_croisee_randomforest() -> dict:
+    """Validation croisée (5-fold) du RandomForest utilisé pour compléter %cam.
+
+    Calculée une seule fois ; partagée par figure_validation_randomforest()
+    (score global) et figure_randomforest_subsets() (le même résultat,
+    facetté par type de route) pour ne pas entraîner le modèle deux fois.
+    """
     gdf = gpd.read_file(DEBITS_FILE, layer=DEBITS_LAYER)
 
     mask_train = (
         gdf["methode_djma"].isin(["complet", "interpolation", "extrapolation"])
         & gdf["methode_cam"].isin(["complet", "interpolation", "extrapolation"])
     )
-    X = gdf.loc[mask_train, DJMA_COLS].values
+    features = construire_features_supplementaires(gdf)
+    X = np.hstack([
+        gdf.loc[mask_train, DJMA_COLS].values,
+        features.loc[mask_train, FEATURES_SUPPLEMENTAIRES].values,
+    ])
     Y = gdf.loc[mask_train, CAM_COLS].values
+
+    type_route = features.loc[mask_train, ROUTE_DUMMY_COLS].idxmax(axis=1).str.replace("route_", "")
 
     modele = RandomForestRegressor(n_estimators=50, random_state=42, n_jobs=-1)
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
@@ -77,8 +110,21 @@ def figure_validation_randomforest() -> None:
 
     y_true_flat = Y.flatten()
     y_pred_flat = y_pred.flatten()
-    r2   = r2_score(y_true_flat, y_pred_flat)
-    rmse = mean_squared_error(y_true_flat, y_pred_flat) ** 0.5
+    # une ligne = 10 années consécutives dans .flatten() (ordre C) : répéter le
+    # type de route 10x aligne exactement chaque valeur annuelle sur son segment
+    type_route_flat = np.repeat(type_route.values, N_ANNEES)
+
+    return {
+        "y_true": y_true_flat, "y_pred": y_pred_flat, "type_route": type_route_flat,
+        "r2": r2_score(y_true_flat, y_pred_flat),
+        "rmse": mean_squared_error(y_true_flat, y_pred_flat) ** 0.5,
+        "n_segments": int(mask_train.sum()), "n_features": X.shape[1],
+    }
+
+
+def figure_validation_randomforest(cv: dict) -> None:
+    """Validation croisée (5-fold) du RandomForest utilisé pour compléter %cam."""
+    y_true_flat, y_pred_flat = cv["y_true"], cv["y_pred"]
 
     rng = np.random.default_rng(42)
     if len(y_true_flat) > 3000:
@@ -92,13 +138,57 @@ def figure_validation_randomforest() -> None:
     ax.set_xlim(lims); ax.set_ylim(lims)
     ax.set_xlabel("% camions réel")
     ax.set_ylabel("% camions prédit (RandomForest, validation croisée 5-fold)")
-    ax.set_title(f"Validation du RandomForest — R² = {r2:.3f}, RMSE = {rmse:.2f} pts")
+    ax.set_title(f"Validation du RandomForest — R² = {cv['r2']:.3f}, RMSE = {cv['rmse']:.2f} pts")
     ax.legend(frameon=False, loc="upper left")
     ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
     fig.savefig(FIG_DIR / "validation_randomforest.png", dpi=150)
     plt.close(fig)
-    print(f"  validation_randomforest.png  (R²={r2:.3f}, RMSE={rmse:.2f}, n={mask_train.sum()} segments)")
+    print(f"  validation_randomforest.png  (R²={cv['r2']:.3f}, RMSE={cv['rmse']:.2f}, "
+          f"n={cv['n_segments']} segments, {cv['n_features']} features)")
+
+
+def figure_randomforest_subsets(cv: dict) -> None:
+    """La même validation croisée que ci-dessus, facettée par type de route.
+
+    Le type de route est la feature la plus structurante du modèle enrichi :
+    ce petit multiple montre que le RandomForest sépare effectivement ses
+    erreurs selon ce "subset", plutôt que de prédire une masse indifférenciée.
+    """
+    y_true, y_pred, type_route = cv["y_true"], cv["y_pred"], cv["type_route"]
+    lims = [0, max(y_true.max(), y_pred.max()) * 1.05]
+
+    fig, axes = plt.subplots(2, 3, figsize=(13, 8.5))
+    axes_flat = axes.flatten()
+    rng = np.random.default_rng(42)
+
+    for ax, categorie in zip(axes_flat, CATEGORIES_ROUTE):
+        masque = type_route == categorie
+        yt, yp = y_true[masque], y_pred[masque]
+        if len(yt) > 1500:
+            idx = rng.choice(len(yt), 1500, replace=False)
+            yt, yp = yt[idx], yp[idx]
+
+        couleur = COULEURS_ROUTE[categorie]
+        ax.scatter(yt, yp, s=10, alpha=0.35, color=couleur, linewidths=0)
+        ax.plot(lims, lims, color=GRIS_AXE, linewidth=1.2, linestyle="--")
+        ax.set_xlim(lims); ax.set_ylim(lims)
+        r2_sub = r2_score(y_true[masque], y_pred[masque])
+        ax.set_title(f"{categorie}  (n={masque.sum()}, R²={r2_sub:.2f})", fontsize=10.5)
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.tick_params(labelsize=8.5)
+
+    for ax in axes_flat[len(CATEGORIES_ROUTE):]:
+        ax.set_axis_off()
+
+    fig.supxlabel("% camions réel", fontsize=10.5)
+    fig.supylabel("% camions prédit", fontsize=10.5)
+    fig.suptitle("RandomForest — prédictions par type de route (les \"subsets\" du modèle)",
+               fontsize=13, fontweight="bold")
+    fig.tight_layout(rect=(0.01, 0.01, 1, 0.95))
+    fig.savefig(FIG_DIR / "randomforest_subsets.png", dpi=150)
+    plt.close(fig)
+    print("  randomforest_subsets.png")
 
 
 def figure_distribution_djma() -> None:
@@ -190,7 +280,9 @@ def figure_carte_resultats() -> None:
 def main() -> None:
     FIG_DIR.mkdir(exist_ok=True)
     print("Génération des figures...")
-    figure_validation_randomforest()
+    cv = _validation_croisee_randomforest()
+    figure_validation_randomforest(cv)
+    figure_randomforest_subsets(cv)
     figure_distribution_djma()
     figure_comparaison_methodes()
     figure_carte_reseau_djma()
