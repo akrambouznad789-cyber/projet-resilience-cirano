@@ -5,16 +5,33 @@ Projet de recherche sur la résilience des réseaux de transport multimodaux —
 ## Pipeline
 
 ```mermaid
-flowchart LR
-    A[data/raw — MTQ] --> B[completion_donnees_randomforest.py]
-    B --> C[debits_completes.gpkg]
-    C --> D[algo_jointure_routes_liens.py]
-    D --> E[graphe_routier.gpkg]
-    E --> F[calcul_djma_methodes.py]
-    F --> G[graphe_routier_djma.gpkg]
-    G --> H[comparaison_methodes_djma.py]
-    G --> I[nettoyage_projet_qgis.py]
+flowchart TD
+    A["📥 <b>Données brutes MTQ</b><br/>data/raw/"]
+    B["🧩 <b>Complétion des débits</b><br/>RandomForest + interpolation + KNN<br/><i>completion_donnees_randomforest.py</i>"]
+    C[("💾 debits_completes.gpkg")]
+    D["🗺️ <b>Routage &amp; jointure</b><br/>OSRM + 3 filtres géométriques<br/><i>algo_jointure_routes_liens.py</i>"]
+    E[("💾 graphe_routier.gpkg")]
+    F["📈 <b>Calcul du DJMA</b><br/>Agrégation par arc, 4 méthodes (m1-m4)<br/><i>calcul_djma_methodes.py</i>"]
+    G[("✅ graphe_routier_djma.gpkg")]
+    H["📊 <b>Comparaison des méthodes</b><br/><i>comparaison_methodes_djma.py</i>"]
+    I["🖥️ <b>Livrable QGIS</b><br/><i>nettoyage_projet_qgis.py</i>"]
+
+    A --> B --> C --> D --> E --> F --> G
+    G --> H
+    G --> I
+
+    classDef inputStyle fill:#dbe9ff,stroke:#3b6fd6,stroke-width:1px,color:#0d1b3e
+    classDef scriptStyle fill:#fff2cc,stroke:#d6a83b,stroke-width:1px,color:#3e2f0d
+    classDef dataStyle fill:#d9f2e3,stroke:#3bb273,stroke-width:1px,color:#0d3e1f
+    classDef outputStyle fill:#f6dbe9,stroke:#c74c8f,stroke-width:1px,color:#3e0d29
+
+    class A inputStyle
+    class B,D,F,H,I scriptStyle
+    class C,E dataStyle
+    class G outputStyle
 ```
+
+🔵 Donnée source · 🟡 Script Python (traitement) · 🟢 Fichier intermédiaire (GeoPackage) · 🟣 Résultat final
 
 | Étape | Script | Rôle |
 |---|---|---|
@@ -23,6 +40,69 @@ flowchart LR
 | 3 | `calcul_djma_methodes.py` | Agrège le DJMA par arc selon 4 méthodes (m1-m4) |
 | 4 | `comparaison_methodes_djma.py` | Compare les 4 méthodes (stats, corrélation, arcs divergents) |
 | 5 | `nettoyage_projet_qgis.py` | Prépare le projet QGIS livrable |
+
+## Données
+
+Le projet croise trois couches géographiques distinctes, qui répondent chacune à une question différente sur le même territoire :
+
+| Couche | Fichier | Rôle | Modifiable ? |
+|---|---|---|---|
+| **Nœuds et liens** | `data/raw/reseau_arcs.gpkg` (couches `noeuds`, `arcs`) | Définit *quelles villes* et *quelles paires de villes* on étudie — le graphe simplifié du projet | Oui — un simple fichier (id, nom, ville A, ville B, distance) : ajouter ou retirer une ville ne touche à rien d'autre dans le pipeline |
+| **Réseau routier (RTSS)** | `data/raw/ReseauRoutier_RTSS.gpkg` (MTQ) | La géométrie détaillée des routes du Québec, avec leur classification (autoroute, nationale, régionale, collectrice…) — sert à router chaque lien sur de vraies routes | Non — donnée source du MTQ |
+| **Comptage routier** | `data/raw/DebitCirculation.gpkg` (MTQ) | 7 823 stations de comptage réel, chacune avec jusqu'à 10 ans de mesures (DJMA, DJME, DJMH, % camions) | Non — donnée source du MTQ, c'est elle qui porte le problème de données manquantes |
+
+### Réseau graphe — nœuds et liens
+
+307 liens simplifiés relient 207 villes du Québec (municipalités, nœuds intermédiaires, points frontière). C'est le graphe étudié par le projet, indépendant des deux couches suivantes — modifiable en éditant directement `reseau_arcs.gpkg`.
+
+![Réseau graphe — nœuds et liens](figures/reseau_graphe.png)
+
+| Nœuds | Description |
+|---|---|
+| `ID` | Identifiant unique du nœud |
+| `NOM` | Nom de la ville / municipalité |
+| `TYPE` | Municipalité, nœud intermédiaire ou point frontière |
+| `NB_ARCS` | Nombre de liens connectés à ce nœud |
+
+| Arcs | Description |
+|---|---|
+| `ID_ARC` | Identifiant unique du lien |
+| `VILLE_A` / `VILLE_B` | Les deux villes reliées par ce lien |
+| `DIST_KM` | Distance à vol d'oiseau entre A et B |
+| `SOURCE` | Comment la paire a été retenue (BFS, forcé, nœud, frontière) |
+
+### Réseau routier — RTSS
+
+Chaque lien du graphe est ensuite routé sur le réseau routier réel du MTQ — 12 567 segments classifiés par type de route — qui sert de base géométrique au routage (voir [Routage](#routage)).
+
+![Réseau routier — RTSS, coloré par type de route](figures/reseau_routier.png)
+
+| Type de route | Segments | % |
+|---|---|---|
+| Autoroute | 4 222 | 33,6 % |
+| Nationale | 2 859 | 22,8 % |
+| Régionale | 1 581 | 12,6 % |
+| Collectrice | 1 963 | 15,6 % |
+| Autre / sans classe | 1 942 | 15,5 % |
+
+### Comptage routier
+
+Enfin, 7 823 stations de comptage MTQ portent les mesures de trafic (DJMA, % camions) qui viennent enrichir le réseau — la table brute a 110 colonnes, peu lisibles telles quelles :
+
+| Variable | Description |
+|---|---|
+| `ide_sectn_trafc` | Identifiant unique du segment de comptage |
+| `des_debut` / `fin_sous_route` | Description textuelle des deux extrémités |
+| `djma_annee_i` / `val_djma_annee_i` | Année mesurée / valeur du DJMA (i = 1 à 10) |
+| `cam_annee_i` / `val_cam_annee_i` | Année mesurée / valeur du % camions (i = 1 à 10) |
+
+C'est ici que se loge le problème de données manquantes : seuls **34,7 %** des segments ont un DJMA complet sur 10 ans, et seulement **1,7 %** ont un % camions complet.
+
+![Comptage routier — complétude du DJMA](figures/comptage_routier.png)
+
+![Complétude DJMA vs % camions](figures/comptage_completude.png)
+
+Un DJMA complet ne garantit presque jamais un % camions complet. C'est ce trou précis que la section suivante comble par apprentissage automatique.
 
 ## Données & Random Forest
 
@@ -103,6 +183,7 @@ python3 scripts/calcul_djma_methodes.py
 python3 scripts/comparaison_methodes_djma.py
 python3 scripts/nettoyage_projet_qgis.py
 python3 scripts/generer_figures_resultats.py
+python3 scripts/generer_figure_donnees.py
 ```
 
 Le projet QGIS livrable (`qgis/reseau-routier-graphe.qgz`) utilise des chemins relatifs et s'ouvre directement après un `git clone`.
