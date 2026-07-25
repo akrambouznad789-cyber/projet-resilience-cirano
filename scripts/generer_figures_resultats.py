@@ -3,15 +3,16 @@ generer_figures_resultats.py
 =============================
 Projet CIRANO — Figures statiques pour la présentation du projet (README)
 
-Génère 6 PNG dans figures/ :
-  1. validation_randomforest.png : validation croisée du RandomForest (%cam),
+Génère 5 PNG dans figures/ :
+  1. validation_randomforest.png     : validation croisée du RandomForest (%cam),
      prédit vs réel, avec R² et RMSE
-  2. randomforest_subsets.png    : la même validation croisée, facettée par type
+  2. randomforest_subsets.png        : la même validation croisée, facettée par type
      de route — le "subset" que le modèle apprend à distinguer
-  3. distribution_djma.png       : distribution des DJMA par méthode (m1-m4)
-  4. comparaison_methodes.png    : comparaison des 4 méthodes par arc
-  5. carte_reseau_djma.png       : carte statique du réseau, arcs colorés par DJMA (m4)
-  6. carte_resultats.png         : carte statique OK (vert) / échec (rouge, orange)
+  3. carte_3d_divergence_methodes.png : réseau routier empilé en 4 plateaux (m1-m4),
+     colorés par DJMA — épaisseur des traits et connecteurs verticaux mettant en
+     évidence les arcs où les 4 méthodes divergent le plus
+  4. carte_reseau_djma.png          : carte statique du réseau, arcs colorés par DJMA (m4)
+  5. carte_resultats.png            : carte statique OK (vert) / échec (rouge, orange)
 """
 
 from pathlib import Path
@@ -21,6 +22,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.colors import LogNorm
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 — enregistre la projection 3D
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import KFold, cross_val_predict
@@ -191,50 +193,111 @@ def figure_randomforest_subsets(cv: dict) -> None:
     print("  randomforest_subsets.png")
 
 
-def figure_distribution_djma() -> None:
-    gdf = gpd.read_file(RESEAU_FILE, layer=RESEAU_LAYER)
+def figure_carte_3d_divergence_methodes() -> None:
+    """Réseau routier empilé en 4 plateaux (m1 à m4, bas → haut).
+
+    Couleur = DJMA de la méthode (rampe séquentielle Blues, échelle log commune
+    aux 4 plateaux : une teinte qui change verticalement au même endroit EST le
+    signal de divergence). Épaisseur du trait (identique sur les 4 plateaux) et
+    connecteurs verticaux = écart relatif entre méthodes — "densité" sur les
+    arcs les plus hétérogènes, remplace les anciennes figures distribution_djma
+    / comparaison_methodes (jugées redondantes, aucune information spatiale).
+    """
     cols = ["djma_m1", "djma_m2", "djma_m3", "djma_m4"]
-    data = [gdf[c].dropna().values for c in cols]
+    djma = gpd.read_file(RESEAU_FILE, layer=RESEAU_LAYER)[["ID_ARC"] + cols]
+    arcs = gpd.read_file(ARCS_FILE, layer=ARCS_LAYER)[["ID_ARC", "VILLE_A", "VILLE_B", "geometry"]]
+    gdf = arcs.merge(djma, on="ID_ARC", how="left")
 
-    fig, ax = plt.subplots(figsize=(7, 5))
-    bp = ax.boxplot(data, tick_labels=["m1", "m2", "m3", "m4"], patch_artist=True, widths=0.5)
-    for patch, col in zip(bp["boxes"], cols):
-        patch.set_facecolor(COULEURS_M[col.replace("djma_", "")])
-        patch.set_alpha(0.75)
-    for median in bp["medians"]:
-        median.set_color("#0b0b0b")
+    valides = gdf.dropna(subset=cols).copy()
+    valides["ecart_pct"] = (
+        (valides[cols].max(axis=1) - valides[cols].min(axis=1)) / valides[cols].mean(axis=1) * 100
+    )
+    sans_valeur = gdf[gdf[cols].isna().any(axis=1)]
 
-    ax.set_yscale("log")
-    ax.set_ylabel("DJMA (véh./jour, échelle log)")
-    ax.set_title("Distribution du DJMA agrégé par méthode (285 arcs valides)")
-    ax.spines[["top", "right"]].set_visible(False)
-    fig.tight_layout()
-    fig.savefig(FIG_DIR / "distribution_djma.png", dpi=150)
+    vmin = valides[cols].min().min()
+    vmax = valides[cols].max().max()
+    norm = LogNorm(vmin=vmin, vmax=vmax)
+    cmap = plt.get_cmap("Blues")
+
+    def largeur(ecart_pct: float) -> float:
+        return 0.5 + min(ecart_pct, 150.0) / 150.0 * 3.5
+
+    ACCENT = COULEURS_M["m4"]
+    N_TOP  = 10
+    top_divergents = valides.nlargest(N_TOP, "ecart_pct")
+
+    fig = plt.figure(figsize=(10, 7.5))
+    ax = fig.add_subplot(111, projection="3d")
+
+    for _, row in sans_valeur.iterrows():
+        xs, ys = row.geometry.xy
+        for z in range(4):
+            ax.plot(xs, ys, [z] * len(xs), color="#e1e0d9", linewidth=0.4, alpha=0.5)
+
+    for _, row in valides.iterrows():
+        xs, ys = row.geometry.xy
+        lw = largeur(row["ecart_pct"])
+        for z, col in enumerate(cols):
+            couleur = cmap(norm(row[col]))
+            ax.plot(xs, ys, [z] * len(xs), color=couleur, linewidth=lw, alpha=0.88,
+                     solid_capstyle="round")
+
+    for _, row in top_divergents.iterrows():
+        cx, cy = row.geometry.centroid.x, row.geometry.centroid.y
+        ax.plot([cx, cx], [cy, cy], [0, 3], color=ACCENT, linewidth=0.8,
+                 alpha=0.4, linestyle=(0, (1, 1.5)))
+
+    xmin, ymin = gdf.total_bounds[0], gdf.total_bounds[1]
+    for z in range(4):
+        ax.text(xmin, ymin, z, f"m{z + 1}", fontsize=11, fontweight="bold", color=GRIS_AXE)
+
+    ax.set_axis_off()
+    ax.set_zlim(-0.2, 3.3)
+    ax.view_init(elev=24, azim=-60)
+    try:
+        ax.set_box_aspect((1, 1, 0.55), zoom=1.6)
+    except TypeError:
+        ax.set_box_aspect((1, 1, 0.55))
+
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    cbar = fig.colorbar(sm, ax=ax, shrink=0.4, pad=0.0)
+    cbar.set_label("DJMA (véh./jour, échelle log)")
+
+    ax.set_title("Superposition des 4 méthodes DJMA — où les écarts sont les plus grands",
+                 fontsize=12.5)
+
+    top3 = top_divergents.nlargest(3, "ecart_pct")
+    lignes_top3 = "  |  ".join(
+        f"{row['VILLE_A']}–{row['VILLE_B']} ({row['ecart_pct']:.0f} %)" for _, row in top3.iterrows()
+    )
+    fig.text(0.5, 0.05,
+             f"Épaisseur ∝ écart relatif entre méthodes  |  pointillés = {N_TOP} arcs les plus divergents\n"
+             f"Écarts les plus marqués : {lignes_top3}",
+             ha="center", fontsize=8.5, color=GRIS_AXE)
+
+    chemin = FIG_DIR / "carte_3d_divergence_methodes.png"
+    fig.savefig(chemin, dpi=150, bbox_inches="tight")
     plt.close(fig)
-    print("  distribution_djma.png")
+    _recadrer_marges_blanches(chemin)
+    print("  carte_3d_divergence_methodes.png")
 
 
-def figure_comparaison_methodes() -> None:
-    gdf = gpd.read_file(RESEAU_FILE, layer=RESEAU_LAYER)
-    cols = ["djma_m1", "djma_m2", "djma_m3", "djma_m4"]
-    valides = gdf.dropna(subset=cols).sort_values("djma_m1")
+def _recadrer_marges_blanches(chemin: Path, pad: int = 20) -> None:
+    """Recadre les marges blanches excédentaires — mplot3d laisse une grande
+    zone vide autour de la scène 3D même après bbox_inches='tight'."""
+    from PIL import Image, ImageChops
 
-    fig, ax = plt.subplots(figsize=(9, 5))
-    x = np.arange(len(valides))
-    for col in cols:
-        ax.plot(x, valides[col].values, color=COULEURS_M[col.replace("djma_", "")],
-                linewidth=1.5, label=col.replace("djma_", ""), alpha=0.9)
-
-    ax.set_yscale("log")
-    ax.set_xlabel("Arcs (triés par djma_m1)")
-    ax.set_ylabel("DJMA (véh./jour, échelle log)")
-    ax.set_title("Comparaison des 4 méthodes DJMA, par arc")
-    ax.legend(frameon=False, ncol=4, loc="upper left")
-    ax.spines[["top", "right"]].set_visible(False)
-    fig.tight_layout()
-    fig.savefig(FIG_DIR / "comparaison_methodes.png", dpi=150)
-    plt.close(fig)
-    print("  comparaison_methodes.png")
+    img = Image.open(chemin).convert("RGB")
+    fond = Image.new("RGB", img.size, (255, 255, 255))
+    bbox = ImageChops.difference(img, fond).getbbox()
+    if bbox is None:
+        return
+    gauche, haut, droite, bas = bbox
+    gauche = max(gauche - pad, 0)
+    haut   = max(haut - pad, 0)
+    droite = min(droite + pad, img.size[0])
+    bas    = min(bas + pad, img.size[1])
+    img.crop((gauche, haut, droite, bas)).save(chemin)
 
 
 def figure_carte_reseau_djma() -> None:
@@ -283,8 +346,7 @@ def main() -> None:
     cv = _validation_croisee_randomforest()
     figure_validation_randomforest(cv)
     figure_randomforest_subsets(cv)
-    figure_distribution_djma()
-    figure_comparaison_methodes()
+    figure_carte_3d_divergence_methodes()
     figure_carte_reseau_djma()
     figure_carte_resultats()
     print(f"\nTerminé — figures dans {FIG_DIR}")
