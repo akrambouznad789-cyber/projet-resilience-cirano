@@ -8,7 +8,8 @@ MÉTHODES
   m1 : Moyenne simple des DJMA des segments sous-jacents
   m2 : Moyenne pondérée par longueur de segment (depuis la géométrie de trajets_segments)
   m3 : Moyenne pondérée par type d'axe routier (hiérarchie MTQ)
-  m4 : Approximation 90e percentile → α·max(x) + (1−α)·mean(x), α=ALPHA_M4
+  m4 : 80e percentile par rang (nearest-rank) — valeur réelle du segment
+       classé à la position round(PERCENTILE_M4 × n), pas d'interpolation
 
 ENTRÉE
 ------
@@ -64,8 +65,8 @@ POIDS_TYPE: dict[str, int] = {
 }
 POIDS_DEFAUT = 1
 
-# Paramètre m4 — proximité du maximum (0.9 = approximation 90e percentile)
-ALPHA_M4 = 0.90
+# Paramètre m4 — percentile visé (nearest-rank, valeur réelle sans interpolation)
+PERCENTILE_M4 = 0.80
 
 
 # ============================================================
@@ -86,6 +87,38 @@ def parser_valeurs(chaine: str | None, separateur: str = "|") -> list[float]:
         except ValueError:
             continue
     return valeurs
+
+
+def parser_paires_djma_cam(
+    chaine_djma: str | None,
+    chaine_cam: str | None,
+    separateur: str = "|",
+) -> list[tuple[float, float | None]]:
+    """Parse ids_segs_djma_val et ids_segs_djma_val_cam en parallèle (même segment,
+    même position) → liste de (djma_val, cam_val ou None si NA)."""
+    if not chaine_djma or pd.isna(chaine_djma):
+        return []
+    tokens_djma = str(chaine_djma).split(separateur)
+    tokens_cam  = str(chaine_cam).split(separateur) if (chaine_cam and not pd.isna(chaine_cam)) \
+                  else [""] * len(tokens_djma)
+    paires = []
+    for td, tc in zip(tokens_djma, tokens_cam):
+        td = td.strip()
+        if not td or td.upper() == "NA":
+            continue
+        try:
+            val_djma = float(td.split("@")[0])
+        except ValueError:
+            continue
+        tc = tc.strip()
+        val_cam = None
+        if tc and tc.upper() != "NA":
+            try:
+                val_cam = float(tc.split("@")[0])
+            except ValueError:
+                val_cam = None
+        paires.append((val_djma, val_cam))
+    return paires
 
 
 def parser_paires_type(
@@ -212,19 +245,20 @@ def appliquer_m3(arcs: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
 
 # ============================================================
-# M4 — Approximation 90e percentile : α·max + (1−α)·mean
+# M4 — 80e percentile par rang (nearest-rank, valeur réelle)
 # ============================================================
 
 def calculer_m4(row: pd.Series) -> tuple:
-    vals_djma = parser_valeurs(row.get("ids_segs_djma_val"))
-    vals_cam  = parser_valeurs(row.get("ids_segs_djma_val_cam"))
-    if not vals_djma:
+    paires = parser_paires_djma_cam(row.get("ids_segs_djma_val"), row.get("ids_segs_djma_val_cam"))
+    if not paires:
         return None, None, None, 0
-    djma_m4    = round(ALPHA_M4 * max(vals_djma) + (1 - ALPHA_M4) * float(np.mean(vals_djma)))
-    pct_cam_m4 = round(ALPHA_M4 * max(vals_cam) + (1 - ALPHA_M4) * float(np.mean(vals_cam)), 1) \
-                 if vals_cam else None
+    n    = len(paires)
+    rang = min(max(round(PERCENTILE_M4 * n), 1), n)
+    djma_m4, cam_m4 = sorted(paires, key=lambda p: p[0])[rang - 1]
+    djma_m4     = round(djma_m4)
+    pct_cam_m4  = round(cam_m4, 1) if cam_m4 is not None else None
     djma_cam_m4 = round(djma_m4 * pct_cam_m4 / 100) if pct_cam_m4 is not None else None
-    return djma_m4, pct_cam_m4, djma_cam_m4, len(vals_djma)
+    return djma_m4, pct_cam_m4, djma_cam_m4, n
 
 
 def appliquer_m4(arcs: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -258,7 +292,7 @@ def afficher_resume(gdf: gpd.GeoDataFrame, col: str, label: str) -> None:
 def main() -> None:
     print("=" * 65)
     print("CALCUL DJMA — méthodes m1, m2, m3, m4 (v4)")
-    print(f"  alpha m4 = {ALPHA_M4}")
+    print(f"  percentile m4 = {PERCENTILE_M4}")
     print("=" * 65)
 
     print(f"\n[1/5] Chargement {LAYER_ARCS}...")
@@ -279,7 +313,7 @@ def main() -> None:
     print("[3/5] Calcul m3 (pondération type d'axe)...")
     arcs = appliquer_m3(arcs)
 
-    print("[3/5] Calcul m4 (α·max + (1−α)·mean)...")
+    print("[3/5] Calcul m4 (80e percentile, nearest-rank)...")
     arcs = appliquer_m4(arcs)
 
     print("\n[4/5] Résultats :")

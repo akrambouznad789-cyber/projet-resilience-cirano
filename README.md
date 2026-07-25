@@ -184,12 +184,12 @@ Pour chaque arc, le DJMA agrégé est calculé de 4 façons à partir de ses seg
 | **m1** | Moyenne simple des segments | 11 947 |
 | **m2** | Pondérée par longueur de segment | 14 216 |
 | **m3** | Pondérée par type d'axe routier (hiérarchie MTQ) | 12 152 |
-| **m4** | Approximation du 90e percentile : `0,9 × max + 0,1 × mean` | 21 825 |
+| **m4** | 80e percentile par rang (nearest-rank) : valeur réelle du segment classé à la position `round(0,8 × n)`, sans interpolation ni moyenne | 15 351 |
 
 ![Distribution DJMA par méthode](figures/distribution_djma.png)
 ![Comparaison des 4 méthodes par arc](figures/comparaison_methodes.png)
 
-m1, m2 et m3 sont fortement corrélées entre elles (Pearson ≥ 0,979) car elles moyennent la même population de segments différemment. m4 s'en écarte davantage (Pearson ≈ 0,93-0,94) : c'est voulu, elle vise à capturer les pointes de trafic plutôt que la tendance centrale. 208 des 307 arcs montrent un écart relatif > 30 % entre méthodes — un signal que le choix de méthode d'agrégation a un impact réel et doit être fait explicitement selon l'usage (planification vs dimensionnement).
+m1, m2 et m3 sont fortement corrélées entre elles (Pearson ≥ 0,979) car elles moyennent la même population de segments différemment. m4 reste bien corrélée (Pearson ≈ 0,97-0,98) tout en s'en écartant légèrement : c'est voulu, elle vise à capturer les pointes de trafic (80e percentile réel) plutôt que la tendance centrale. 134 des 307 arcs montrent un écart relatif > 30 % entre méthodes — un signal que le choix de méthode d'agrégation a un impact réel et doit être fait explicitement selon l'usage (planification vs dimensionnement).
 
 ## Résultats & faits saillants
 
