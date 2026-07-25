@@ -8,9 +8,9 @@ Génère 5 PNG dans figures/ :
      prédit vs réel, avec R² et RMSE
   2. randomforest_subsets.png        : la même validation croisée, facettée par type
      de route — le "subset" que le modèle apprend à distinguer
-  3. carte_3d_divergence_methodes.png : réseau routier empilé en 4 plateaux (m1-m4),
-     colorés par DJMA — épaisseur des traits et connecteurs verticaux mettant en
-     évidence les arcs où les 4 méthodes divergent le plus
+  3. carte_3d_divergence_methodes.png : carte de densité 3D (prismes façon
+     ax.bar3d) sur fond de carte du Québec — hauteur et couleur (crème→ambre→
+     rouge) = écart relatif entre les 4 méthodes DJMA, par arc
   4. carte_reseau_djma.png          : carte statique du réseau, arcs colorés par DJMA (m4)
   5. carte_resultats.png            : carte statique OK (vert) / échec (rouge, orange)
 """
@@ -21,8 +21,9 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.colors import LogNorm
+from matplotlib.colors import LinearSegmentedColormap, LogNorm, Normalize
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 — enregistre la projection 3D
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import KFold, cross_val_predict
@@ -45,6 +46,14 @@ RESEAU_LAYER = "arcs_enrichis_djma"
 
 ARCS_FILE   = RACINE / "data" / "processed" / "graphe_routier.gpkg"
 ARCS_LAYER  = "arcs_enrichis"
+
+# Fond de carte 3D — mêmes fichiers Natural Earth déjà mis en cache par
+# generer_figure_donnees.py (pas d'import croisé, cf. COULEURS_ROUTE ci-dessous).
+DIR_REFERENCE = RACINE / "data" / "reference"
+PATH_FOND_ADMIN = DIR_REFERENCE / "ne_50m_admin_1_states_provinces.zip"
+PATH_FOND_OCEAN = DIR_REFERENCE / "ne_50m_ocean.zip"
+PATH_FOND_LACS  = DIR_REFERENCE / "ne_50m_lakes.zip"
+MARGE_M = 20_000
 
 N_ANNEES  = 10
 DJMA_COLS = [f"val_djma_annee_{i}" for i in range(1, N_ANNEES + 1)]
@@ -193,15 +202,48 @@ def figure_randomforest_subsets(cv: dict) -> None:
     print("  randomforest_subsets.png")
 
 
-def figure_carte_3d_divergence_methodes() -> None:
-    """Réseau routier empilé en 4 plateaux (m1 à m4, bas → haut).
+def _charger_fond_quebec_3d(bbox: tuple) -> dict | None:
+    """Fond de carte Québec (Natural Earth), pour la scène 3D uniquement.
 
-    Couleur = DJMA de la méthode (rampe séquentielle Blues, échelle log commune
-    aux 4 plateaux : une teinte qui change verticalement au même endroit EST le
-    signal de divergence). Épaisseur du trait (identique sur les 4 plateaux) et
-    connecteurs verticaux = écart relatif entre méthodes — "densité" sur les
-    arcs les plus hétérogènes, remplace les anciennes figures distribution_djma
-    / comparaison_methodes (jugées redondantes, aucune information spatiale).
+    Ne réutilise pas charger_fond_geographique() de generer_figure_donnees.py :
+    l'importer déclencherait le téléchargement de police et le rcParams global
+    Arimo de ce module (effets de bord déjà évités ici, cf. COULEURS_ROUTE).
+    Relit les mêmes fichiers déjà mis en cache par ce script — aucun accès
+    réseau si generer_figure_donnees.py a déjà tourné une fois.
+    """
+    if not (PATH_FOND_ADMIN.exists() and PATH_FOND_OCEAN.exists() and PATH_FOND_LACS.exists()):
+        return None
+    from shapely.geometry import box
+    minx, miny, maxx, maxy = bbox
+    fenetre = box(minx, miny, maxx, maxy)
+
+    fond   = gpd.read_file(PATH_FOND_ADMIN).to_crs("EPSG:32198").cx[minx:maxx, miny:maxy]
+    quebec = gpd.clip(fond[fond["name"] == "Québec"], fenetre)
+    autres = gpd.clip(fond[fond["name"] != "Québec"], fenetre)
+    ocean  = gpd.clip(gpd.read_file(PATH_FOND_OCEAN).to_crs("EPSG:32198").cx[minx:maxx, miny:maxy], fenetre)
+    lacs   = gpd.clip(gpd.read_file(PATH_FOND_LACS).to_crs("EPSG:32198").cx[minx:maxx, miny:maxy], fenetre)
+    return {"quebec": quebec, "autres": autres, "ocean": ocean, "lacs": lacs}
+
+
+def _poly3d_depuis_geoms(geoms, couleur: str, alpha: float = 1.0) -> Poly3DCollection:
+    """Convertit des polygones (Polygon/MultiPolygon) en Poly3DCollection à z=0
+    — geopandas.plot() ne fonctionne pas sur un axe 3D."""
+    faces = []
+    for geom in geoms:
+        if geom is None or geom.is_empty:
+            continue
+        polys = list(geom.geoms) if geom.geom_type == "MultiPolygon" else [geom]
+        for poly in polys:
+            xs, ys = poly.exterior.xy
+            faces.append(list(zip(xs, ys, [0.0] * len(xs))))
+    return Poly3DCollection(faces, facecolor=couleur, edgecolor="none", alpha=alpha)
+
+
+def figure_carte_3d_divergence_methodes() -> None:
+    """Carte 3D à prismes (façon carte de densité) : un prisme par arc, sur le
+    fond de carte du Québec. Hauteur ET couleur (crème → ambre → rouge) =
+    écart relatif entre les 4 méthodes DJMA pour cet arc — remplace la V1
+    "4 plateaux empilés", jugée moins parlante qu'une vraie carte de densité.
     """
     cols = ["djma_m1", "djma_m2", "djma_m3", "djma_m4"]
     djma = gpd.read_file(RESEAU_FILE, layer=RESEAU_LAYER)[["ID_ARC"] + cols]
@@ -212,66 +254,70 @@ def figure_carte_3d_divergence_methodes() -> None:
     valides["ecart_pct"] = (
         (valides[cols].max(axis=1) - valides[cols].min(axis=1)) / valides[cols].mean(axis=1) * 100
     )
-    sans_valeur = gdf[gdf[cols].isna().any(axis=1)]
+    centroides = valides.geometry.centroid
+    valides["cx"] = centroides.x
+    valides["cy"] = centroides.y
 
-    vmin = valides[cols].min().min()
-    vmax = valides[cols].max().max()
-    norm = LogNorm(vmin=vmin, vmax=vmax)
-    cmap = plt.get_cmap("Blues")
+    minx, miny, maxx, maxy = gdf.total_bounds
+    span_x, span_y = (maxx - minx), (maxy - miny)
+    bbox = (minx - MARGE_M, miny - MARGE_M, maxx + MARGE_M, maxy + MARGE_M)
 
-    def largeur(ecart_pct: float) -> float:
-        return 0.5 + min(ecart_pct, 150.0) / 150.0 * 3.5
+    FOOTPRINT = min(span_x, span_y) * 0.012
+    Z_SCALE   = (0.15 * min(span_x, span_y)) / valides["ecart_pct"].max()
 
-    ACCENT = COULEURS_M["m4"]
-    N_TOP  = 10
-    top_divergents = valides.nlargest(N_TOP, "ecart_pct")
+    CREME  = "#f1efe6"   # même teinte que le fond de carte (FOND_TERRE)
+    AMBRE  = COULEURS_M["m4"]
+    ROUGE  = CRITIQUE
+    cmap_prisme = LinearSegmentedColormap.from_list("cirano_divergence", [CREME, AMBRE, ROUGE])
+    norm = Normalize(vmin=0, vmax=valides["ecart_pct"].max())
 
-    fig = plt.figure(figsize=(10, 7.5))
+    fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection="3d")
+    ax.computed_zorder = False  # respecter l'ordre d'ajout — le tri auto de mplot3d
+                                 # peut faire passer le fond devant les prismes
 
-    for _, row in sans_valeur.iterrows():
+    fond = _charger_fond_quebec_3d(bbox)
+    if fond is not None:
+        for cle, couleur in [("ocean", "#bcdcf2"), ("autres", CREME),
+                              ("quebec", CREME), ("lacs", "#bcdcf2")]:
+            collection = _poly3d_depuis_geoms(fond[cle].geometry, couleur)
+            collection.set_zorder(1)
+            ax.add_collection3d(collection)
+
+    for _, row in gdf.iterrows():
         xs, ys = row.geometry.xy
-        for z in range(4):
-            ax.plot(xs, ys, [z] * len(xs), color="#e1e0d9", linewidth=0.4, alpha=0.5)
+        ligne, = ax.plot(xs, ys, [0] * len(xs), color=GRIS_AXE, linewidth=0.35, alpha=0.4)
+        ligne.set_zorder(2)
 
-    for _, row in valides.iterrows():
-        xs, ys = row.geometry.xy
-        lw = largeur(row["ecart_pct"])
-        for z, col in enumerate(cols):
-            couleur = cmap(norm(row[col]))
-            ax.plot(xs, ys, [z] * len(xs), color=couleur, linewidth=lw, alpha=0.88,
-                     solid_capstyle="round")
-
-    for _, row in top_divergents.iterrows():
-        cx, cy = row.geometry.centroid.x, row.geometry.centroid.y
-        ax.plot([cx, cx], [cy, cy], [0, 3], color=ACCENT, linewidth=0.8,
-                 alpha=0.4, linestyle=(0, (1, 1.5)))
-
-    xmin, ymin = gdf.total_bounds[0], gdf.total_bounds[1]
-    for z in range(4):
-        ax.text(xmin, ymin, z, f"m{z + 1}", fontsize=11, fontweight="bold", color=GRIS_AXE)
+    x  = valides["cx"].values
+    y  = valides["cy"].values
+    dz = valides["ecart_pct"].values * Z_SCALE
+    couleurs_bar = cmap_prisme(norm(valides["ecart_pct"].values))
+    barres = ax.bar3d(x - FOOTPRINT / 2, y - FOOTPRINT / 2, 0, FOOTPRINT, FOOTPRINT, dz,
+                        color=couleurs_bar, shade=True, edgecolor=(0, 0, 0, 0.12), linewidth=0.3)
+    barres.set_zorder(3)
 
     ax.set_axis_off()
-    ax.set_zlim(-0.2, 3.3)
-    ax.view_init(elev=24, azim=-60)
+    ax.set_xlim(bbox[0], bbox[2])
+    ax.set_ylim(bbox[1], bbox[3])
+    ax.view_init(elev=26, azim=-58)
     try:
-        ax.set_box_aspect((1, 1, 0.55), zoom=1.6)
+        ax.set_box_aspect((span_x, span_y, span_y * 0.5), zoom=2.3)
     except TypeError:
-        ax.set_box_aspect((1, 1, 0.55))
+        ax.set_box_aspect((span_x, span_y, span_y * 0.5))
 
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm = plt.cm.ScalarMappable(cmap=cmap_prisme, norm=norm)
     cbar = fig.colorbar(sm, ax=ax, shrink=0.4, pad=0.0)
-    cbar.set_label("DJMA (véh./jour, échelle log)")
+    cbar.set_label("Écart relatif entre les 4 méthodes DJMA (%)")
 
-    ax.set_title("Superposition des 4 méthodes DJMA — où les écarts sont les plus grands",
-                 fontsize=12.5)
+    ax.set_title("Où les 4 méthodes DJMA divergent le plus", fontsize=13)
 
-    top3 = top_divergents.nlargest(3, "ecart_pct")
+    top3 = valides.nlargest(3, "ecart_pct")
     lignes_top3 = "  |  ".join(
         f"{row['VILLE_A']}–{row['VILLE_B']} ({row['ecart_pct']:.0f} %)" for _, row in top3.iterrows()
     )
-    fig.text(0.5, 0.05,
-             f"Épaisseur ∝ écart relatif entre méthodes  |  pointillés = {N_TOP} arcs les plus divergents\n"
+    fig.text(0.5, 0.04,
+             f"Hauteur et couleur du prisme ∝ écart relatif entre méthodes, par arc\n"
              f"Écarts les plus marqués : {lignes_top3}",
              ha="center", fontsize=8.5, color=GRIS_AXE)
 
