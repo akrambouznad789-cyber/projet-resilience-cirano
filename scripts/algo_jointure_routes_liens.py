@@ -8,7 +8,7 @@ DIFFÉRENCES PAR RAPPORT À V2
   1. geometry.distance() au lieu de centroid.distance() au filtre 1
      → capture les segments longs dont le centroïde est décalé du tracé
 
-  2. Filtre 4 (nouveau) — exclusion intraurbaine A et B
+  2. Filtre 3 (nouveau) — exclusion intraurbaine A et B
      → exclut les segments à < 3km du centroïde de A ou B
      → élimine le trafic de distribution locale près des villes d'origine/dest
 
@@ -28,7 +28,6 @@ BUFFER_QC_RTSS_M    : buffer RTSS → masque territoire québécois (défaut 200
 BUFFER_RECHERCHE_M  : zone de candidats autour du tracé (défaut 1500m)
 DIST_MAX_TRACE_M    : distance max segment→tracé (défaut 400m)
 ANGLE_MAX_DEG       : écart angulaire maximal toléré (défaut 45°)
-BUFFER_EXCLUSION_M  : zone d'exclusion autour de chaque nœud tiers (défaut 2000m)
 BUFFER_NOEUDS_AB_M  : exclusion intraurbaine autour de A et B (défaut 3000m)
 SAMPLE_N_ARCS       : nombre d'arcs à traiter (None = tous les 307)
 PILOT_ID_ARC        : tester un seul arc (prioritaire sur SAMPLE_N_ARCS)
@@ -77,7 +76,6 @@ BUFFER_QC_RTSS_M    = 2000
 BUFFER_RECHERCHE_M  = 1500
 DIST_MAX_TRACE_M    = 400
 ANGLE_MAX_DEG       = 45
-BUFFER_EXCLUSION_M  = 2000
 BUFFER_NOEUDS_AB_M  = 3000
 PAUSE_API_S         = 0.5
 SAMPLE_N_ARCS       = None  # None = tous les 307 arcs
@@ -243,36 +241,10 @@ def filtre_direction(segs: gpd.GeoDataFrame,
     return segs[masque].copy()
 
 
-def filtre_noeud_proximite(segs: gpd.GeoDataFrame,
-                            pt_a: Point, pt_b: Point,
-                            tous_noeuds: gpd.GeoDataFrame,
-                            exclusion_m: float) -> gpd.GeoDataFrame:
-    """Filtre 3 — exclut les segments plus proches d'un nœud tiers que de A ou B."""
-    if segs.empty:
-        return segs
-    dist_ab = pt_a.distance(pt_b)
-    if dist_ab <= 2 * exclusion_m:
-        return segs
-    autres_noeuds = tous_noeuds[
-        ~tous_noeuds.geometry.isin([pt_a, pt_b])
-    ].geometry
-    if autres_noeuds.empty:
-        return segs
-    masque = []
-    for _, row in segs.iterrows():
-        centroid    = row.geometry.centroid
-        dist_a      = centroid.distance(pt_a)
-        dist_b      = centroid.distance(pt_b)
-        dist_ab_min = min(dist_a, dist_b)
-        dist_tiers  = autres_noeuds.distance(centroid).min()
-        masque.append(not (dist_tiers < dist_ab_min and dist_tiers < exclusion_m))
-    return segs[masque].copy()
-
-
 def filtre_proximite_ab(segs: gpd.GeoDataFrame,
                          pt_a: Point, pt_b: Point,
                          buffer_ab_m: float) -> gpd.GeoDataFrame:
-    """Filtre 4 — exclut les segments trop proches de A ou B (trafic intraurbain)."""
+    """Filtre 3 — exclut les segments trop proches de A ou B (trafic intraurbain)."""
     if segs.empty:
         return segs
     if pt_a.distance(pt_b) < 2 * buffer_ab_m:
@@ -588,7 +560,6 @@ def main():
     print(f"  DIST_MAX_TRACE_M    = {DIST_MAX_TRACE_M}m")
     print(f"  BUFFER_NOEUDS_AB_M  = {BUFFER_NOEUDS_AB_M}m")
     print(f"  ANGLE_MAX_DEG       = {ANGLE_MAX_DEG}°")
-    print(f"  BUFFER_EXCLUSION_M  = {BUFFER_EXCLUSION_M}m")
     print(f"  SAMPLE_N_ARCS       = {SAMPLE_N_ARCS}")
     print(f"\nTerminé — résultat dans {OUTPUT_FILE}")
 
