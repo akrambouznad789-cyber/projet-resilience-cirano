@@ -8,11 +8,13 @@ Génère 5 PNG dans figures/ :
      prédit vs réel, avec R² et RMSE
   2. randomforest_subsets.png        : la même validation croisée, facettée par type
      de route — le "subset" que le modèle apprend à distinguer
-  3. carte_3d_divergence_methodes.png : carte de densité 3D (prismes façon
-     ax.bar3d) sur fond de carte du Québec — hauteur et couleur (crème→ambre→
-     rouge) = écart relatif entre les 4 méthodes DJMA, par arc
-  4. carte_reseau_djma.png          : carte statique du réseau, arcs colorés par DJMA (m4)
-  5. carte_resultats.png            : carte statique OK (vert) / échec (rouge, orange)
+  3. carte_divergence_methodes.png   : carte 2D (choropleth) sur fond de carte du
+     Québec — couleur (pâle→ambre→rouge) = écart relatif entre les 4 méthodes DJMA
+  4. carte_reseau_resultats.png      : carte du réseau enrichi — DJMA par arc (m4)
+     et couverture du routage (arcs en échec distingués par cause) sur fond de
+     carte du Québec — fusionne les anciennes carte_reseau_djma.png/carte_resultats.png
+  5. carte_montreal_resultats.png    : zoom Grand Montréal de la carte précédente —
+     rend lisibles les échecs intraurbains, trop denses à l'échelle du Québec
 """
 
 from pathlib import Path
@@ -22,8 +24,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap, LogNorm, Normalize
-from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 — enregistre la projection 3D
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from matplotlib.lines import Line2D
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import KFold, cross_val_predict
@@ -61,9 +62,7 @@ CAM_COLS  = [f"val_cam_annee_{i}"  for i in range(1, N_ANNEES + 1)]
 
 # Palette (cf. skill dataviz — palette validée)
 BLEU_450   = "#2a78d6"   # séquentiel / série 1
-VERT_STAT  = "#0ca30c"   # statut : ok
-SERIEUX    = "#ec835a"   # statut : aucun_djma
-CRITIQUE   = "#d03b3b"   # statut : hors_quebec
+CRITIQUE   = "#d03b3b"   # rouge (carte 3D — écart de méthode le plus fort)
 GRIS_AXE   = "#898781"
 COULEURS_M = {"m1": "#2a78d6", "m2": "#008300", "m3": "#e87ba4", "m4": "#eda100"}
 
@@ -79,6 +78,31 @@ COULEURS_ROUTE = {
     "Collectrice": "#b6a8d9",
     "Autre":       "#cfcabd",
 }
+
+# Fond de carte 2D (mêmes teintes que charger_fond_geographique() dans
+# generer_figure_donnees.py — redéfini ici pour la même raison que COULEURS_ROUTE
+# ci-dessus : pas d'import croisé, pas d'effet de bord police/rcParams).
+FOND_TERRE     = "#f1efe6"
+EAU            = "#bcdcf2"
+FOND_BORDURE   = "#ddd9cc"
+QUEBEC_BORDURE = "#9aa5b1"
+
+# Rampe séquentielle pastel pour le DJMA (carte_reseau_resultats.png) — prolonge
+# BLEU_450 (déjà la série "séquentielle" de ce fichier) plutôt que le cmap "Blues"
+# générique de matplotlib, pour rester dans la même identité visuelle que le reste
+# du README.
+CMAP_DJMA = LinearSegmentedColormap.from_list("cirano_djma", ["#dce8f7", BLEU_450, "#0d2d52"])
+
+# Couleurs d'échec — orange clair, teinte opposée à la rampe DJMA (bleu) sur le
+# cercle chromatique : contraste net avec les arcs enrichis, sans tomber dans le
+# rouge/vert saturé "feu de circulation" (cf. feedback_dataviz_style).
+ECHEC_INTRA   = "#f2a765"   # échec — aucune station MTQ à proximité (intraurbain)
+ECHEC_HORS_QC = "#c96f2e"   # échec — tracé hors territoire québécois (plus soutenu, peu nombreux)
+
+# Rayon du zoom Grand Montréal (carte_montreal_resultats.png), centré sur le nœud
+# "Montréal" — capture la quasi-totalité des échecs intraurbains (île + couronnes
+# nord/sud), qui se tassent en un fouillis illisible à l'échelle du Québec.
+RAYON_MTL_M = 55_000
 
 plt.rcParams.update({
     "font.family": "sans-serif",
@@ -202,8 +226,9 @@ def figure_randomforest_subsets(cv: dict) -> None:
     print("  randomforest_subsets.png")
 
 
-def _charger_fond_quebec_3d(bbox: tuple) -> dict | None:
-    """Fond de carte Québec (Natural Earth), pour la scène 3D uniquement.
+def _charger_fond_quebec(bbox: tuple) -> dict | None:
+    """Fond de carte Québec (Natural Earth) — même fichiers que ceux mis en cache
+    par generer_figure_donnees.py, relus ici sans les importer.
 
     Ne réutilise pas charger_fond_geographique() de generer_figure_donnees.py :
     l'importer déclencherait le téléchargement de police et le rcParams global
@@ -225,25 +250,24 @@ def _charger_fond_quebec_3d(bbox: tuple) -> dict | None:
     return {"quebec": quebec, "autres": autres, "ocean": ocean, "lacs": lacs}
 
 
-def _poly3d_depuis_geoms(geoms, couleur: str, alpha: float = 1.0) -> Poly3DCollection:
-    """Convertit des polygones (Polygon/MultiPolygon) en Poly3DCollection à z=0
-    — geopandas.plot() ne fonctionne pas sur un axe 3D."""
-    faces = []
-    for geom in geoms:
-        if geom is None or geom.is_empty:
-            continue
-        polys = list(geom.geoms) if geom.geom_type == "MultiPolygon" else [geom]
-        for poly in polys:
-            xs, ys = poly.exterior.xy
-            faces.append(list(zip(xs, ys, [0.0] * len(xs))))
-    return Poly3DCollection(faces, facecolor=couleur, edgecolor="none", alpha=alpha)
+def _tracer_fond(ax, fond: dict | None) -> None:
+    """Trace le fond de carte neutre (terre crème, contour Québec marqué, eau
+    bleu clair) — factorisé, réutilisé par les 3 cartes 2D de ce fichier."""
+    if fond is None:
+        return
+    fond["ocean"].plot(ax=ax, color=EAU, linewidth=0, zorder=0)
+    fond["autres"].plot(ax=ax, color=FOND_TERRE, edgecolor=FOND_BORDURE, linewidth=0.6, zorder=0)
+    fond["quebec"].plot(ax=ax, color=FOND_TERRE, edgecolor=QUEBEC_BORDURE, linewidth=1.1, zorder=0)
+    fond["lacs"].plot(ax=ax, color=EAU, linewidth=0, zorder=0)
 
 
-def figure_carte_3d_divergence_methodes() -> None:
-    """Carte 3D à prismes (façon carte de densité) : un prisme par arc, sur le
-    fond de carte du Québec. Hauteur ET couleur (crème → ambre → rouge) =
-    écart relatif entre les 4 méthodes DJMA pour cet arc — remplace la V1
-    "4 plateaux empilés", jugée moins parlante qu'une vraie carte de densité.
+def figure_carte_divergence_methodes() -> None:
+    """Carte 2D : écart relatif entre les 4 méthodes DJMA, par arc.
+
+    Remplace la V2 en 3D (prismes façon ax.bar3d) — jugée trop difficile à lire :
+    les hauteurs de colonnes en perspective se comparent mal d'un arc à l'autre.
+    Un choropleth 2D classique (couleur du tracé = écart, réseau complet en trame
+    de fond pour le contexte) va directement à l'essentiel.
     """
     cols = ["djma_m1", "djma_m2", "djma_m3", "djma_m4"]
     djma = gpd.read_file(RESEAU_FILE, layer=RESEAU_LAYER)[["ID_ARC"] + cols]
@@ -254,136 +278,167 @@ def figure_carte_3d_divergence_methodes() -> None:
     valides["ecart_pct"] = (
         (valides[cols].max(axis=1) - valides[cols].min(axis=1)) / valides[cols].mean(axis=1) * 100
     )
-    centroides = valides.geometry.centroid
-    valides["cx"] = centroides.x
-    valides["cy"] = centroides.y
 
     minx, miny, maxx, maxy = gdf.total_bounds
     span_x, span_y = (maxx - minx), (maxy - miny)
     bbox = (minx - MARGE_M, miny - MARGE_M, maxx + MARGE_M, maxy + MARGE_M)
+    fond = _charger_fond_quebec(bbox)
 
-    FOOTPRINT = min(span_x, span_y) * 0.012
-    Z_SCALE   = (0.15 * min(span_x, span_y)) / valides["ecart_pct"].max()
-
-    CREME  = "#f1efe6"   # même teinte que le fond de carte (FOND_TERRE)
-    AMBRE  = COULEURS_M["m4"]
-    ROUGE  = CRITIQUE
-    cmap_prisme = LinearSegmentedColormap.from_list("cirano_divergence", [CREME, AMBRE, ROUGE])
+    # Jaune pâle (pas la teinte exacte du fond, pour rester une ligne visible) →
+    # ambre → rouge : même narration que la V1 3D ("un arc qui s'accorde reste
+    # discret, un arc qui diverge fortement ressort"), sans reposer sur la hauteur.
+    PALE  = "#f6e9c8"
+    AMBRE = COULEURS_M["m4"]
+    ROUGE = CRITIQUE
+    cmap_divergence = LinearSegmentedColormap.from_list("cirano_divergence", [PALE, AMBRE, ROUGE])
     norm = Normalize(vmin=0, vmax=valides["ecart_pct"].max())
 
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(111, projection="3d")
-    ax.computed_zorder = False  # respecter l'ordre d'ajout — le tri auto de mplot3d
-                                 # peut faire passer le fond devant les prismes
+    fig, ax = plt.subplots(figsize=(9.5, 9.5 * span_y / span_x + 1.1))
+    _tracer_fond(ax, fond)
 
-    fond = _charger_fond_quebec_3d(bbox)
-    if fond is not None:
-        for cle, couleur in [("ocean", "#bcdcf2"), ("autres", CREME),
-                              ("quebec", CREME), ("lacs", "#bcdcf2")]:
-            collection = _poly3d_depuis_geoms(fond[cle].geometry, couleur)
-            collection.set_zorder(1)
-            ax.add_collection3d(collection)
+    gdf.plot(ax=ax, color=GRIS_AXE, linewidth=0.5, alpha=0.3, zorder=1)  # réseau complet, contexte
+    valides.plot(ax=ax, column="ecart_pct", cmap=cmap_divergence, norm=norm, linewidth=2.1, zorder=2)
 
-    for _, row in gdf.iterrows():
-        xs, ys = row.geometry.xy
-        ligne, = ax.plot(xs, ys, [0] * len(xs), color=GRIS_AXE, linewidth=0.35, alpha=0.4)
-        ligne.set_zorder(2)
-
-    x  = valides["cx"].values
-    y  = valides["cy"].values
-    dz = valides["ecart_pct"].values * Z_SCALE
-    couleurs_bar = cmap_prisme(norm(valides["ecart_pct"].values))
-    barres = ax.bar3d(x - FOOTPRINT / 2, y - FOOTPRINT / 2, 0, FOOTPRINT, FOOTPRINT, dz,
-                        color=couleurs_bar, shade=True, edgecolor=(0, 0, 0, 0.12), linewidth=0.3)
-    barres.set_zorder(3)
-
+    ax.set_xlim(bbox[0], bbox[2]); ax.set_ylim(bbox[1], bbox[3])
+    ax.set_aspect("equal")
     ax.set_axis_off()
-    ax.set_xlim(bbox[0], bbox[2])
-    ax.set_ylim(bbox[1], bbox[3])
-    ax.view_init(elev=26, azim=-58)
-    try:
-        ax.set_box_aspect((span_x, span_y, span_y * 0.5), zoom=2.3)
-    except TypeError:
-        ax.set_box_aspect((span_x, span_y, span_y * 0.5))
-
-    sm = plt.cm.ScalarMappable(cmap=cmap_prisme, norm=norm)
-    cbar = fig.colorbar(sm, ax=ax, shrink=0.4, pad=0.0)
-    cbar.set_label("Écart relatif entre les 4 méthodes DJMA (%)")
-
     ax.set_title("Où les 4 méthodes DJMA divergent le plus", fontsize=13)
+
+    sm = plt.cm.ScalarMappable(cmap=cmap_divergence, norm=norm)
+    cbar = fig.colorbar(sm, ax=ax, shrink=0.55, pad=0.02)
+    cbar.set_label("Écart relatif entre les 4 méthodes DJMA (%)")
 
     top3 = valides.nlargest(3, "ecart_pct")
     lignes_top3 = "  |  ".join(
         f"{row['VILLE_A']}–{row['VILLE_B']} ({row['ecart_pct']:.0f} %)" for _, row in top3.iterrows()
     )
-    fig.text(0.5, 0.04,
-             f"Hauteur et couleur du prisme ∝ écart relatif entre méthodes, par arc\n"
+    fig.text(0.5, 0.03,
+             f"Couleur du tracé ∝ écart relatif entre méthodes, par arc\n"
              f"Écarts les plus marqués : {lignes_top3}",
              ha="center", fontsize=8.5, color=GRIS_AXE)
 
-    chemin = FIG_DIR / "carte_3d_divergence_methodes.png"
-    fig.savefig(chemin, dpi=150, bbox_inches="tight")
+    fig.tight_layout()
+    fig.savefig(FIG_DIR / "carte_divergence_methodes.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
-    _recadrer_marges_blanches(chemin)
-    print("  carte_3d_divergence_methodes.png")
+    print("  carte_divergence_methodes.png")
 
 
-def _recadrer_marges_blanches(chemin: Path, pad: int = 20) -> None:
-    """Recadre les marges blanches excédentaires — mplot3d laisse une grande
-    zone vide autour de la scène 3D même après bbox_inches='tight'."""
-    from PIL import Image, ImageChops
+def figure_carte_reseau_resultats() -> None:
+    """Carte de synthèse unique : DJMA par arc (m4) + couverture du routage.
 
-    img = Image.open(chemin).convert("RGB")
-    fond = Image.new("RGB", img.size, (255, 255, 255))
-    bbox = ImageChops.difference(img, fond).getbbox()
-    if bbox is None:
-        return
-    gauche, haut, droite, bas = bbox
-    gauche = max(gauche - pad, 0)
-    haut   = max(haut - pad, 0)
-    droite = min(droite + pad, img.size[0])
-    bas    = min(bas + pad, img.size[1])
-    img.crop((gauche, haut, droite, bas)).save(chemin)
-
-
-def figure_carte_reseau_djma() -> None:
+    Remplace carte_reseau_djma.png et carte_resultats.png — les deux traçaient la
+    même géométrie (statut vs magnitude), jugées redondantes une fois mises côte à
+    côte, comme les anciens graphiques de comparaison DJMA remplacés par la carte
+    de divergence. Réutilise le même fond de carte Natural Earth que
+    figure_carte_divergence_methodes() (_charger_fond_quebec / _tracer_fond).
+    """
+    arcs = gpd.read_file(ARCS_FILE, layer=ARCS_LAYER)[["ID_ARC", "statut", "geometry"]]
     djma = gpd.read_file(RESEAU_FILE, layer=RESEAU_LAYER)[["ID_ARC", "djma_m4"]]
-    arcs = gpd.read_file(ARCS_FILE, layer=ARCS_LAYER)[["ID_ARC", "geometry"]]
     gdf = arcs.merge(djma, on="ID_ARC", how="left")
 
-    fig, ax = plt.subplots(figsize=(8, 8))
-    sans_valeur = gdf[gdf["djma_m4"].isna()]
-    avec_valeur = gdf[gdf["djma_m4"].notna()]
-    sans_valeur.plot(ax=ax, color="#e1e0d9", linewidth=0.8)
-    norm = LogNorm(vmin=avec_valeur["djma_m4"].min(), vmax=avec_valeur["djma_m4"].max())
-    avec_valeur.plot(ax=ax, column="djma_m4", cmap="Blues", norm=norm, linewidth=1.8,
-                      legend=True, legend_kwds={"label": "DJMA — méthode m4 (véh./jour, échelle log)", "shrink": 0.6})
-    ax.set_title("Réseau routier — DJMA par arc (méthode m4)")
+    minx, miny, maxx, maxy = gdf.total_bounds
+    bbox = (minx - MARGE_M, miny - MARGE_M, maxx + MARGE_M, maxy + MARGE_M)
+    fond = _charger_fond_quebec(bbox)
+
+    ok          = gdf[gdf["statut"] == "ok"]
+    echec_intra = gdf[gdf["statut"] == "aucun_djma"]
+    echec_hqc   = gdf[gdf["statut"] == "hors_quebec"]
+
+    # Figsize proportionnel à l'emprise réelle (ratio ≈ 1,37) + marge à droite pour
+    # colorbar/légende — sans ça, un figsize carré laisse un bandeau blanc en haut/bas
+    # (aspect equal contraint par la donnée, pas par la figure).
+    span_x, span_y = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    fig, ax = plt.subplots(figsize=(9.5, 9.5 * span_y / span_x + 1.1))
+    _tracer_fond(ax, fond)
+
+    norm = LogNorm(vmin=ok["djma_m4"].min(), vmax=ok["djma_m4"].max())
+    ok.plot(ax=ax, column="djma_m4", cmap=CMAP_DJMA, norm=norm, linewidth=1.7, zorder=2)
+    echec_intra.plot(ax=ax, color=ECHEC_INTRA, linewidth=1.6, linestyle=(0, (4, 2)), zorder=3)
+    echec_hqc.plot(ax=ax, color=ECHEC_HORS_QC, linewidth=2.2, zorder=3)
+
+    ax.set_xlim(bbox[0], bbox[2]); ax.set_ylim(bbox[1], bbox[3])
+    ax.set_aspect("equal")
     ax.set_axis_off()
+    ax.set_title("Réseau enrichi — DJMA par arc et couverture du routage", fontsize=13)
+
+    sm = plt.cm.ScalarMappable(cmap=CMAP_DJMA, norm=norm)
+    cbar = fig.colorbar(sm, ax=ax, shrink=0.55, pad=0.02)
+    cbar.set_label("DJMA — méthode m4 (véh./jour, échelle log)")
+
+    handles = [
+        Line2D([0], [0], color=ECHEC_INTRA, lw=2, linestyle=(0, (4, 2)),
+               label=f"Échec — aucune station MTQ ({len(echec_intra)})"),
+        Line2D([0], [0], color=ECHEC_HORS_QC, lw=2.2,
+               label=f"Échec — hors Québec ({len(echec_hqc)})"),
+    ]
+    leg = ax.legend(handles=handles, loc="lower right", fontsize=9,
+                     frameon=True, facecolor="white", edgecolor=GRIS_AXE, framealpha=1.0)
+    leg.get_frame().set_linewidth(0.8)
+
+    fig.text(0.5, 0.03, f"{len(ok)}/{len(gdf)} arcs enrichis ({100 * len(ok) / len(gdf):.1f} %)",
+              ha="center", fontsize=9.5, color=GRIS_AXE)
+
     fig.tight_layout()
-    fig.savefig(FIG_DIR / "carte_reseau_djma.png", dpi=150)
+    fig.savefig(FIG_DIR / "carte_reseau_resultats.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
-    print("  carte_reseau_djma.png")
+    print(f"  carte_reseau_resultats.png ({len(ok)} OK, {len(echec_intra)} aucun_djma, {len(echec_hqc)} hors_quebec)")
 
 
-def figure_carte_resultats() -> None:
+def figure_carte_montreal_resultats() -> None:
+    """Même carte que figure_carte_reseau_resultats(), zoomée sur le Grand Montréal.
+
+    À l'échelle du Québec, les échecs intraurbains (île de Montréal, couronnes
+    nord/sud) se tassent en un fouillis illisible — ce zoom les rend lisibles
+    individuellement. Rayon RAYON_MTL_M autour du nœud "Montréal" (reseau_arcs.gpkg).
+    """
+    from shapely.geometry import box
+
+    noeuds = gpd.read_file(RACINE / "data" / "raw" / "reseau_arcs.gpkg", layer="noeuds")
+    # "MontrÃ©al" : encodage déjà corrompu dans la donnée source (raw, non modifiable,
+    # cf. CLAUDE.md) — "ontr..al" isole le nœud sans dépendre des accents mal formés.
+    centre = noeuds[noeuds["NOM"].str.contains("ontr..al$", regex=True)].geometry.iloc[0]
+    cx, cy = centre.x, centre.y
+    bbox = (cx - RAYON_MTL_M, cy - RAYON_MTL_M, cx + RAYON_MTL_M, cy + RAYON_MTL_M)
+    fenetre = box(*bbox)
+
     arcs = gpd.read_file(ARCS_FILE, layer=ARCS_LAYER)[["ID_ARC", "statut", "geometry"]]
+    djma = gpd.read_file(RESEAU_FILE, layer=RESEAU_LAYER)[["ID_ARC", "djma_m4"]]
+    gdf = arcs.merge(djma, on="ID_ARC", how="left")
+    gdf = gdf[gdf.geometry.intersects(fenetre)]
 
-    couleurs = {"ok": VERT_STAT, "aucun_djma": SERIEUX, "hors_quebec": CRITIQUE}
-    etiquettes = {"ok": "OK (285)", "aucun_djma": "Aucun DJMA (19)", "hors_quebec": "Hors Québec (3)"}
+    ok          = gdf[gdf["statut"] == "ok"]
+    echec_intra = gdf[gdf["statut"] == "aucun_djma"]
 
-    fig, ax = plt.subplots(figsize=(8, 8))
-    for statut, couleur in couleurs.items():
-        sous_ensemble = arcs[arcs["statut"] == statut]
-        sous_ensemble.plot(ax=ax, color=couleur, linewidth=1.6, label=etiquettes[statut])
+    fond = _charger_fond_quebec(bbox)
+    fig, ax = plt.subplots(figsize=(9, 9))
+    _tracer_fond(ax, fond)
 
-    ax.set_title("Résultats du routage — 285/307 arcs OK (92,8 %)")
-    ax.legend(frameon=False, loc="lower right")
+    norm = LogNorm(vmin=ok["djma_m4"].min(), vmax=ok["djma_m4"].max())
+    ok.plot(ax=ax, column="djma_m4", cmap=CMAP_DJMA, norm=norm, linewidth=2.6, zorder=2)
+    echec_intra.plot(ax=ax, color=ECHEC_INTRA, linewidth=2.4, linestyle=(0, (4, 2)), zorder=3)
+
+    ax.set_xlim(bbox[0], bbox[2]); ax.set_ylim(bbox[1], bbox[3])
+    ax.set_aspect("equal")
     ax.set_axis_off()
+    ax.set_title("Zoom — Grand Montréal : où se concentrent les échecs", fontsize=13)
+
+    sm = plt.cm.ScalarMappable(cmap=CMAP_DJMA, norm=norm)
+    cbar = fig.colorbar(sm, ax=ax, shrink=0.55, pad=0.02)
+    cbar.set_label("DJMA — méthode m4 (véh./jour, échelle log)")
+
+    handles = [Line2D([0], [0], color=ECHEC_INTRA, lw=2, linestyle=(0, (4, 2)),
+                      label=f"Échec — aucune station MTQ ({len(echec_intra)})")]
+    leg = ax.legend(handles=handles, loc="lower right", fontsize=9,
+                     frameon=True, facecolor="white", edgecolor=GRIS_AXE, framealpha=1.0)
+    leg.get_frame().set_linewidth(0.8)
+
+    fig.text(0.5, 0.03, f"{len(echec_intra)} des 19 échecs intraurbains se trouvent dans un rayon de "
+              f"{RAYON_MTL_M // 1000} km autour de Montréal", ha="center", fontsize=9.5, color=GRIS_AXE)
+
     fig.tight_layout()
-    fig.savefig(FIG_DIR / "carte_resultats.png", dpi=150)
+    fig.savefig(FIG_DIR / "carte_montreal_resultats.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
-    print("  carte_resultats.png")
+    print(f"  carte_montreal_resultats.png ({len(echec_intra)} échecs dans le zoom, {len(ok)} arcs OK)")
 
 
 def main() -> None:
@@ -392,9 +447,9 @@ def main() -> None:
     cv = _validation_croisee_randomforest()
     figure_validation_randomforest(cv)
     figure_randomforest_subsets(cv)
-    figure_carte_3d_divergence_methodes()
-    figure_carte_reseau_djma()
-    figure_carte_resultats()
+    figure_carte_divergence_methodes()
+    figure_carte_reseau_resultats()
+    figure_carte_montreal_resultats()
     print(f"\nTerminé — figures dans {FIG_DIR}")
 
 

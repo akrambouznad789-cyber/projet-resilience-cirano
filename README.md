@@ -186,21 +186,31 @@ Pour chaque arc, le DJMA agrégé est calculé de 4 façons à partir de ses seg
 | **m3** | Pondérée par type d'axe routier (hiérarchie MTQ) | 12 152 |
 | **m4** | 80e percentile par rang (nearest-rank) : valeur réelle du segment classé à la position `round(0,8 × n)`, sans interpolation ni moyenne | 15 351 |
 
-![Carte de densité 3D — écart entre les 4 méthodes DJMA](figures/carte_3d_divergence_methodes.png)
+![Carte de l'écart entre les 4 méthodes DJMA](figures/carte_divergence_methodes.png)
 
-Plutôt qu'une simple comparaison statistique, cette carte projette l'écart relatif entre les 4 méthodes sous forme de prismes 3D sur le réseau routier québécois — à la manière d'une carte de densité : chaque arc devient une colonne dont la hauteur ET la couleur (crème → ambre → rouge) encodent son écart relatif entre m1-m4. Un arc où les 4 méthodes s'accordent reste une colonne basse, presque invisible dans le fond de carte ; un arc où elles divergent fortement devient un pic rouge qui se détache nettement du relief. Les écarts les plus marqués se situent sur des tronçons courts à faible nombre de segments contributeurs, où un seul segment extrême pèse beaucoup plus sur m4 (percentile) que sur m1-m3 (moyennes) : Laurier-Station–Saint-Apollinaire (156 %), L'Ancienne-Lorette–Nœud Lac-St-Jean (147 %), Donnacona–Saint-Augustin-de-Desmaures (142 %).
+Plutôt qu'une simple comparaison statistique, cette carte projette l'écart relatif entre les 4 méthodes directement sur le réseau routier québécois : la couleur de chaque arc (pâle → ambre → rouge) encode son écart relatif entre m1-m4, le reste du réseau restant en trame grise pour le contexte. Un arc où les 4 méthodes s'accordent reste pâle, presque invisible ; un arc où elles divergent fortement ressort en rouge vif. Les écarts les plus marqués se situent sur des tronçons courts à faible nombre de segments contributeurs, où un seul segment extrême pèse beaucoup plus sur m4 (percentile) que sur m1-m3 (moyennes) : Laurier-Station–Saint-Apollinaire (156 %), L'Ancienne-Lorette–Nœud Lac-St-Jean (147 %), Donnacona–Saint-Augustin-de-Desmaures (142 %).
 
 m1, m2 et m3 sont fortement corrélées entre elles (Pearson ≥ 0,979) car elles moyennent la même population de segments différemment. m4 reste bien corrélée (Pearson ≈ 0,97-0,98) tout en s'en écartant légèrement : c'est voulu, elle vise à capturer les pointes de trafic (80e percentile réel) plutôt que la tendance centrale. 134 des 307 arcs montrent un écart relatif > 30 % entre méthodes — un signal que le choix de méthode d'agrégation a un impact réel et doit être fait explicitement selon l'usage (planification vs dimensionnement).
 
-## Résultats & faits saillants
+## Résultats
 
-![Carte du réseau — DJMA par arc](figures/carte_reseau_djma.png)
-![Résultats du routage](figures/carte_resultats.png)
+L'ensemble du pipeline — complétion, routage, agrégation DJMA — transforme les 307 liens ville-à-ville du graphe de départ en un réseau routier enrichi en trafic réel, prêt à servir de base à l'analyse de résilience : **285 arcs sur 307 (92,8 %)** portent désormais une valeur DJMA fiable, construite à partir de 3 306 segments de comptage MTQ.
 
-- **285 / 307 arcs (92,8 %)** ont été enrichis avec succès en données DJMA.
-- **22 échecs** : 19 arcs ultra-courts intraurbains sans station MTQ à proximité (surtout île de Montréal), et 3 arcs sortant du territoire québécois (liaisons interprovinciales).
-- **3 306 segments DJMA** contribuent aux 285 arcs enrichis, avec une médiane de 8 segments par arc.
-- Longueur de tracé médiane : 25,8 km ; longueur couverte par le réseau RTSS québécois : 24,9 km (couverture quasi complète du tracé).
+![Réseau enrichi — DJMA par arc et couverture du routage](figures/carte_reseau_resultats.png)
+
+Les 22 arcs en échec ne sont pas un problème de complétion des données : la cascade d'imputation (section précédente) porte la complétude temporelle des stations MTQ *existantes* à 100 %, mais elle ne peut pas faire apparaître une station là où le MTQ n'en a jamais installé. Concrètement, 19 arcs restent sans valeur parce qu'ils empruntent un tracé purement intraurbain (surtout île de Montréal) que ne croise aucune station de comptage — le MTQ compte le réseau provincial, pas les rues municipales. Les 3 derniers sortent du territoire québécois (liaisons interprovinciales) et n'ont donc aucun segment RTSS/DJMA à associer.
+
+![Zoom — Grand Montréal](figures/carte_montreal_resultats.png)
+
+13 des 19 échecs intraurbains se concentrent dans un rayon de 55 km autour de Montréal (île, couronnes nord et sud) — trop denses pour rester lisibles à l'échelle du Québec ci-dessus. Ce zoom les isole individuellement : chacun correspond à une paire de villes limitrophes (ex. Pointe-Claire–Dollard-des-Ormeaux, Hampstead–Côte-Saint-Luc) où le tracé le plus court ne croise jamais le réseau provincial compté par le MTQ.
+
+| Indicateur | Valeur |
+|---|---|
+| Arcs enrichis | 285 / 307 (92,8 %) |
+| Segments DJMA mobilisés | 3 306 (médiane 8 par arc) |
+| Longueur de tracé médiane | 25,8 km (couverte à 24,9 km par le RTSS québécois) |
+| Échecs — intraurbain, aucune station MTQ | 19 |
+| Échecs — hors territoire québécois | 3 |
 
 ## Reproduire le pipeline
 
