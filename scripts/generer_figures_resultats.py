@@ -35,6 +35,26 @@ from completion_donnees_randomforest import (
     ROUTE_DUMMY_COLS,
     construire_features_supplementaires,
 )
+from style_figures import (
+    BLEU_450,
+    COULEURS_M,
+    COULEURS_ROUTE,
+    CRITIQUE,
+    CRS_WORK,
+    ECHEC_HORS_QC,
+    ECHEC_INTRA,
+    EAU,
+    FOND_BORDURE,
+    FOND_TERRE,
+    MARGE_M,
+    MUET as GRIS_AXE,
+    QUEBEC_BORDURE,
+    SURFACE,
+    appliquer_style,
+    entete_carte,
+    entete_figure,
+    legende_carte,
+)
 
 RACINE      = Path(__file__).resolve().parent.parent
 FIG_DIR     = RACINE / "figures"
@@ -48,44 +68,16 @@ RESEAU_LAYER = "arcs_enrichis_djma"
 ARCS_FILE   = RACINE / "data" / "processed" / "graphe_routier.gpkg"
 ARCS_LAYER  = "arcs_enrichis"
 
-# Fond de carte 3D — mêmes fichiers Natural Earth déjà mis en cache par
-# generer_figure_donnees.py (pas d'import croisé, cf. COULEURS_ROUTE ci-dessous).
+# Fond de carte 2D — mêmes fichiers Natural Earth déjà mis en cache par
+# generer_figure_donnees.py.
 DIR_REFERENCE = RACINE / "data" / "reference"
 PATH_FOND_ADMIN = DIR_REFERENCE / "ne_50m_admin_1_states_provinces.zip"
 PATH_FOND_OCEAN = DIR_REFERENCE / "ne_50m_ocean.zip"
 PATH_FOND_LACS  = DIR_REFERENCE / "ne_50m_lakes.zip"
-MARGE_M = 20_000
 
 N_ANNEES  = 10
 DJMA_COLS = [f"val_djma_annee_{i}" for i in range(1, N_ANNEES + 1)]
 CAM_COLS  = [f"val_cam_annee_{i}"  for i in range(1, N_ANNEES + 1)]
-
-# Palette (cf. skill dataviz — palette validée)
-BLEU_450   = "#2a78d6"   # séquentiel / série 1
-CRITIQUE   = "#d03b3b"   # rouge (carte 3D — écart de méthode le plus fort)
-GRIS_AXE   = "#898781"
-COULEURS_M = {"m1": "#2a78d6", "m2": "#008300", "m3": "#e87ba4", "m4": "#eda100"}
-
-# Couleurs par type de route — DOIT rester synchronisé avec COULEURS_CLASSE /
-# COULEUR_AUTRE dans generer_figure_donnees.py (identité visuelle cohérente
-# dans tout le README). Redéfini ici plutôt qu'importé pour ne pas déclencher
-# les effets de bord de ce module au chargement (téléchargement de polices,
-# plt.rcParams global en Arimo).
-COULEURS_ROUTE = {
-    "Autoroute":   "#f2a0b5",
-    "Nationale":   "#8fa8f0",
-    "Régionale":   "#7ecfb0",
-    "Collectrice": "#b6a8d9",
-    "Autre":       "#cfcabd",
-}
-
-# Fond de carte 2D (mêmes teintes que charger_fond_geographique() dans
-# generer_figure_donnees.py — redéfini ici pour la même raison que COULEURS_ROUTE
-# ci-dessus : pas d'import croisé, pas d'effet de bord police/rcParams).
-FOND_TERRE     = "#f1efe6"
-EAU            = "#bcdcf2"
-FOND_BORDURE   = "#ddd9cc"
-QUEBEC_BORDURE = "#9aa5b1"
 
 # Rampe séquentielle pastel pour le DJMA (carte_reseau_resultats.png) — prolonge
 # BLEU_450 (déjà la série "séquentielle" de ce fichier) plutôt que le cmap "Blues"
@@ -93,28 +85,12 @@ QUEBEC_BORDURE = "#9aa5b1"
 # du README.
 CMAP_DJMA = LinearSegmentedColormap.from_list("cirano_djma", ["#dce8f7", BLEU_450, "#0d2d52"])
 
-# Couleurs d'échec — orange clair, teinte opposée à la rampe DJMA (bleu) sur le
-# cercle chromatique : contraste net avec les arcs enrichis, sans tomber dans le
-# rouge/vert saturé "feu de circulation" (cf. feedback_dataviz_style).
-ECHEC_INTRA   = "#f2a765"   # échec — aucune station MTQ à proximité (intraurbain)
-ECHEC_HORS_QC = "#c96f2e"   # échec — tracé hors territoire québécois (plus soutenu, peu nombreux)
-
 # Rayon du zoom Grand Montréal (carte_montreal_resultats.png), centré sur le nœud
 # "Montréal" — capture la quasi-totalité des échecs intraurbains (île + couronnes
 # nord/sud), qui se tassent en un fouillis illisible à l'échelle du Québec.
 RAYON_MTL_M = 55_000
 
-plt.rcParams.update({
-    "font.family": "sans-serif",
-    "axes.edgecolor": GRIS_AXE,
-    "axes.labelcolor": "#0b0b0b",
-    "text.color": "#0b0b0b",
-    "xtick.color": GRIS_AXE,
-    "ytick.color": GRIS_AXE,
-    "figure.facecolor": "white",
-    "axes.facecolor": "white",
-    "savefig.facecolor": "white",
-})
+appliquer_style()
 
 
 def _validation_croisee_randomforest() -> dict:
@@ -166,17 +142,19 @@ def figure_validation_randomforest(cv: dict) -> None:
         idx = rng.choice(len(y_true_flat), 3000, replace=False)
         y_true_flat, y_pred_flat = y_true_flat[idx], y_pred_flat[idx]
 
-    fig, ax = plt.subplots(figsize=(6, 6))
+    fig, ax = plt.subplots(figsize=(6, 6.4))
     ax.scatter(y_true_flat, y_pred_flat, s=10, alpha=0.35, color=BLEU_450, linewidths=0)
     lims = [0, max(y_true_flat.max(), y_pred_flat.max()) * 1.05]
-    ax.plot(lims, lims, color=GRIS_AXE, linewidth=1.5, linestyle="--", label="Prédiction parfaite")
+    ax.plot(lims, lims, color=GRIS_AXE, linewidth=1.5, linestyle="--")
     ax.set_xlim(lims); ax.set_ylim(lims)
     ax.set_xlabel("% camions réel")
     ax.set_ylabel("% camions prédit (RandomForest, validation croisée 5-fold)")
-    ax.set_title(f"Validation du RandomForest — R² = {cv['r2']:.3f}, RMSE = {cv['rmse']:.2f} pts")
-    ax.legend(frameon=False, loc="upper left")
+    entete_figure(fig, ax, "Validation du RandomForest",
+                  f"R² = {cv['r2']:.3f}, RMSE = {cv['rmse']:.2f} pts", y=0.98)
+    legende_carte(ax, [Line2D([0], [0], color=GRIS_AXE, lw=1.5, linestyle="--",
+                              label="Prédiction parfaite")], loc="upper left")
     ax.spines[["top", "right"]].set_visible(False)
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
     fig.savefig(FIG_DIR / "validation_randomforest.png", dpi=150)
     plt.close(fig)
     print(f"  validation_randomforest.png  (R²={cv['r2']:.3f}, RMSE={cv['rmse']:.2f}, "
@@ -227,14 +205,11 @@ def figure_randomforest_subsets(cv: dict) -> None:
 
 
 def _charger_fond_quebec(bbox: tuple) -> dict | None:
-    """Fond de carte Québec (Natural Earth) — même fichiers que ceux mis en cache
-    par generer_figure_donnees.py, relus ici sans les importer.
-
-    Ne réutilise pas charger_fond_geographique() de generer_figure_donnees.py :
-    l'importer déclencherait le téléchargement de police et le rcParams global
-    Arimo de ce module (effets de bord déjà évités ici, cf. COULEURS_ROUTE).
-    Relit les mêmes fichiers déjà mis en cache par ce script — aucun accès
-    réseau si generer_figure_donnees.py a déjà tourné une fois.
+    """Fond de carte Québec (Natural Earth) — mêmes fichiers que ceux mis en cache
+    par generer_figure_donnees.py (data/reference/), relus ici avec un clip exact
+    (gpd.clip) plutôt qu'un simple filtre de bbox (.cx[]) : chaque figure de ce
+    module a son propre ratio d'emprise (calculé depuis ses propres données), un
+    clip exact évite tout débord au-delà de ce cadre précis.
     """
     if not (PATH_FOND_ADMIN.exists() and PATH_FOND_OCEAN.exists() and PATH_FOND_LACS.exists()):
         return None
@@ -242,11 +217,11 @@ def _charger_fond_quebec(bbox: tuple) -> dict | None:
     minx, miny, maxx, maxy = bbox
     fenetre = box(minx, miny, maxx, maxy)
 
-    fond   = gpd.read_file(PATH_FOND_ADMIN).to_crs("EPSG:32198").cx[minx:maxx, miny:maxy]
+    fond   = gpd.read_file(PATH_FOND_ADMIN).to_crs(CRS_WORK).cx[minx:maxx, miny:maxy]
     quebec = gpd.clip(fond[fond["name"] == "Québec"], fenetre)
     autres = gpd.clip(fond[fond["name"] != "Québec"], fenetre)
-    ocean  = gpd.clip(gpd.read_file(PATH_FOND_OCEAN).to_crs("EPSG:32198").cx[minx:maxx, miny:maxy], fenetre)
-    lacs   = gpd.clip(gpd.read_file(PATH_FOND_LACS).to_crs("EPSG:32198").cx[minx:maxx, miny:maxy], fenetre)
+    ocean  = gpd.clip(gpd.read_file(PATH_FOND_OCEAN).to_crs(CRS_WORK).cx[minx:maxx, miny:maxy], fenetre)
+    lacs   = gpd.clip(gpd.read_file(PATH_FOND_LACS).to_crs(CRS_WORK).cx[minx:maxx, miny:maxy], fenetre)
     return {"quebec": quebec, "autres": autres, "ocean": ocean, "lacs": lacs}
 
 
@@ -302,7 +277,8 @@ def figure_carte_divergence_methodes() -> None:
     ax.set_xlim(bbox[0], bbox[2]); ax.set_ylim(bbox[1], bbox[3])
     ax.set_aspect("equal")
     ax.set_axis_off()
-    ax.set_title("Où les 4 méthodes DJMA divergent le plus", fontsize=13)
+    entete_carte(ax, "Où les 4 méthodes DJMA divergent le plus",
+                 "Écart relatif entre m1-m4, par arc")
 
     sm = plt.cm.ScalarMappable(cmap=cmap_divergence, norm=norm)
     cbar = fig.colorbar(sm, ax=ax, shrink=0.55, pad=0.02)
@@ -312,9 +288,7 @@ def figure_carte_divergence_methodes() -> None:
     lignes_top3 = "  |  ".join(
         f"{row['VILLE_A']}–{row['VILLE_B']} ({row['ecart_pct']:.0f} %)" for _, row in top3.iterrows()
     )
-    fig.text(0.5, 0.03,
-             f"Couleur du tracé ∝ écart relatif entre méthodes, par arc\n"
-             f"Écarts les plus marqués : {lignes_top3}",
+    fig.text(0.5, 0.03, f"Écarts les plus marqués : {lignes_top3}",
              ha="center", fontsize=8.5, color=GRIS_AXE)
 
     fig.tight_layout()
@@ -359,24 +333,19 @@ def figure_carte_reseau_resultats() -> None:
     ax.set_xlim(bbox[0], bbox[2]); ax.set_ylim(bbox[1], bbox[3])
     ax.set_aspect("equal")
     ax.set_axis_off()
-    ax.set_title("Réseau enrichi — DJMA par arc et couverture du routage", fontsize=13)
+    entete_carte(ax, "Réseau enrichi — DJMA par arc",
+                 f"{len(ok)}/{len(gdf)} arcs enrichis ({100 * len(ok) / len(gdf):.1f} %) · couverture du routage")
 
     sm = plt.cm.ScalarMappable(cmap=CMAP_DJMA, norm=norm)
     cbar = fig.colorbar(sm, ax=ax, shrink=0.55, pad=0.02)
     cbar.set_label("DJMA — méthode m4 (véh./jour, échelle log)")
 
-    handles = [
+    legende_carte(ax, [
         Line2D([0], [0], color=ECHEC_INTRA, lw=2, linestyle=(0, (4, 2)),
                label=f"Échec — aucune station MTQ ({len(echec_intra)})"),
         Line2D([0], [0], color=ECHEC_HORS_QC, lw=2.2,
                label=f"Échec — hors Québec ({len(echec_hqc)})"),
-    ]
-    leg = ax.legend(handles=handles, loc="lower right", fontsize=9,
-                     frameon=True, facecolor="white", edgecolor=GRIS_AXE, framealpha=1.0)
-    leg.get_frame().set_linewidth(0.8)
-
-    fig.text(0.5, 0.03, f"{len(ok)}/{len(gdf)} arcs enrichis ({100 * len(ok) / len(gdf):.1f} %)",
-              ha="center", fontsize=9.5, color=GRIS_AXE)
+    ])
 
     fig.tight_layout()
     fig.savefig(FIG_DIR / "carte_reseau_resultats.png", dpi=150, bbox_inches="tight")
@@ -420,20 +389,16 @@ def figure_carte_montreal_resultats() -> None:
     ax.set_xlim(bbox[0], bbox[2]); ax.set_ylim(bbox[1], bbox[3])
     ax.set_aspect("equal")
     ax.set_axis_off()
-    ax.set_title("Zoom — Grand Montréal : où se concentrent les échecs", fontsize=13)
+    entete_carte(ax, "Zoom — Grand Montréal",
+                 f"{len(echec_intra)} des 19 échecs intraurbains dans un rayon de "
+                 f"{RAYON_MTL_M // 1000} km autour de Montréal")
 
     sm = plt.cm.ScalarMappable(cmap=CMAP_DJMA, norm=norm)
     cbar = fig.colorbar(sm, ax=ax, shrink=0.55, pad=0.02)
     cbar.set_label("DJMA — méthode m4 (véh./jour, échelle log)")
 
-    handles = [Line2D([0], [0], color=ECHEC_INTRA, lw=2, linestyle=(0, (4, 2)),
-                      label=f"Échec — aucune station MTQ ({len(echec_intra)})")]
-    leg = ax.legend(handles=handles, loc="lower right", fontsize=9,
-                     frameon=True, facecolor="white", edgecolor=GRIS_AXE, framealpha=1.0)
-    leg.get_frame().set_linewidth(0.8)
-
-    fig.text(0.5, 0.03, f"{len(echec_intra)} des 19 échecs intraurbains se trouvent dans un rayon de "
-              f"{RAYON_MTL_M // 1000} km autour de Montréal", ha="center", fontsize=9.5, color=GRIS_AXE)
+    legende_carte(ax, [Line2D([0], [0], color=ECHEC_INTRA, lw=2, linestyle=(0, (4, 2)),
+                              label=f"Échec — aucune station MTQ ({len(echec_intra)})")])
 
     fig.tight_layout()
     fig.savefig(FIG_DIR / "carte_montreal_resultats.png", dpi=150, bbox_inches="tight")
