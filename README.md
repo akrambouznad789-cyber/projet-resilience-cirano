@@ -23,7 +23,7 @@ flowchart TD
     E[("💾 graphe_routier.gpkg")]
     F["📈 <b>Calcul du DJMA</b><br/>Agrégation par arc, 4 méthodes (m1-m4)<br/><i>calcul_djma_methodes.py</i>"]
     G[("✅ graphe_routier_djma.gpkg")]
-    H["🔍 <b>Analyse de sensibilité</b><br/>compare m1-m4, n'est pas le livrable<br/><i>comparaison_methodes_djma.py</i>"]
+    H["🔍 <b>Analyse de sensibilité</b><br/>compare m1-m4 (stats, corrélation)<br/><i>comparaison_methodes_djma.py</i>"]
     I["🖥️ <b>Livrable QGIS (Volet 1)</b><br/><i>nettoyage_projet_qgis.py</i>"]
 
     A --> B --> C --> D --> E --> F --> G
