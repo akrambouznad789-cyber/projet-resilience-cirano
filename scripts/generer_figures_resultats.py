@@ -252,13 +252,20 @@ def figure_carte_divergence_methodes() -> None:
     les hauteurs de colonnes en perspective se comparent mal d'un arc à l'autre.
     Un choropleth 2D classique (couleur du tracé = écart, réseau complet en trame
     de fond pour le contexte) va directement à l'essentiel.
+
+    Les arcs complétés géographiquement (djma_complete, cf. calcul_djma_methodes.
+    completer_echecs_geographique) sont exclus du calcul d'écart : m1-m4 y sont
+    tous la même valeur empruntée au même arc donneur, un écart de 0 % ne
+    signifierait pas que les 4 méthodes s'accordent, seulement qu'aucune n'a de
+    mesure propre. Ils restent visibles en gris pâle, comme le reste du réseau
+    non comparé (gdf, en trame de fond), pas en couleur de divergence.
     """
     cols = ["djma_m1", "djma_m2", "djma_m3", "djma_m4"]
-    djma = gpd.read_file(RESEAU_FILE, layer=RESEAU_LAYER)[["ID_ARC"] + cols]
+    djma = gpd.read_file(RESEAU_FILE, layer=RESEAU_LAYER)[["ID_ARC", "djma_complete"] + cols]
     arcs = gpd.read_file(ARCS_FILE, layer=ARCS_LAYER)[["ID_ARC", "VILLE_A", "VILLE_B", "geometry"]]
     gdf = arcs.merge(djma, on="ID_ARC", how="left")
 
-    valides = gdf.dropna(subset=cols).copy()
+    valides = gdf[gdf[cols].notna().all(axis=1) & ~gdf["djma_complete"].fillna(False)].copy()
     valides["ecart_pct"] = (
         (valides[cols].max(axis=1) - valides[cols].min(axis=1)) / valides[cols].mean(axis=1) * 100
     )
