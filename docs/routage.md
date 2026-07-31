@@ -33,9 +33,9 @@ Un clip préalable au territoire québécois (buffer 2 km autour du réseau RTSS
 
 ### Segments par arc
 
-Le nombre de segments DJMA retenus (`n_segs_djma`) varie fortement d'un arc à l'autre — de 1 à 108 sur les 285 arcs routés avec succès, médiane à 8. Ce n'est pas qu'une question de longueur : la corrélation entre la longueur d'un arc et son nombre de segments est quasi nulle (≈ 0.02), comme le montre la densité normalisée (segments/km) à droite — de longs corridors peuvent n'avoir capté que 1-2 segments, et de courts tronçons périurbains plusieurs dizaines.
+Le nombre de segments DJMA retenus (`n_segs_djma`) varie fortement d'un arc à l'autre — de 1 à 108 sur les 285 arcs routés avec succès, médiane à 8.
 
-![Segments DJMA par arc — brut et normalisé](../figures/segments_par_arc.png)
+![Réseau enrichi — segments DJMA par arc](../figures/segments_par_arc.png)
 
 Cette taille d'échantillon par arc sert de base pour évaluer, arc par arc, quelle méthode d'agrégation DJMA (m1-m4, voir [Méthodes](methodes.md)) est la mieux justifiée.
 
