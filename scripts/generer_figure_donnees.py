@@ -352,8 +352,9 @@ def figure_extrapolation_gradient() -> None:
     fig, ax = plt.subplots(figsize=(8, 5.5))
 
     for fenetre in (idx_ok[:FENETRE_GRADIENT], idx_ok[-FENETRE_GRADIENT:]):
-        ax.axvspan(annees_c[fenetre[0]] - 0.4, annees_c[fenetre[-1]] + 0.4,
-                  color=BLEU_NOEUD, alpha=0.08, zorder=0)
+        x0, x1 = annees_c[fenetre[0]] - 0.4, annees_c[fenetre[-1]] + 0.4
+        ax.axvspan(x0, x1, facecolor=BLEU_NOEUD, alpha=0.18, zorder=0)
+        ax.axvspan(x0, x1, facecolor="none", edgecolor=BLEU_NOEUD, linewidth=1.4, zorder=1)
 
     ax.plot(annees_c, ancienne_c, color=MUET, linewidth=1, linestyle="--", alpha=0.5, zorder=1)
     ax.plot(annees_c[manquants], ancienne_c[manquants], color=MUET, linewidth=0, zorder=2,

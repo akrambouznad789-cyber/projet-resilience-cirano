@@ -15,6 +15,8 @@ Génère 5 PNG dans figures/ :
      carte du Québec — fusionne les anciennes carte_reseau_djma.png/carte_resultats.png
   5. carte_montreal_resultats.png    : zoom Grand Montréal de la carte précédente —
      rend lisibles les échecs intraurbains, trop denses à l'échelle du Québec
+  6. segments_par_arc.png            : nombre de segments DJMA par arc, brut et
+     normalisé (segments/km) — taille d'échantillon disponible par arc
 """
 
 from pathlib import Path
@@ -406,6 +408,79 @@ def figure_carte_montreal_resultats() -> None:
     print(f"  carte_montreal_resultats.png ({len(echec_intra)} échecs dans le zoom, {len(ok)} arcs OK)")
 
 
+def figure_segments_par_arc() -> None:
+    """Nombre de segments DJMA par arc — brut et normalisé (densité par km).
+
+    Deux volets, purement descriptifs : combien de segments MTQ le routage
+    associe-t-il à chaque arc (brut), et cette quantité tient-elle uniquement à
+    la longueur de l'arc une fois normalisée (segments / km) ? Sert à juger,
+    arc par arc, si l'échantillon DJMA disponible justifie une méthode
+    d'agrégation plutôt qu'une autre (m1-m4) — le choix lui-même reste hors de
+    cette figure.
+    """
+    arcs = gpd.read_file(ARCS_FILE, layer=ARCS_LAYER)[
+        ["VILLE_A", "VILLE_B", "statut", "n_segs_djma", "longueur_trace_km"]
+    ]
+    ok = arcs[arcs["statut"] == "ok"].copy()
+    ok["densite"] = ok["n_segs_djma"] / ok["longueur_trace_km"]
+
+    def _nom_lisible(nom: str) -> str:
+        """Corrige pour l'affichage l'encodage déjà corrompu de certains noms de
+        communautés autochtones dans la donnée source (raw, non modifiable, cf.
+        CLAUDE.md) — même logique que le contournement pour "MontrÃ©al" dans
+        figure_carte_montreal_resultats() : lecture seule, aucun fichier réécrit.
+        Le nom corrigé combine souvent un préfixe en syllabique autochtone (ex.
+        "ᐐᒥᓂᒌ Wemindji") que la police Arimo ne sait pas rendre (tofu) — on ne
+        garde alors que la partie latine, après le dernier espace."""
+        try:
+            fixed = nom.encode("latin1").decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            fixed = nom
+        if any(ord(c) > 0x2FF for c in fixed) and " " in fixed:
+            fixed = fixed.rsplit(" ", 1)[-1]
+        return fixed
+
+    fig, (ax_brut, ax_norm) = plt.subplots(1, 2, figsize=(13, 5.8))
+
+    for ax, colonne, ylabel, sous_titre in (
+        (ax_brut, "n_segs_djma", "Segments DJMA retenus par arc (n)", "Brut"),
+        (ax_norm, "densite", "Segments DJMA par km (densité)", "Normalisé — segments / km"),
+    ):
+        ax.scatter(ok["longueur_trace_km"], ok[colonne],
+                   s=24, alpha=0.55, color=BLEU_450, linewidths=0, zorder=2)
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlabel("Longueur de l'arc (km, échelle log)")
+        ax.set_ylabel(ylabel)
+        ax.set_title(sous_titre, fontsize=10.5, color=GRIS_AXE, pad=8)
+        ax.spines[["top", "right"]].set_visible(False)
+
+    # Extrêmes de densité — les deux bouts de la distribution normalisée, pour
+    # ancrer la lecture (dense vs quasi vide). Décalages alternés (haut/bas) pour
+    # que les points voisins (ex. Boisbriand/Candiac, proches en périphérie de
+    # Montréal) ne se chevauchent pas.
+    extremes = pd.concat([ok.nlargest(2, "densite"), ok.nsmallest(2, "densite")])
+    for i, (_, row) in enumerate(extremes.iterrows()):
+        dy = 8 if i % 2 == 0 else -12
+        ax_norm.annotate(
+            f"{_nom_lisible(row['VILLE_A'])}–{_nom_lisible(row['VILLE_B'])}",
+            (row["longueur_trace_km"], row["densite"]),
+            textcoords="offset points", xytext=(6, dy), fontsize=7.5, color=GRIS_AXE,
+            va="bottom" if dy > 0 else "top",
+        )
+
+    entete_figure(
+        fig, ax_brut, "Segments DJMA par arc",
+        f"{len(ok)} arcs routés · médiane {ok['n_segs_djma'].median():.0f} segments, "
+        f"{ok['densite'].median():.2f} seg/km",
+        y=0.98,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.92))
+    fig.savefig(FIG_DIR / "segments_par_arc.png", dpi=150)
+    plt.close(fig)
+    print(f"  segments_par_arc.png ({len(ok)} arcs, médiane {ok['n_segs_djma'].median():.0f} segments)")
+
+
 def main() -> None:
     FIG_DIR.mkdir(exist_ok=True)
     print("Génération des figures...")
@@ -415,6 +490,7 @@ def main() -> None:
     figure_carte_divergence_methodes()
     figure_carte_reseau_resultats()
     figure_carte_montreal_resultats()
+    figure_segments_par_arc()
     print(f"\nTerminé — figures dans {FIG_DIR}")
 
 
