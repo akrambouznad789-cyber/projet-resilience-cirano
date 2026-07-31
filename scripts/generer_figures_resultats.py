@@ -3,19 +3,21 @@ generer_figures_resultats.py
 =============================
 Projet CIRANO — Figures statiques pour la présentation du projet (README)
 
-Génère 5 PNG dans figures/ :
+Génère 7 PNG dans figures/ :
   1. validation_randomforest.png     : validation croisée du RandomForest (%cam),
      prédit vs réel, avec R² et RMSE
   2. randomforest_subsets.png        : la même validation croisée, facettée par type
      de route — le "subset" que le modèle apprend à distinguer
   3. carte_divergence_methodes.png   : carte 2D (choropleth) sur fond de carte du
      Québec — couleur (pâle→ambre→rouge) = écart relatif entre les 4 méthodes DJMA
-  4. carte_reseau_resultats.png      : carte du réseau enrichi — DJMA par arc (m4)
+  4. boites_ecarts_methodes.png      : boîtes à moustaches — distribution de l'écart
+     relatif de m1, m2, m3 par rapport à m4, sur les mêmes arcs que la carte ci-dessus
+  5. carte_reseau_resultats.png      : carte du réseau enrichi — DJMA par arc (m4)
      et couverture du routage (arcs en échec distingués par cause) sur fond de
      carte du Québec — fusionne les anciennes carte_reseau_djma.png/carte_resultats.png
-  5. carte_montreal_resultats.png    : zoom Grand Montréal de la carte précédente —
+  6. carte_montreal_resultats.png    : zoom Grand Montréal de la carte précédente —
      rend lisibles les échecs intraurbains, trop denses à l'échelle du Québec
-  6. segments_par_arc.png            : carte du réseau — arcs classés par nombre
+  7. segments_par_arc.png            : carte du réseau — arcs classés par nombre
      de segments DJMA (5 classes), échecs distingués par cause
 """
 
@@ -46,8 +48,10 @@ from style_figures import (
     ECHEC_HORS_QC,
     ECHEC_INTRA,
     EAU,
+    ENCRE,
     FOND_BORDURE,
     FOND_TERRE,
+    GRILLE,
     MARGE_M,
     MUET as GRIS_AXE,
     QUEBEC_BORDURE,
@@ -313,6 +317,64 @@ def figure_carte_divergence_methodes() -> None:
     print("  carte_divergence_methodes.png")
 
 
+def figure_boites_ecarts_methodes() -> None:
+    """Boîtes à moustaches — écart relatif de m1, m2, m3 par rapport à m4.
+
+    Complète carte_divergence_methodes.png (où ça diverge, sur le réseau) par
+    combien ça diverge, en distribution : m4 (percentile) sert de référence
+    commune puisque c'est la méthode qui s'écarte le plus des trois autres
+    (moyennes). Mêmes arcs que la carte de divergence — les 19 arcs complétés
+    géographiquement (djma_complete) sont exclus : m1=m2=m3=m4 y est toujours
+    vrai par construction (valeur unique empruntée), un écart de 0 % n'y
+    refléterait aucun accord réel entre méthodes.
+    """
+    cols = ["djma_m1", "djma_m2", "djma_m3", "djma_m4"]
+    gdf = gpd.read_file(RESEAU_FILE, layer=RESEAU_LAYER)[cols + ["djma_complete"]]
+    valides = gdf[gdf[cols].notna().all(axis=1) & ~gdf["djma_complete"].fillna(False)]
+
+    paires  = ["m1", "m2", "m3"]
+    ecarts  = [(valides["djma_m4"] - valides[f"djma_{m}"]) / valides[f"djma_{m}"] * 100 for m in paires]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.axhline(0, color=GRIS_AXE, linewidth=1.2, linestyle=(0, (4, 2)), zorder=1)
+
+    bp = ax.boxplot(
+        ecarts, positions=range(len(paires)), widths=0.55, patch_artist=True,
+        medianprops=dict(color=ENCRE, linewidth=1.8),
+        whiskerprops=dict(color=GRIS_AXE, linewidth=1.2),
+        capprops=dict(color=GRIS_AXE, linewidth=1.2),
+        flierprops=dict(marker="o", markersize=3.5, markerfacecolor=GRIS_AXE,
+                         markeredgecolor="none", alpha=0.5),
+        zorder=2,
+    )
+    for patch, m in zip(bp["boxes"], paires):
+        patch.set_facecolor(COULEURS_M[m])
+        patch.set_alpha(0.55)
+        patch.set_edgecolor(COULEURS_M[m])
+        patch.set_linewidth(1.4)
+
+    for i, (m, serie) in enumerate(zip(paires, ecarts)):
+        ax.annotate(f"médiane {serie.median():+.0f} %", (i, serie.quantile(0.75)),
+                   textcoords="offset points", xytext=(0, 10), ha="center",
+                   fontsize=8.5, fontweight="bold", color=COULEURS_M[m], zorder=3)
+
+    ax.set_xticks(range(len(paires)))
+    ax.set_xticklabels([f"{m} vs m4" for m in paires], fontsize=10.5)
+    ax.set_ylabel("Écart relatif à m4 (%)")
+    entete_figure(
+        fig, ax, "Distribution des écarts relatifs à m4",
+        f"{len(valides)} arcs · (m4 − mX) / mX × 100", y=0.98,
+    )
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.yaxis.grid(True, color=GRILLE, linewidth=1, zorder=0)
+    ax.set_axisbelow(True)
+
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(FIG_DIR / "boites_ecarts_methodes.png", dpi=150)
+    plt.close(fig)
+    print(f"  boites_ecarts_methodes.png ({len(valides)} arcs)")
+
+
 def figure_carte_reseau_resultats() -> None:
     """Carte de synthèse unique : DJMA par arc (m4) + couverture du routage.
 
@@ -484,6 +546,7 @@ def main() -> None:
     figure_validation_randomforest(cv)
     figure_randomforest_subsets(cv)
     figure_carte_divergence_methodes()
+    figure_boites_ecarts_methodes()
     figure_carte_reseau_resultats()
     figure_carte_montreal_resultats()
     figure_segments_par_arc()
