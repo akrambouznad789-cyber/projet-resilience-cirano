@@ -38,7 +38,7 @@ En dernier recours, pour les segments sans aucune mesure d'aucune année, compl�
 
 Exemple réel (segment #30014) : ses 5 voisins pondérés vont de 1 520 à 14 015 véh./jour selon leur distance — le plus proche (2 421 véh./jour, à ~1 km) pèse 43 % de l'estimation finale, le plus éloigné (14 015 véh./jour, à ~4,3 km) seulement 14 %. La valeur résultante (5 302 véh./jour) est une moyenne pondérée par cette proximité, pas une simple moyenne des 5.
 
-**Important — à ne pas confondre avec les échecs de la section [Résultats](resultats.md) :** ce KNN comble les trous temporels d'une station de comptage MTQ qui *existe déjà* dans `DebitCirculation.gpkg`, en lui empruntant la série d'une station voisine. Il n'invente jamais une station là où le MTQ n'en a posé aucune — c'est cette distinction qui explique pourquoi certains arcs du réseau restent malgré tout sans valeur DJMA après le routage.
+**Important — à ne pas confondre avec la complétion géographique des arcs ([Méthodes](methodes.md)) :** ce KNN comble les trous temporels d'une station de comptage MTQ qui *existe déjà* dans `DebitCirculation.gpkg`, en lui empruntant la série d'une station voisine. Il n'invente jamais une station là où le MTQ n'en a posé aucune — c'est cette distinction qui explique pourquoi certains arcs du réseau n'ont, après le routage, aucun segment propre. Ces arcs-là sont traités en aval, une fois le DJMA agrégé par arc : voir « Complétion géographique des échecs » dans [Méthodes](methodes.md), qui leur emprunte le DJMA de l'arc valide le plus proche plutôt que d'inventer une station.
 
 ### Synthèse — évolution de la complétude
 

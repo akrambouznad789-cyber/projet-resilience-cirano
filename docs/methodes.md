@@ -42,6 +42,28 @@ Plutôt qu'une simple comparaison statistique, cette carte projette l'écart rel
 
 m1, m2 et m3 sont fortement corrélées entre elles (Pearson ≥ 0,979) car elles moyennent la même population de segments différemment. m4 reste bien corrélée (Pearson ≈ 0,97-0,98) tout en s'en écartant légèrement : c'est voulu, elle vise à capturer les pointes de trafic (80e percentile réel) plutôt que la tendance centrale. 134 des 307 arcs montrent un écart relatif > 30 % entre méthodes — un signal que le choix de méthode d'agrégation a un impact réel et doit être fait explicitement selon l'usage (planification vs dimensionnement).
 
+### Complétion géographique des échecs
+
+19 des 307 arcs (statut `aucun_djma` — aucune station MTQ à proximité du tracé, cf. [Routage](routage.md)) n'ont aucun segment propre : m1-m4 y sont indéfinis par construction, faute de mesure à agréger. Plutôt que de laisser ces arcs vides, `completer_echecs_geographique()` leur emprunte le DJMA (m1-m4) de l'arc valide le plus proche géométriquement.
+
+```python
+def completer_echecs_geographique(arcs):
+    """Emprunte le DJMA de l'arc valide (statut == 'ok') le plus proche."""
+    valides = arcs[arcs.statut == "ok"]
+    for arc in arcs[arcs.statut == "aucun_djma"]:
+        distances   = valides.geometry.distance(arc.geometry)  # tracé à tracé
+        plus_proche = valides[argmin(distances)]
+        arc.djma_m1, arc.djma_m2, arc.djma_m3, arc.djma_m4 = (
+            plus_proche.djma_m1, plus_proche.djma_m2, plus_proche.djma_m3, plus_proche.djma_m4
+        )
+        arc.djma_complete, arc.djma_arc_source = True, plus_proche.ID_ARC
+        # n_segs_m{N} reste à 0 : toujours aucun segment MTQ propre à cet arc
+```
+
+Un seul plus proche voisin — pas de moyenne pondérée façon KNN+IDW (cf. [Complétion](completion.md)) : il n'existe ici aucune mesure partielle à compléter, seulement une meilleure estimation à emprunter. La distance au donneur est **0 km dans les 19 cas** : le plus proche voisin géométrique d'un arc est presque toujours un arc qui lui est directement connecté dans le graphe (même ville de départ ou d'arrivée), pas un arc choisi par proximité de coordonnées au sens large. Ex. Noeud_Baie_James–Radisson (aucune mesure) emprunte à Wemindji–Noeud_Baie_James, le corridor adjacent qui partage son nœud "Noeud_Baie_James" ; Montréal–Westmount emprunte à Montréal–Saint-Lambert.
+
+Chaque valeur empruntée reste traçable — `djma_complete = True`, `djma_arc_source` (ID de l'arc donneur) et `djma_distance_source_km` sont conservés dans `graphe_routier_djma.gpkg` — pour ne jamais confondre une mesure réelle avec une estimation empruntée en aval (cartes, statistiques). Les 3 arcs `hors_quebec` (tracé sortant du territoire) ne sont pas concernés : leur géométrie elle-même est hors du réseau QC comparé, la proximité y est moins interprétable.
+
 ---
 
 [← Routage](routage.md) · [Résultats →](resultats.md) · [README](../README.md)

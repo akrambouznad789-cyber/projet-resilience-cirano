@@ -26,7 +26,13 @@ CHAMPS PRODUITS (par méthode)
   djma_m{N}     : DJMA agrégé (entier)
   pct_cam_m{N}  : % camion agrégé (1 décimale) — N/A pour m4
   djma_cam_m{N} : débit camion estimé = djma_m{N} × pct_cam_m{N} / 100 (entier)
-  n_segs_m{N}   : nombre de segments contributeurs
+  n_segs_m{N}   : nombre de segments contributeurs (reste à 0 pour un arc complété)
+
+COMPLÉTION GÉOGRAPHIQUE (arcs statut == "aucun_djma", cf. completer_echecs_geographique)
+------------------------------------------------------------------------------------------
+  djma_complete           : True si le DJMA a été emprunté au plus proche voisin
+  djma_arc_source          : ID_ARC de l'arc donneur
+  djma_distance_source_km : distance géométrie-à-géométrie au donneur (km)
 """
 
 import warnings
@@ -273,6 +279,60 @@ def appliquer_m4(arcs: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
 
 # ============================================================
+# COMPLÉTION GÉOGRAPHIQUE DES ÉCHECS (statut == "aucun_djma")
+# ============================================================
+
+COLS_A_EMPRUNTER = [
+    "djma_m1", "pct_cam_m1", "djma_cam_m1",
+    "djma_m2", "pct_cam_m2", "djma_cam_m2",
+    "djma_m3", "pct_cam_m3", "djma_cam_m3",
+    "djma_m4", "pct_cam_m4", "djma_cam_m4",
+]
+
+
+def completer_echecs_geographique(arcs: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Emprunte le DJMA (m1-m4) de l'arc valide le plus proche pour les arcs en
+    échec 'aucun_djma' (aucune station MTQ à proximité du tracé, donc aucun
+    segment propre pour calculer m1-m4).
+
+    Un seul plus proche voisin, distance géométrie à géométrie (tracé à tracé,
+    pas centroïde — même logique que les filtres de routage dans
+    algo_jointure_routes_liens.py) parmi les arcs statut == 'ok'. Ce n'est pas
+    une moyenne pondérée comme le KNN+IDW temporel de
+    completion_donnees_randomforest.py (qui comble les trous d'une série d'une
+    station qui *existe déjà*) : ici aucune mesure n'existe pour cet arc, donc
+    on ne fait qu'emprunter telle quelle la meilleure estimation disponible à
+    proximité — n_segs_m{N} reste à 0, ces arcs n'ont toujours aucun segment
+    MTQ propre. djma_complete / djma_arc_source / djma_distance_source_km
+    tracent l'origine de chaque valeur empruntée. Les arcs 'hors_quebec' (le
+    tracé sort du territoire) ne sont pas concernés.
+    """
+    arcs = arcs.copy()
+    arcs["djma_complete"]           = False
+    arcs["djma_arc_source"]         = pd.array([pd.NA] * len(arcs), dtype="Int64")
+    arcs["djma_distance_source_km"] = np.nan
+
+    valides     = arcs[arcs["statut"] == "ok"]
+    a_completer = arcs[arcs["statut"] == "aucun_djma"]
+
+    for idx, arc in a_completer.iterrows():
+        distances    = valides.geometry.distance(arc.geometry)
+        idx_proche   = distances.idxmin()
+        plus_proche  = valides.loc[idx_proche]
+
+        arcs.loc[idx, COLS_A_EMPRUNTER]          = plus_proche[COLS_A_EMPRUNTER]
+        arcs.loc[idx, "djma_complete"]           = True
+        arcs.loc[idx, "djma_arc_source"]         = plus_proche["ID_ARC"]
+        arcs.loc[idx, "djma_distance_source_km"] = round(distances[idx_proche] / 1000, 1)
+
+    for col in ["djma_m1", "djma_m2", "djma_m3", "djma_m4",
+                "djma_cam_m1", "djma_cam_m2", "djma_cam_m3", "djma_cam_m4"]:
+        arcs[col] = arcs[col].astype("Int64")
+
+    return arcs
+
+
+# ============================================================
 # RÉSUMÉ PAR MÉTHODE
 # ============================================================
 
@@ -313,14 +373,23 @@ def main() -> None:
     print("[3/5] Calcul m3 (pondération type d'axe)...")
     arcs = appliquer_m3(arcs)
 
-    print("[3/5] Calcul m4 (80e percentile, nearest-rank)...")
+    print("[3/6] Calcul m4 (80e percentile, nearest-rank)...")
     arcs = appliquer_m4(arcs)
 
-    print("\n[4/5] Résultats :")
+    print("\n[4/6] Complétion géographique des échecs (statut == aucun_djma)...")
+    n_avant = arcs["statut"].eq("aucun_djma").sum()
+    arcs = completer_echecs_geographique(arcs)
+    n_completes = arcs["djma_complete"].sum()
+    print(f"  {n_completes}/{n_avant} arcs complétés par emprunt au plus proche voisin")
+    if n_completes:
+        dist = arcs.loc[arcs["djma_complete"], "djma_distance_source_km"]
+        print(f"  distance au donneur : médiane={dist.median():.1f} km, max={dist.max():.1f} km")
+
+    print("\n[5/6] Résultats :")
     for col, label in [("djma_m1", "m1"), ("djma_m2", "m2"), ("djma_m3", "m3"), ("djma_m4", "m4")]:
         afficher_resume(arcs, col, label)
 
-    print(f"\n[5/5] Export → {OUTPUT_FILE}  (layer : {OUTPUT_LAYER})")
+    print(f"\n[6/6] Export → {OUTPUT_FILE}  (layer : {OUTPUT_LAYER})")
     arcs.to_file(OUTPUT_FILE, layer=OUTPUT_LAYER, driver="GPKG")
     print("  Terminé.")
 
