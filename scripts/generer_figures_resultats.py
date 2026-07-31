@@ -15,8 +15,8 @@ Génère 5 PNG dans figures/ :
      carte du Québec — fusionne les anciennes carte_reseau_djma.png/carte_resultats.png
   5. carte_montreal_resultats.png    : zoom Grand Montréal de la carte précédente —
      rend lisibles les échecs intraurbains, trop denses à l'échelle du Québec
-  6. segments_par_arc.png            : carte du réseau — arcs colorés selon leur
-     nombre de segments DJMA (échelle log), échecs distingués par cause
+  6. segments_par_arc.png            : carte du réseau — arcs classés par nombre
+     de segments DJMA (5 classes), échecs distingués par cause
 """
 
 from pathlib import Path
@@ -24,6 +24,7 @@ from pathlib import Path
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap, LogNorm, Normalize
 from matplotlib.lines import Line2D
 from sklearn.ensemble import RandomForestRegressor
@@ -90,6 +91,13 @@ CMAP_DJMA = LinearSegmentedColormap.from_list("cirano_djma", ["#dce8f7", BLEU_45
 # "Montréal" — capture la quasi-totalité des échecs intraurbains (île + couronnes
 # nord/sud), qui se tassent en un fouillis illisible à l'échelle du Québec.
 RAYON_MTL_M = 55_000
+
+# Classes de segments_par_arc.png — bornes choisies sur les quintiles actuels de
+# n_segs_djma (~55-60 arcs par classe) plutôt qu'un dégradé continu : on lit
+# directement combien de segments un arc regroupe, sans consulter une colorbar.
+BORNES_SEGMENTS     = [0, 3, 6, 10, 18, np.inf]
+ETIQUETTES_SEGMENTS = ["1–3", "4–6", "7–10", "11–18", "19+"]
+COULEURS_SEGMENTS   = [CMAP_DJMA(t) for t in np.linspace(0.08, 1.0, len(ETIQUETTES_SEGMENTS))]
 
 appliquer_style()
 
@@ -408,11 +416,13 @@ def figure_carte_montreal_resultats() -> None:
 
 
 def figure_segments_par_arc() -> None:
-    """Carte du réseau — arcs colorés selon leur nombre de segments DJMA.
+    """Carte du réseau — arcs classés par nombre de segments DJMA (5 classes).
 
     Même gabarit que figure_carte_reseau_resultats() (fond Québec, échecs
-    distingués par cause), mais la couleur code n_segs_djma plutôt que le DJMA
-    lui-même : combien de segments MTQ le routage a-t-il associés à chaque arc.
+    distingués par cause), mais n_segs_djma est découpé en 5 classes
+    (BORNES_SEGMENTS) plutôt que codé en dégradé continu : chaque arc porte une
+    couleur de palier directement lisible dans la légende, pas une position sur
+    une colorbar.
     """
     arcs = gpd.read_file(ARCS_FILE, layer=ARCS_LAYER)[
         ["ID_ARC", "statut", "n_segs_djma", "geometry"]
@@ -422,16 +432,18 @@ def figure_segments_par_arc() -> None:
     bbox = (minx - MARGE_M, miny - MARGE_M, maxx + MARGE_M, maxy + MARGE_M)
     fond = _charger_fond_quebec(bbox)
 
-    ok          = arcs[arcs["statut"] == "ok"]
+    ok          = arcs[arcs["statut"] == "ok"].copy()
     echec_intra = arcs[arcs["statut"] == "aucun_djma"]
     echec_hqc   = arcs[arcs["statut"] == "hors_quebec"]
+
+    ok["classe"] = pd.cut(ok["n_segs_djma"], bins=BORNES_SEGMENTS, labels=ETIQUETTES_SEGMENTS)
 
     span_x, span_y = bbox[2] - bbox[0], bbox[3] - bbox[1]
     fig, ax = plt.subplots(figsize=(9.5, 9.5 * span_y / span_x + 1.1))
     _tracer_fond(ax, fond)
 
-    norm = LogNorm(vmin=ok["n_segs_djma"].min(), vmax=ok["n_segs_djma"].max())
-    ok.plot(ax=ax, column="n_segs_djma", cmap=CMAP_DJMA, norm=norm, linewidth=1.7, zorder=2)
+    for etiquette, couleur in zip(ETIQUETTES_SEGMENTS, COULEURS_SEGMENTS):
+        ok[ok["classe"] == etiquette].plot(ax=ax, color=couleur, linewidth=1.9, zorder=2)
     echec_intra.plot(ax=ax, color=ECHEC_INTRA, linewidth=1.6, linestyle=(0, (4, 2)), zorder=3)
     echec_hqc.plot(ax=ax, color=ECHEC_HORS_QC, linewidth=2.2, zorder=3)
 
@@ -441,16 +453,16 @@ def figure_segments_par_arc() -> None:
     entete_carte(ax, "Réseau enrichi — segments DJMA par arc",
                  f"{len(ok)}/{len(arcs)} arcs routés · médiane {int(ok['n_segs_djma'].median())} segments/arc")
 
-    sm = plt.cm.ScalarMappable(cmap=CMAP_DJMA, norm=norm)
-    cbar = fig.colorbar(sm, ax=ax, shrink=0.55, pad=0.02)
-    cbar.set_label("Segments DJMA retenus par arc (n, échelle log)")
-
     legende_carte(ax, [
+        Line2D([0], [0], color=couleur, lw=4,
+               label=f"{etiquette} segments ({(ok['classe'] == etiquette).sum()})")
+        for etiquette, couleur in zip(ETIQUETTES_SEGMENTS, COULEURS_SEGMENTS)
+    ] + [
         Line2D([0], [0], color=ECHEC_INTRA, lw=2, linestyle=(0, (4, 2)),
                label=f"Échec — aucune station MTQ ({len(echec_intra)})"),
         Line2D([0], [0], color=ECHEC_HORS_QC, lw=2.2,
                label=f"Échec — hors Québec ({len(echec_hqc)})"),
-    ])
+    ], titre="Segments DJMA par arc")
 
     fig.tight_layout()
     fig.savefig(FIG_DIR / "segments_par_arc.png", dpi=150, bbox_inches="tight")
