@@ -69,7 +69,7 @@ Le dépôt livre les quatre valeurs par arc sans en imposer une : le choix se fa
 
 ### Complétion géographique des échecs
 
-19 des 307 arcs (statut `aucun_djma` — aucune station MTQ à proximité du tracé, cf. [Routage](routage.md)) n'ont aucun segment propre : m1-m4 y sont indéfinis par construction, faute de mesure à agréger. Plutôt que de laisser ces arcs vides, `completer_echecs_geographique()` leur emprunte le DJMA (m1-m4) de l'arc valide le plus proche géométriquement.
+19 des 307 arcs (statut `aucun_djma` — aucun segment MTQ retenu après les filtres du [Routage](routage.md#arcs-sans-segment-retenu)) n'ont aucun segment propre : m1-m4 y sont indéfinis par construction, faute de mesure à agréger. Plutôt que de laisser ces arcs vides, `completer_echecs_geographique()` leur emprunte le DJMA (m1-m4) de l'arc valide le plus proche géométriquement.
 
 ```python
 def completer_echecs_geographique(arcs):
