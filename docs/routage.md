@@ -31,6 +31,12 @@ def filtre_proximite_ab(segs, pt_a, pt_b, buffer_ab_m):
 
 Un clip préalable au territoire québécois (buffer 2 km autour du réseau RTSS) supprime aussi les détours par d'autres provinces avant la recherche de segments DJMA.
 
+### Vérification
+
+Le filtrage en cascade a fait l'objet d'une vérification manuelle sommaire, pas d'une validation statistique sur l'ensemble du réseau. Dans QGIS, un arc à la fois est isolé (couches « tracé routé » et « segments retenus » filtrées sur son identifiant), puis le trajet, les segments retenus et l'arc lui-même sont comparés visuellement.
+
+Sur une dizaine d'arcs, environ 95 % des cas sont concluants : les segments retenus correspondent bien au tracé. Les cas mis en défaut sont de deux types — des segments sans lien avec l'arc, captés malgré les filtres, et des segments dont le tracé diverge légèrement de celui de l'arc sans dépasser le seuil de rejet. Cette vérification reste exploratoire : elle montre que la méthode se comporte comme prévu dans la grande majorité des cas, sans valider exhaustivement les 307 arcs.
+
 ### Segments par arc
 
 Le nombre de segments DJMA retenus (`n_segs_djma`) varie fortement d'un arc à l'autre — de 1 à 108 sur les 285 arcs routés avec succès, médiane à 8.

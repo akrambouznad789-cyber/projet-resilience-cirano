@@ -10,7 +10,7 @@ Ce dépôt couvre le **Volet 1** du projet : livrer le réseau enrichi en trafic
 2. [Complétion des données](docs/completion.md) — la cascade d'imputation (interpolation, RandomForest, KNN)
 3. [Routage](docs/routage.md) — jointure OSRM + réseau MTQ, 3 filtres géométriques
 4. [Calcul du DJMA — 4 méthodes](docs/methodes.md) — m1 à m4, formules et écarts
-5. [Résultats](docs/resultats.md) — le réseau enrichi final et ses 22 arcs en échec
+5. [Résultats](docs/resultats.md) — le réseau enrichi final : 304 arcs sur 307 valorisés (285 mesurés, 19 par emprunt géométrique)
 
 ## Pipeline
 
@@ -21,7 +21,7 @@ flowchart TD
     C[("💾 debits_completes.gpkg")]
     D["🗺️ <b>Routage &amp; jointure</b><br/>OSRM + 3 filtres géométriques<br/><i>algo_jointure_routes_liens.py</i>"]
     E[("💾 graphe_routier.gpkg")]
-    F["📈 <b>Calcul du DJMA</b><br/>Agrégation par arc, 4 méthodes (m1-m4)<br/><i>calcul_djma_methodes.py</i>"]
+    F["📈 <b>Calcul du DJMA</b><br/>Agrégation par arc, 4 méthodes (m1-m4)<br/>+ complétion géographique des échecs<br/><i>calcul_djma_methodes.py</i>"]
     G[("✅ graphe_routier_djma.gpkg")]
     H["🔍 <b>Analyse de sensibilité</b><br/>compare m1-m4 (stats, corrélation)<br/><i>comparaison_methodes_djma.py</i>"]
     I["🖥️ <b>Livrable QGIS (Volet 1)</b><br/><i>nettoyage_projet_qgis.py</i>"]
@@ -50,7 +50,7 @@ flowchart TD
 |---|---|---|---|
 | 1 | `completion_donnees_randomforest.py` | Complète les débits manquants (interpolation, extrapolation, KNN géographique, RandomForest) | [Données](docs/donnees.md) · [Complétion](docs/completion.md) |
 | 2 | `algo_jointure_routes_liens.py` | Route chaque paire de villes (API OSRM) et lui associe les segments DJMA pertinents via 3 filtres géométriques | [Routage](docs/routage.md) |
-| 3 | `calcul_djma_methodes.py` | Agrège le DJMA par arc selon 4 méthodes (m1-m4) | [Méthodes](docs/methodes.md) |
+| 3 | `calcul_djma_methodes.py` | Agrège le DJMA par arc selon 4 méthodes (m1-m4), puis complète les 19 arcs sans segment propre par emprunt au plus proche voisin | [Méthodes](docs/methodes.md) |
 | 4 | `comparaison_methodes_djma.py` | Analyse de sensibilité — compare les 4 méthodes (stats, corrélation, arcs divergents) pour orienter le choix éditorial ; n'est pas le livrable | [Méthodes](docs/methodes.md) |
 | 5 | `nettoyage_projet_qgis.py` | Prépare le projet QGIS **livrable final du Volet 1** | [Résultats](docs/resultats.md) |
 

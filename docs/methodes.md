@@ -38,13 +38,30 @@ def calculer_m4(segments, percentile=0.80):
 
 ![Carte de l'écart entre les 4 méthodes DJMA](../figures/carte_divergence_methodes.png)
 
-Plutôt qu'une simple comparaison statistique, cette carte projette l'écart relatif entre les 4 méthodes directement sur le réseau routier québécois : la couleur de chaque arc (pâle → ambre → rouge) encode son écart relatif entre m1-m4, le reste du réseau restant en trame grise pour le contexte. Un arc où les 4 méthodes s'accordent reste pâle, presque invisible ; un arc où elles divergent fortement ressort en rouge vif. Les écarts les plus marqués se situent sur des tronçons courts à faible nombre de segments contributeurs, où un seul segment extrême pèse beaucoup plus sur m4 (percentile) que sur m1-m3 (moyennes) : Laurier-Station–Saint-Apollinaire (156 %), L'Ancienne-Lorette–Nœud Lac-St-Jean (147 %), Donnacona–Saint-Augustin-de-Desmaures (142 %).
+Plutôt qu'une simple comparaison statistique, cette carte projette l'écart relatif entre les 4 méthodes directement sur le réseau routier québécois : la couleur de chaque arc (pâle → ambre → rouge) encode son écart relatif entre m1-m4, le reste du réseau restant en trame grise pour le contexte. Un arc où les 4 méthodes s'accordent reste pâle, presque invisible ; un arc où elles divergent fortement ressort en rouge vif. Les trois écarts les plus marqués :
+
+| Arc | Écart relatif | Segments mobilisés |
+|---|---|---|
+| Laurier-Station – Saint-Apollinaire | 156 % | 8 |
+| L'Ancienne-Lorette – Nœud Lac-St-Jean | 147 % | 108 |
+| Donnacona – Saint-Augustin-de-Desmaures | 142 % | 12 |
+
+Pour le premier et le troisième, le faible nombre de segments suffit à l'expliquer : un seul segment extrême pèse beaucoup plus sur m4 (percentile) que sur m1-m3 (moyennes). Le deuxième est plus révélateur : avec 108 segments, c'est l'un des arcs les mieux documentés du réseau, et l'écart y reste très élevé. La divergence ne tient donc pas qu'au manque de données ; elle vient probablement aussi de profils de circulation hétérogènes (trafic local mêlé à du transit à très fort débit) qu'une moyenne et un percentile élevé traduisent différemment — hypothèse non vérifiée à ce stade.
 
 ![Boîtes à moustaches — écarts relatifs à m4](../figures/boites_ecarts_methodes.png)
 
 La carte montre *où* ça diverge ; ce graphique montre *de combien*, en distribution, sur les mêmes 285 arcs (les 19 arcs complétés géographiquement en sont exclus — voir plus bas). m4 sert de référence commune aux trois boîtes puisque c'est la méthode qui s'écarte le plus des trois autres. Les trois médianes sont proches (+18 % à +20 %) : m4 dépasse typiquement m1-m3 d'environ un cinquième, cohérent avec son rôle de capter un 80e percentile plutôt qu'une tendance centrale. Les distributions sont étalées vers le haut (quelques arcs dépassent +100 %, un extrême à +465 % pour m2) mais rarement négatives au-delà de −40/−75 % : m4 est presque toujours ≥ aux moyennes, jamais dramatiquement en-dessous.
 
-m1, m2 et m3 sont fortement corrélées entre elles (Pearson ≥ 0,979) car elles moyennent la même population de segments différemment. m4 reste bien corrélée (Pearson ≈ 0,97-0,98) tout en s'en écartant légèrement : c'est voulu, elle vise à capturer les pointes de trafic (80e percentile réel) plutôt que la tendance centrale. 134 des 307 arcs montrent un écart relatif > 30 % entre méthodes — un signal que le choix de méthode d'agrégation a un impact réel et doit être fait explicitement selon l'usage (planification vs dimensionnement).
+m1, m2 et m3 sont fortement corrélées entre elles (Pearson ≥ 0,979) car elles moyennent la même population de segments différemment. m4 reste bien corrélée (Pearson ≈ 0,97-0,98) tout en s'en écartant légèrement : c'est voulu, elle vise à capturer les pointes de trafic (80e percentile réel) plutôt que la tendance centrale. 134 des 285 arcs mesurés directement (47 %) montrent un écart relatif > 30 % entre méthodes — un signal que le choix de méthode d'agrégation a un impact réel et doit être fait explicitement selon l'usage.
+
+### Quelle méthode pour quel usage ?
+
+| Usage visé | Méthode adaptée | Pourquoi |
+|---|---|---|
+| Planification générale — représenter une condition de circulation typique | m1, m2 ou m3 (moyennes) | Tendance centrale de la population de segments de l'arc |
+| Dimensionnement d'une infrastructure, scénario de perturbation en conditions chargées | m4 (80e percentile réel) | Valeur observée près du sommet de la distribution : pointes de trafic plutôt que valeur typique, ce qui vise l'analyse de résilience prévue ensuite |
+
+Le dépôt livre les quatre valeurs par arc sans en imposer une : le choix se fait en aval, selon l'usage.
 
 ### Complétion géographique des échecs
 
