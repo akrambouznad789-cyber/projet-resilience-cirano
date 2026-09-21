@@ -83,7 +83,7 @@ CRITIQUE   = "#d03b3b"   # carte de divergence — écart de méthode le plus fo
 # Statut/échec sur une carte déjà colorée par une donnée continue (DJMA) :
 # teinte complémentaire/opposée sur le cercle chromatique (orange face au bleu),
 # claire plutôt que sombre — jamais rouge/vert saturé "feu de circulation".
-ECHEC_INTRA   = "#f2a765"   # échec — aucune station MTQ à proximité (intraurbain)
+ECHEC_INTRA   = "#f2a765"   # échec — aucun segment retenu après filtrage (surtout Grand Montréal)
 ECHEC_HORS_QC = "#c96f2e"   # échec — tracé hors territoire québécois
 
 

@@ -420,7 +420,7 @@ def figure_carte_reseau_resultats() -> None:
 
     legende_carte(ax, [
         Line2D([0], [0], color=ECHEC_INTRA, lw=2, linestyle=(0, (4, 2)),
-               label=f"Échec — aucune station MTQ ({len(echec_intra)})"),
+               label=f"Échec — aucun segment retenu ({len(echec_intra)})"),
         Line2D([0], [0], color=ECHEC_HORS_QC, lw=2.2,
                label=f"Échec — hors Québec ({len(echec_hqc)})"),
     ])
@@ -476,7 +476,7 @@ def figure_carte_montreal_resultats() -> None:
     cbar.set_label("DJMA — méthode m4 (véh./jour, échelle log)")
 
     legende_carte(ax, [Line2D([0], [0], color=ECHEC_INTRA, lw=2, linestyle=(0, (4, 2)),
-                              label=f"Échec — aucune station MTQ ({len(echec_intra)})")])
+                              label=f"Échec — aucun segment retenu ({len(echec_intra)})")])
 
     fig.tight_layout()
     fig.savefig(FIG_DIR / "carte_montreal_resultats.png", dpi=150, bbox_inches="tight")
@@ -528,7 +528,7 @@ def figure_segments_par_arc() -> None:
         for etiquette, couleur in zip(ETIQUETTES_SEGMENTS, COULEURS_SEGMENTS)
     ] + [
         Line2D([0], [0], color=ECHEC_INTRA, lw=2, linestyle=(0, (4, 2)),
-               label=f"Échec — aucune station MTQ ({len(echec_intra)})"),
+               label=f"Échec — aucun segment retenu ({len(echec_intra)})"),
         Line2D([0], [0], color=ECHEC_HORS_QC, lw=2.2,
                label=f"Échec — hors Québec ({len(echec_hqc)})"),
     ], titre="Segments DJMA par arc")

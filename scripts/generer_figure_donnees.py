@@ -391,9 +391,9 @@ def figure_extrapolation_gradient() -> None:
     legende_carte(ax, [
         Line2D([0], [0], color=ENCRE, lw=2, marker="o", markersize=7, label="Connu"),
         Line2D([0], [0], color=MUET, lw=1, linestyle="--", marker="^", markersize=7,
-              label="Ancienne méthode (régression globale)"),
+              label="Régression globale"),
         Line2D([0], [0], color=SAUMON, lw=1.8, marker="D", markersize=7,
-              label="Nouvelle méthode (gradient local)"),
+              label="Gradient local (méthode retenue)"),
     ], loc="lower center")
 
     fig.tight_layout(rect=(0, 0, 1, 0.94))
