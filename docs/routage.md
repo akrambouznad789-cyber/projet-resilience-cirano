@@ -4,6 +4,8 @@
 
 ## Routage
 
+Pour chaque arc du graphe (deux villes reliées), le tracé routier le plus optimal entre les deux villes est généré par un algorithme de routage — indispensable vu le nombre d'arcs à traiter (307) et le besoin d'un traitement reproductible et objectif. Ce critère (un seul trajet par arc) pourra être révisé, par exemple en intégrant plusieurs trajets par arc ou en priorisant certains types de routes (autoroutes, routes nationales).
+
 `algo_jointure_routes_liens.py` route chaque paire de villes via l'API **OSRM**, puis associe au tracé les segments du réseau MTQ (`ReseauRoutier_RTSS`) porteurs d'une mesure DJMA, filtrés en 3 passes séquentielles :
 
 ```python

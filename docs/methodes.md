@@ -4,14 +4,18 @@
 
 ## Calcul du DJMA — 4 méthodes
 
+Chaque segment de comptage du MTQ porte jusqu'à dix années de mesures ; pour chaque segment rattaché à un arc, c'est la valeur la plus récente disponible qui est retenue, afin de représenter les résultats de façon uniforme dans le temps. Un arc étant relié à plusieurs segments, leurs valeurs doivent ensuite être combinées en une seule. Quatre méthodes sont retenues plutôt qu'une seule : elles donnent une vue d'ensemble plus robuste et permettent de vérifier si les hypothèses de départ se confirment (par exemple, si une moyenne pondérée est réellement plus pertinente qu'une autre).
+
 Pour chaque arc, le DJMA agrégé est calculé de 4 façons à partir de ses segments sous-jacents :
 
-| Méthode | Logique | Médiane (véh./jour) |
-|---|---|---|
-| **m1** | Moyenne simple des segments | 11 947 |
-| **m2** | Pondérée par longueur de segment | 14 216 |
-| **m3** | Pondérée par type d'axe routier (hiérarchie MTQ) | 12 152 |
-| **m4** | 80e percentile par rang (nearest-rank) : valeur réelle du segment classé à la position `round(0,8 × n)`, sans interpolation ni moyenne | 15 351 |
+| Méthode | Logique | Médiane (véh./jour) | Minimum | Maximum |
+|---|---|---|---|---|
+| **m1** | Moyenne simple des segments | 11 947 | 488 | 182 999 |
+| **m2** | Pondérée par longueur de segment | 14 216 | 486 | 179 149 |
+| **m3** | Pondérée par type d'axe routier (hiérarchie MTQ) | 12 152 | 482 | 182 999 |
+| **m4** | 80e percentile par rang (nearest-rank) : valeur réelle du segment classé à la position `round(0,8 × n)`, sans interpolation ni moyenne | 15 351 | 530 | 185 912 |
+
+m4 donne systématiquement les valeurs les plus élevées : c'est la conséquence directe de sa conception (80e percentile, pour représenter des conditions de circulation chargées), là où m1-m3 visent une tendance centrale.
 
 ```python
 def calculer_m1(segments):

@@ -67,3 +67,9 @@ python3 scripts/generer_figure_donnees.py
 ```
 
 Le projet QGIS livrable (`qgis/reseau-routier-graphe.qgz`) utilise des chemins relatifs et s'ouvre directement après un `git clone`.
+
+## Outils
+
+Python 3.11+ · GeoPandas et Shapely (géométries) · scikit-learn (RandomForest, imputation itérative) · OSRM (routage) · matplotlib (figures) · QGIS (vérification visuelle et exploration cartographique).
+
+QGIS complète le traitement automatisé : il a notamment servi à isoler un arc à la fois pour juger de la cohérence du filtrage en cascade (voir la [vérification du routage](docs/routage.md#vérification)).
