@@ -1,0 +1,1148 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Volet 2 · De l'enquête au dollar</title>
+<!-- Gabarit de scripts/visualisation_volet2.py : les données sont injectées dans
+     la balise <script id="donnees">. Page locale (agrégats ENR), ne pas publier. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;700&family=Overpass:wght@600;800&family=Overpass+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+:root{
+  color-scheme:light;
+  --bg:#fafaf8; --panel:#f2f1ec; --card:#ffffff; --ink:#17181b; --ink2:#4f4e4a; --muted:#7f7d76; --rule:#e2e0d8;
+  --land:#f1efe6; --water:#bcdcf2;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a;
+  --cam-soft:#e4eefa; --cam-ink:#1b5aa6;
+  --usd:#dc9600; --usd-soft:#fcefcf; --usd-ink:#875600;
+  --display:"Overpass","Arimo",system-ui,sans-serif;
+  --body:"Arimo","Helvetica Neue",Arial,sans-serif;
+  --mono:"Overpass Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:10px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
+p{margin:0}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--s1);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono)}
+
+/* ---------- Grille de l'application ---------- */
+.app{display:grid;height:100vh;grid-template-columns:210px minmax(0,1fr) 410px;grid-template-rows:56px minmax(0,1fr);grid-template-areas:"barre barre barre" "etapes scene panneau"}
+.barre{grid-area:barre;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 16px;border-bottom:1px solid var(--rule);background:var(--card)}
+.barre .eyebrow{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block;line-height:1.2}
+.barre h1{font-size:1.2rem;font-weight:800;line-height:1.15}
+.barre-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.provisoire{font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--usd-ink);border:1px dashed var(--usd);border-radius:4px;padding:2px 7px;white-space:nowrap}
+.btn{border:1px solid var(--rule);background:var(--card);border-radius:999px;padding:6px 14px;font-weight:700;font-size:.82rem;cursor:pointer}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--card);border-color:var(--ink)}
+
+/* ---------- Étapes ---------- */
+.etapes{grid-area:etapes;overflow-y:auto;border-right:1px solid var(--rule);background:var(--panel);padding:12px 10px;display:flex;flex-direction:column;gap:2px}
+.etape{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:center;text-align:left;border:0;background:transparent;border-radius:8px;padding:7px 8px;cursor:pointer;color:var(--ink2)}
+.etape:hover{background:rgba(0,0,0,.04)}
+.etape b{width:28px;height:28px;border-radius:7px;border:1.5px solid var(--muted);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:.95rem;color:var(--ink2);background:var(--card)}
+.etape span{font-size:.84rem;line-height:1.25}
+.etape small{display:block;font-family:var(--mono);font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.etape[aria-current="step"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.etape[aria-current="step"] b{background:var(--ink);border-color:var(--ink);color:var(--card)}
+.etape.calcul-page small{color:var(--usd-ink)}
+.etapes-pied{margin-top:auto;padding:10px 8px 2px;font-size:.72rem;color:var(--muted);line-height:1.4}
+.etapes-pied kbd{font-family:var(--mono);font-size:.68rem;border:1px solid var(--rule);border-radius:3px;padding:0 4px;background:var(--card)}
+
+/* ---------- Carte ---------- */
+.scene{grid-area:scene;position:relative;min-width:0;min-height:0;background:var(--water)}
+.carte{position:absolute;inset:0}
+.carte-gauche{z-index:2}
+.rideau{position:absolute;top:0;bottom:0;width:0;z-index:3;cursor:ew-resize}
+.rideau::before{content:"";position:absolute;top:0;bottom:0;left:-1px;width:2px;background:var(--ink)}
+.rideau span{position:absolute;top:50%;left:-15px;width:30px;height:30px;margin-top:-15px;border-radius:50%;background:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.rideau span::before{content:"‹ ›";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.9rem;letter-spacing:2px}
+.etiquette-cote{position:absolute;top:12px;z-index:4;background:var(--card);border:1px solid var(--rule);border-radius:8px;padding:6px 10px;font-size:.8rem;box-shadow:0 2px 6px rgba(0,0,0,.08);display:flex;align-items:center;gap:6px}
+.etiquette-cote select{font:inherit;font-weight:700;border:1px solid var(--rule);border-radius:6px;padding:2px 4px;background:var(--card)}
+#etiq-a{left:12px} #etiq-b{right:56px}
+.etiquette-cote b{font-family:var(--display)}
+.infobulle{position:absolute;z-index:6;pointer-events:none;background:var(--card);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:9px 11px;box-shadow:0 6px 18px rgba(0,0,0,.14);max-width:290px;font-size:.8rem;line-height:1.4}
+.infobulle strong{display:block;font-family:var(--display);font-size:.9rem;line-height:1.2;margin-bottom:3px}
+.infobulle .l{display:flex;justify-content:space-between;gap:14px}
+.infobulle .l span:first-child{color:var(--muted)}
+.infobulle .l span:last-child{font-variant-numeric:tabular-nums;text-align:right}
+.infobulle .note{color:var(--muted);font-size:.74rem;margin-top:4px}
+.etiq-ville{pointer-events:none}
+.etiq-ville span{display:block;margin-left:7px;font-family:var(--body);font-size:11px;font-weight:700;color:var(--ink2);text-shadow:0 0 3px var(--land),0 0 3px var(--land),0 0 2px var(--land);white-space:nowrap}
+.etiq-ville.fr span{font-weight:400;font-style:italic;color:var(--muted)}
+.chargement{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.8rem;color:var(--ink2);z-index:5;pointer-events:none}
+.chargement .probleme{pointer-events:auto;max-width:460px;margin:16px;background:var(--card);border:1px solid var(--rule);border-radius:var(--r);padding:18px 20px;box-shadow:0 6px 18px rgba(0,0,0,.1);font-family:var(--body);font-size:.88rem;color:var(--ink);display:flex;flex-direction:column;gap:10px}
+.probleme h2{font-size:1.1rem}
+.probleme ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;color:var(--ink2)}
+.probleme code{font-family:var(--mono);font-size:.8rem;background:var(--panel);padding:1px 5px;border-radius:4px;user-select:all}
+.probleme .sous{font-size:.78rem;color:var(--muted)}
+.maplibregl-ctrl-attrib{font-size:10px}
+.bandeau{position:absolute;left:50%;bottom:44px;transform:translateX(-50%);z-index:4;max-width:min(520px,calc(100% - 32px));background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--usd);border-radius:8px;padding:9px 13px;font-size:.8rem;color:var(--ink);box-shadow:0 4px 14px rgba(0,0,0,.1)}
+
+/* ---------- Panneau ---------- */
+.panneau{grid-area:panneau;border-left:1px solid var(--rule);background:var(--card);display:flex;flex-direction:column;min-height:0}
+.onglets{display:flex;gap:2px;padding:10px 16px 0;border-bottom:1px solid var(--rule)}
+.onglets button{border:0;background:transparent;padding:8px 12px;font-weight:700;font-size:.82rem;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px}
+.onglets button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.defile{overflow-y:auto;padding:16px 16px 28px;display:flex;flex-direction:column;gap:16px;min-height:0;flex:1}
+.tete .eyebrow{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tete h2{font-size:1.45rem;font-weight:800;line-height:1.1;margin:4px 0 8px}
+.tete p{color:var(--ink2)}
+.tuiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tuile{background:var(--panel);border-radius:8px;padding:9px 11px;min-width:0}
+.tuile b{display:block;font-family:var(--display);font-size:1.25rem;font-weight:800;line-height:1.15}
+.tuile span{font-size:.75rem;color:var(--ink2);line-height:1.3;display:block}
+.tuile.usd b{color:var(--usd-ink)}
+.bloc{display:flex;flex-direction:column;gap:8px}
+.bloc h3{font-size:.86rem;font-weight:700;font-family:var(--body)}
+.bloc .sous{font-size:.75rem;color:var(--muted)}
+.segment{display:inline-flex;flex-wrap:wrap;border:1px solid var(--rule);border-radius:999px;padding:3px;background:var(--panel);gap:2px;align-self:flex-start}
+.segment button{border:0;background:transparent;border-radius:999px;padding:5px 11px;font-size:.78rem;font-weight:700;color:var(--ink2);cursor:pointer}
+.segment button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.puces{display:flex;flex-wrap:wrap;gap:5px}
+.puce{border:1px solid var(--rule);background:var(--card);border-radius:999px;padding:3px 9px;font-size:.73rem;cursor:pointer;color:var(--ink2)}
+.puce[aria-pressed="true"]{background:var(--cam-soft);border-color:#b8d0f1;color:var(--cam-ink);font-weight:700}
+.puces-actions{display:flex;gap:10px;font-size:.73rem}
+.puces-actions button{border:0;background:none;padding:0;color:var(--cam-ink);text-decoration:underline;cursor:pointer}
+.legende{border:1px solid var(--rule);border-radius:var(--r);padding:11px 13px;display:flex;flex-direction:column;gap:6px;background:var(--card)}
+.legende h3{font-size:.84rem;font-family:var(--body);font-weight:700}
+.legende .sous{font-size:.74rem;color:var(--muted);margin-top:-3px}
+.leg{display:grid;grid-template-columns:30px 1fr auto;gap:9px;align-items:center;font-size:.79rem}
+.leg svg{width:30px;height:12px;display:block}
+.leg .n{color:var(--muted);font-family:var(--mono);font-size:.7rem}
+.note{border-left:3px solid var(--rule);padding:4px 0 4px 11px;font-size:.79rem;color:var(--ink2)}
+.note.attention{border-left-color:var(--usd);background:var(--usd-soft);padding:8px 11px;border-radius:0 6px 6px 0;color:var(--ink)}
+.note b{color:var(--ink)}
+.barre-empilee{display:flex;height:26px;border-radius:6px;overflow:hidden;gap:2px}
+.barre-empilee div{min-width:2px}
+.liste-barres{display:flex;flex-direction:column;gap:5px}
+.lb{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) auto;gap:8px;align-items:center;font-size:.77rem}
+.lb .nom{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+.lb .piste{height:9px;background:var(--panel);border-radius:3px;overflow:hidden}
+.lb .piste i{display:block;height:100%;border-radius:0 3px 3px 0}
+.lb .val{font-family:var(--mono);font-size:.7rem;color:var(--ink2);text-align:right;white-space:nowrap}
+table.tab{border-collapse:collapse;width:100%;font-size:.76rem}
+.tab th,.tab td{padding:5px 4px;border-bottom:1px solid var(--rule);text-align:right;font-variant-numeric:tabular-nums;vertical-align:middle}
+.tab th{font-family:var(--mono);font-size:.63rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.tab th:first-child,.tab td:first-child{text-align:left}
+.tab tr.cliquable{cursor:pointer}
+.tab tr.cliquable:hover td{background:var(--panel)}
+.tab input{width:76px;font:inherit;font-family:var(--mono);font-size:.74rem;text-align:right;border:1px solid var(--rule);border-radius:5px;padding:3px 5px;background:var(--card)}
+.tab input:focus{border-color:var(--usd);outline:none;box-shadow:0 0 0 2px var(--usd-soft)}
+.tab .mini{display:inline-block;height:7px;border-radius:2px;background:var(--s1);vertical-align:middle;margin-right:6px}
+.param{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:.8rem}
+.param input{width:96px;font:inherit;font-family:var(--mono);font-size:.8rem;text-align:right;border:1px solid var(--rule);border-radius:6px;padding:4px 6px}
+.selection{border:1px solid var(--ink);border-radius:var(--r);padding:12px 13px;display:flex;flex-direction:column;gap:8px}
+.selection h3{font-family:var(--display);font-size:1rem}
+.selection .ferme{border:0;background:none;color:var(--muted);cursor:pointer;font-size:.75rem;text-decoration:underline;padding:0;align-self:flex-start}
+.kv{display:grid;grid-template-columns:1fr auto;gap:2px 12px;font-size:.78rem}
+.kv span:nth-child(odd){color:var(--muted)}
+.kv span:nth-child(even){text-align:right;font-variant-numeric:tabular-nums}
+.statut-statcan{font-size:.76rem;color:var(--ink2);display:flex;gap:6px;align-items:baseline}
+.statut-statcan i{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--s2)}
+.statut-statcan i.ok{background:var(--s3)}
+
+/* ---------- Logique (code) ---------- */
+.code-tete{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.code-tete .fichier{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+pre.code{margin:0;background:#16181b;color:#e8e6df;border-radius:8px;padding:12px 13px;font-family:var(--mono);font-size:.72rem;line-height:1.55;overflow-x:auto;white-space:pre;tab-size:4}
+pre.code .c{color:#8f9aa6;font-style:italic}
+pre.code .s{color:#e5c07b}
+pre.code .k{color:#8fb8f0}
+.copie{border:1px solid var(--rule);background:var(--card);border-radius:6px;padding:3px 9px;font-size:.72rem;cursor:pointer}
+
+/* ---------- Petits écrans ---------- */
+@media (min-width:1101px){ body{overflow:hidden} }
+@media (max-width:1100px){
+  .app{height:auto;min-height:100vh;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto 62vh auto;grid-template-areas:"barre" "etapes" "scene" "panneau"}
+  .barre{padding:10px 16px;flex-wrap:wrap}
+  .etapes{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--rule);padding:8px 16px}
+  .etape{grid-template-columns:24px auto;flex:0 0 auto}
+  .etape b{width:24px;height:24px}
+  .etape small,.etapes-pied{display:none}
+  .panneau{border-left:0;border-top:1px solid var(--rule)}
+  .defile{overflow:visible}
+}
+@media (max-width:560px){
+  .barre h1{font-size:1.05rem}
+  .tuiles{grid-template-columns:1fr 1fr}
+  #etiq-b{right:12px;top:56px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="barre">
+    <div>
+      <span class="eyebrow">CIRANO · Volet 2 · premier jet du <span id="date-gen"></span><span id="mention-publique"></span></span>
+      <h1>De l'enquête au dollar</h1>
+    </div>
+    <div class="barre-actions">
+      <span class="provisoire" title="Groupes de marchandises, $/t et facteur d'actualisation provisoires">Hypothèses provisoires</span>
+      <button type="button" class="btn" id="btn-comparer" aria-pressed="false">Comparer deux étapes</button>
+    </div>
+  </header>
+
+  <nav class="etapes" id="etapes" aria-label="Étapes de la méthode"></nav>
+
+  <main class="scene" id="scene">
+    <div id="carte-b" class="carte" role="region" aria-label="Carte de l'étape courante"></div>
+    <div id="carte-a" class="carte carte-gauche" hidden role="region" aria-label="Carte de l'étape comparée"></div>
+    <div class="rideau" id="rideau" hidden><span></span></div>
+    <div class="etiquette-cote" id="etiq-a" hidden>Gauche <select id="choix-a" aria-label="Étape affichée à gauche"></select></div>
+    <div class="etiquette-cote" id="etiq-b" hidden>Droite <b id="nom-b"></b></div>
+    <div class="bandeau" id="bandeau" hidden><b>Version publique.</b> Les lignes origine-destination et les lieux tirés des microdonnées de l'ENR ne sont pas publiés ; seuls les chiffres globaux, les résultats par arc et par poste le sont.</div>
+    <div class="infobulle" id="infobulle" hidden></div>
+    <div class="chargement" id="chargement">Chargement de la carte…</div>
+  </main>
+
+  <aside class="panneau" aria-label="Lecture et logique de l'étape">
+    <div class="onglets" role="tablist">
+      <button type="button" role="tab" id="tab-lecture" aria-selected="true" aria-controls="lecture">Lecture</button>
+      <button type="button" role="tab" id="tab-logique" aria-selected="false" aria-controls="logique">Logique (code)</button>
+    </div>
+    <div class="defile" id="lecture" role="tabpanel" aria-labelledby="tab-lecture"></div>
+    <div class="defile" id="logique" role="tabpanel" aria-labelledby="tab-logique" hidden></div>
+  </aside>
+</div>
+
+<script id="donnees" type="application/json">/*__DONNEES__*/null</script>
+<script>
+"use strict";
+const D = JSON.parse(document.getElementById("donnees").textContent);
+const M = D.meta;
+const PUBLIQUE = !!M.publique;          // version publiée : sans flux ni lieux ENR
+const GRP = D.groupes;                                   // [[clé, libellé], …]
+const IG = Object.fromEntries(GRP.map(([k], i) => [k, i]));
+
+// Couleurs des données (le fond reste neutre ; la couleur porte la donnée)
+const C = {
+  terre: "#f1efe6", bord: "#d9d5c7", qc: "#8e99a6", eau: "#bcdcf2", reseau: "#c9c5b8",
+  encre: "#17181b", encre2: "#4f4e4a", muet: "#7f7d76", vide: "#bdbab1",
+  bleu: ["#c4d9f3", "#86b6ef", "#3f86d9", "#1f5fae", "#0d2d52"],
+  or:   ["#f8e2a8", "#f0c35b", "#dc9600", "#a66d00", "#6b4600"],
+  div:  ["#b8401c", "#e9845c", "#f4c3a8", "#c8c6bf", "#a9c8ef", "#4a8ddb", "#1c4f95"],
+  cat:  ["#2a78d6", "#eb6834", "#1baf7a"], ecarte: "#a9a69c",
+  qual: { csd: "#1f5fae", cd: "#86b6ef", comte: "#1baf7a", etat: "#9fdcc3", prov: "#eb6834" },
+  chemin: ["#e9845c", "#f4c3a8", "#a9c8ef", "#3f86d9"],
+};
+const CATS = [
+  ["qc_poste_qc", "Chargent ou livrent au QC, arrêtés au Québec"],
+  ["qc_poste_hors", "Chargent ou livrent au QC, arrêtés hors Québec"],
+  ["transit", "Traversent le Québec sans y charger ni livrer"],
+  ["ecarte", "Ne touchent pas le Québec : écartés"],
+];
+const QUAL = [["csd", "CSD 2001 retrouvée en 2016"], ["cd", "Repli : division de recensement"], ["prov", "Repli : province"],
+              ["comte", "Comté américain"], ["etat", "État américain (comté absent)"]];
+
+// ---------- Formats ----------
+const nf = new Intl.NumberFormat("fr-CA");
+const fmt = v => (v == null || !isFinite(v)) ? "–" : nf.format(Math.round(v));
+const pct = (v, d = 1) => (v == null || !isFinite(v)) ? "–" : (v * 100).toLocaleString("fr-CA", { maximumFractionDigits: d }) + " %";
+function compact(v, unite = "") {
+  if (v == null || !isFinite(v)) return "–";
+  const a = Math.abs(v), f = (x, d) => x.toLocaleString("fr-CA", { maximumFractionDigits: d });
+  if (a >= 1e9) return f(v / 1e9, 1) + " G" + unite;
+  if (a >= 1e6) return f(v / 1e6, 1) + " M" + unite;
+  if (a >= 1e4) return f(v / 1e3, 0) + " k" + unite;
+  return fmt(v) + (unite ? " " + unite : "");
+}
+const dollars = v => compact(v, "$");
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function arrondi2(x) { if (!x) return x; const p = Math.pow(10, Math.floor(Math.log10(Math.abs(x))) - 1); return Math.round(x / p) * p; }
+
+// ---------- Données dérivées ----------
+const P = D.points, F = D.flux, PA = D.par_arc;
+const ARCS = D.arcs.features.map(f => f.properties);
+const posArc = new Map(PA.ids.map((id, i) => [id, i]));
+const parId = new Map(ARCS.map(p => [p.id, p]));
+const NOEUDS = D.noeuds, noeudParId = new Map(NOEUDS.map(n => [n.id, n]));
+const POSTES = D.postes;
+const nobsArc = new Map(PA.ids.map((id, i) => [id, PA.nobs[i].reduce((a, b) => a + b, 0)]));
+const SEUIL_OBS = 30;
+
+// Paires (ramassage, livraison, catégorie) : géométrie calculée une fois
+const paires = [], clePaire = new Map(), lignePaire = new Int32Array(F.o.length);
+for (let r = 0; r < F.o.length; r++) {
+  const k = F.o[r] + "|" + F.d[r] + "|" + F.c[r];
+  let i = clePaire.get(k);
+  if (i === undefined) { i = paires.length; clePaire.set(k, i); paires.push({ o: F.o[r], d: F.d[r], c: F.c[r] }); }
+  lignePaire[r] = i;
+}
+function courbe(o, d) {
+  const x1 = P.lon[o], y1 = P.lat[o], x2 = P.lon[d], y2 = P.lat[d];
+  const cx = (x1 + x2) / 2 - (y2 - y1) * 0.18, cy = (y1 + y2) / 2 + (x2 - x1) * 0.18, pts = [];
+  for (let t = 0; t <= 1.0001; t += 0.125) {
+    const u = 1 - t;
+    pts.push([+(u * u * x1 + 2 * u * t * cx + t * t * x2).toFixed(3), +(u * u * y1 + 2 * u * t * cy + t * t * y2).toFixed(3)]);
+  }
+  return pts;
+}
+paires.forEach(p => { p.geom = courbe(p.o, p.d); });
+const n3ParCat = ["qc_poste_qc", "qc_poste_hors", "transit", "ecarte"].map(c => M.n3_par_cat[c]);
+
+// ---------- État ----------
+const S = {
+  etape: 0, etapeA: 1, comparer: false, onglet: "lecture",
+  groupes: new Set(GRP.map(g => g[0])), poids: "n3", methode: "m4",
+  vue: { 1: "n", 2: "gardes", 3: "nobs", 4: "deux", 5: "camions" },
+  couleurPostes: "neutre",
+  prix: {}, inconnu: "moyenne", facteur: 1, indice2017: "", indice2026: "",
+  selection: null, selPoste: null,
+};
+GRP.forEach(([k]) => { S.prix[k] = (k === "vide") ? 0 : 3000; });
+try { const h = +new URLSearchParams(location.hash.slice(1)).get("etape"); if (h >= 0 && h <= 8) S.etape = h; } catch (e) {}
+
+// ---------- Calculs par arc (exécutés dans la page, affichés dans « Logique ») ----------
+function valoriserArc(T, N, prix, groupesRetenus, inconnu, facteur) {
+  // T[g] : tonnes/an routées sur l'arc pour le groupe g ; N[g] : camions/an (vides compris)
+  // prix[g] : $/t en $ de 2017 ; inconnu : "moyenne" = $/t moyen des marchandises connues de l'arc
+  let vConnu = 0, tConnu = 0, nTous = 0;
+  GRP.forEach(([k], g) => {
+    nTous += N[g];
+    if (k !== "vide" && k !== "inconnu") { vConnu += T[g] * prix[k]; tConnu += T[g]; }
+  });
+  const prixInconnu = inconnu === "moyenne" ? (tConnu > 0 ? vConnu / tConnu : 0) : prix.inconnu;
+  let valeur2017 = 0;                                   // $ de marchandises par an (camions ENR routés)
+  GRP.forEach(([k], g) => {
+    if (!groupesRetenus.has(k) || k === "vide") return;
+    valeur2017 += T[g] * (k === "inconnu" ? prixInconnu : prix[k]);
+  });
+  const parCamion2017 = nTous > 0 ? valeur2017 / nTous : null;   // les vides restent au dénominateur
+  return { parCamion2017, parCamion2026: parCamion2017 == null ? null : parCamion2017 * facteur, prixInconnu };
+}
+function valeurAnnuelle(parCamion2026, camionsParJour) {
+  // $ par an sur l'arc = $ par camion (contenu ENR 2006-2007, $ 2026) × camions/jour (DJMA 2025) × 365
+  if (parCamion2026 == null || camionsParJour == null) return null;
+  return parCamion2026 * camionsParJour * 365;
+}
+function actualiser(indice2017, indice2026) {
+  // Facteur IPPI : indice moyen de l'année cible ÷ indice moyen de 2017
+  return (indice2017 > 0 && indice2026 > 0) ? indice2026 / indice2017 : 1;
+}
+
+let CALC = [];
+function calculer() {
+  const w = S.poids, t = w === "n3" ? "t3" : "t4";
+  CALC = ARCS.map(p => {
+    const i = posArc.get(p.id), N = PA[w][i], T = PA[t][i], O = PA.nobs[i];
+    let nAll = 0, nSel = 0, tSel = 0, tAll = 0, oAll = 0;
+    GRP.forEach(([k], g) => { nAll += N[g]; tAll += T[g]; oAll += O[g]; if (S.groupes.has(k)) { nSel += N[g]; tSel += T[g]; } });
+    const v = valoriserArc(T, N, S.prix, S.groupes, S.inconnu, S.facteur);
+    const cam = p["cam_" + S.methode];
+    const cams = [1, 2, 3, 4].map(m => p["cam_m" + m]).filter(x => x != null);
+    const vals = cams.map(c => valeurAnnuelle(v.parCamion2026, c)).filter(x => x != null);
+    return {
+      id: p.id, nAll, nSel, tSel, tAll, oAll, nVide: N[IG.vide], pctVides: nAll > 0 ? N[IG.vide] / nAll : null,
+      parCamion2017: v.parCamion2017, parCamion2026: v.parCamion2026, prixInconnu: v.prixInconnu,
+      valeurAn: valeurAnnuelle(v.parCamion2026, cam),
+      vMin: vals.length ? Math.min(...vals) : null, vMax: vals.length ? Math.max(...vals) : null,
+      ratio: (p.cam_m4 > 0 && nAll > 0) ? (nAll / 365) / p.cam_m4 : null,
+    };
+  });
+}
+const calcParId = () => new Map(CALC.map(c => [c.id, c]));
+
+// Classes discrètes : bornes sur les quintiles de la donnée réelle, arrondies à 2 chiffres
+function quintiles(vals) {
+  const v = vals.filter(x => x != null && isFinite(x) && x > 0).sort((a, b) => a - b);
+  if (v.length < 5) return [];
+  const b = [0.2, 0.4, 0.6, 0.8].map(q => arrondi2(v[Math.min(v.length - 1, Math.floor(q * v.length))]));
+  return b.filter((x, i) => i === 0 || x > b[i - 1]);
+}
+function classer(x, bornes) {
+  if (x == null || !isFinite(x) || x <= 0) return -1;
+  let c = 0; while (c < bornes.length && x > bornes[c]) c++; return c;
+}
+
+// ---------- Définition des étapes ----------
+const ETAPES = [
+  { court: "Réseau du volet 1", sur: "point de départ", vue: "QC" },
+  { court: "ENR brute", sur: "114 734 camions", vue: "AN" },
+  { court: "Filtre Québec", sur: "camions retenus", vue: "EST" },
+  { court: "Postes d'enquête", sur: "où on les arrête", vue: "SUD" },
+  { court: "Rattachement aux nœuds", sur: "lieux → nœuds", vue: "QCL" },
+  { court: "Routage sur le graphe", sur: "chemin par camion", vue: "QC" },
+  { court: "$ par tonne", sur: "calcul dans la page", vue: "QC", page: true },
+  { court: "Actualisation $ 2026", sur: "calcul dans la page", vue: "QC", page: true },
+  { court: "Valeur par arc", sur: "calcul dans la page", vue: "QC", page: true },
+];
+const VUES = {
+  QC: [[-80.2, 44.6], [-56.8, 53.9]], QCL: [[-81.5, 43.9], [-60.5, 50.4]], SUD: [[-79.8, 44.85], [-64.5, 49.6]],
+  EST: [[-97, 33.5], [-55, 54.5]], AN: [[-127, 27], [-52, 59]],
+};
+
+// ---------- Cartes ----------
+const BASE_STYLE = {
+  version: 8, sources: {},
+  layers: [{ id: "fond", type: "background", paint: { "background-color": C.terre } }],
+};
+function creerCarte(conteneur) {
+  return new maplibregl.Map({
+    container: conteneur, style: BASE_STYLE, bounds: VUES[ETAPES[S.etape].vue],
+    fitBoundsOptions: { padding: 24 }, attributionControl: false, dragRotate: false, pitchWithRotate: false, keyboard: false,
+    maxBounds: [[-175, 5], [-20, 80]],
+  });
+}
+const largeurFlux = (champ) => {
+  const w = champ === "nobs"
+    ? ["interpolate", ["linear"], ["sqrt", ["get", "nobs"]], 1, 0.35, 4, 1, 12, 3, 35, 8]
+    : ["interpolate", ["linear"], ["sqrt", ["get", "n"]], 30, 0.3, 150, 1, 500, 3, 1500, 8];
+  return ["interpolate", ["linear"], ["zoom"], 3, ["*", 0.55, w], 6, ["*", 1, w], 9, ["*", 1.8, w]];
+};
+function construireCouches(map) {
+  map.addSource("ocean", { type: "geojson", data: D.fond.ocean });
+  map.addSource("lacs", { type: "geojson", data: D.fond.lacs });
+  map.addSource("admin", { type: "geojson", data: D.fond.admin });
+  map.addLayer({ id: "ocean", type: "fill", source: "ocean", paint: { "fill-color": C.eau } });
+  map.addLayer({ id: "lacs", type: "fill", source: "lacs", paint: { "fill-color": C.eau } });
+  map.addLayer({ id: "admin", type: "line", source: "admin", paint: { "line-color": C.bord, "line-width": 0.8 } });
+  map.addLayer({ id: "admin-qc", type: "line", source: "admin", filter: ["==", ["get", "qc"], true],
+                 paint: { "line-color": C.qc, "line-width": 1.4 } });
+
+  map.addSource("flux", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  map.addLayer({ id: "flux", type: "line", source: "flux", layout: { "line-cap": "round", "line-sort-key": ["get", "n"] },
+                 paint: { "line-color": C.cat[0], "line-opacity": 0.3, "line-width": largeurFlux("n") } });
+
+  map.addSource("rattache", { type: "geojson", data: rattacheGeojson() });
+  map.addLayer({ id: "rattache", type: "line", source: "rattache",
+                 paint: { "line-color": "#8e99a6", "line-opacity": ["case", ["get", "ext"], 0.18, 0.6], "line-width": ["case", ["get", "ext"], 0.5, 0.8] } });
+
+  map.addSource("arcs", { type: "geojson", data: D.arcs, promoteId: "id" });
+  map.addLayer({ id: "arcs-fond", type: "line", source: "arcs", layout: { "line-cap": "round", "line-join": "round" },
+                 paint: { "line-color": C.reseau, "line-width": 1.1, "line-opacity": 0.9 } });
+  map.addLayer({ id: "arcs", type: "line", source: "arcs", layout: { "line-cap": "round", "line-join": "round" },
+                 paint: {
+                   "line-color": C.reseau,
+                   "line-width": ["interpolate", ["linear"], ["zoom"], 4, ["*", 0.75, ["coalesce", ["feature-state", "w"], 1.2]],
+                                  8, ["*", 1.7, ["coalesce", ["feature-state", "w"], 1.2]]],
+                   "line-opacity": ["coalesce", ["feature-state", "o"], 1],
+                 } });
+  map.addLayer({ id: "arcs-sel", type: "line", source: "arcs", filter: ["==", ["get", "id"], -1],
+                 layout: { "line-cap": "round", "line-join": "round" },
+                 paint: { "line-color": C.encre, "line-width": ["interpolate", ["linear"], ["zoom"], 4, 4, 8, 8], "line-opacity": 0.85 } });
+  map.addLayer({ id: "arcs-hit", type: "line", source: "arcs", paint: { "line-color": "#000", "line-opacity": 0, "line-width": 12 } });
+
+  map.addSource("points", { type: "geojson", data: pointsGeojson() });
+  map.addLayer({ id: "points", type: "circle", source: "points",
+                 paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 1.8, 8, 4],
+                          "circle-color": ["match", ["get", "qual"], "csd", C.qual.csd, "cd", C.qual.cd, "comte", C.qual.comte,
+                                           "etat", C.qual.etat, C.qual.prov],
+                          "circle-stroke-color": "#fff", "circle-stroke-width": 0.6 } });
+
+  map.addSource("noeuds", { type: "geojson", data: noeudsGeojson() });
+  map.addLayer({ id: "noeuds", type: "circle", source: "noeuds",
+                 paint: { "circle-radius": 2.6, "circle-color": "#fff", "circle-stroke-color": C.encre2, "circle-stroke-width": 1 } });
+
+  map.addSource("postes", { type: "geojson", data: postesGeojson() });
+  map.addLayer({ id: "postes", type: "circle", source: "postes",
+                 paint: { "circle-radius": ["get", "r"], "circle-color": C.encre, "circle-opacity": 0.85,
+                          "circle-stroke-color": "#fff", "circle-stroke-width": 1.4 } });
+  map.addLayer({ id: "postes-sel", type: "circle", source: "postes", filter: ["==", ["get", "code"], ""],
+                 paint: { "circle-radius": ["+", ["get", "r"], 4], "circle-color": "rgba(0,0,0,0)",
+                          "circle-stroke-color": C.encre, "circle-stroke-width": 2 } });
+
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+  map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
+  map.addControl(new maplibregl.AttributionControl({ compact: true,
+    customAttribution: "Natural Earth · StatCan CSD 2016 · US Census · ENR 2006-2007 (MTQ, Transports Canada)" }), "bottom-right");
+  ajouterEtiquettes(map);
+}
+
+function rattacheGeojson() {
+  const f = [];
+  for (let i = 0; i < P.lon.length; i++) {
+    const n = P.noeud[i] && noeudParId.get(P.noeud[i]);
+    if (!n || !P.n3[i]) continue;
+    f.push({ type: "Feature", properties: { ext: P.prov[i] !== "CA-QC" }, geometry: { type: "LineString", coordinates: [[P.lon[i], P.lat[i]], [n.lon, n.lat]] } });
+  }
+  return { type: "FeatureCollection", features: f };
+}
+function pointsGeojson() {
+  const f = [];
+  for (let i = 0; i < P.lon.length; i++) {
+    if (!P.n3[i]) continue;
+    f.push({ type: "Feature", properties: { i, qual: P.qual[i], n3: P.n3[i] },
+             geometry: { type: "Point", coordinates: [P.lon[i], P.lat[i]] } });
+  }
+  return { type: "FeatureCollection", features: f };
+}
+const N3MAX = Math.max(1, ...NOEUDS.map(n => n.n3));
+function noeudsGeojson() {
+  return { type: "FeatureCollection", features: NOEUDS.map(n => ({
+    type: "Feature", properties: { id: n.id, type: n.type, n3: n.n3, r: 2.5 + 30 * Math.sqrt(n.n3 / N3MAX) },
+    geometry: { type: "Point", coordinates: [n.lon, n.lat] } })) };
+}
+function postesGeojson() {
+  const champ = S.vue[3] === "n3" ? "n3" : "nobs", max = Math.max(...POSTES.map(p => p[champ]));
+  return { type: "FeatureCollection", features: POSTES.map(p => {
+    const decal = /Nord|Est/.test(p.sens) ? 0.035 : (/Sud|Ouest/.test(p.sens) ? -0.035 : 0);
+    const cls = p.part_chemin == null ? -1 : Math.min(3, Math.floor(p.part_chemin / 0.25));
+    return { type: "Feature", properties: { code: p.code, r: 4 + 15 * Math.sqrt(p[champ] / max), vides: p.pct_vides, chemin: cls },
+             geometry: { type: "Point", coordinates: [p.lon + decal * 1.3, p.lat + decal] } };
+  }) };
+}
+function fluxGeojson() {
+  const champ = new Float64Array(paires.length), obs = new Float64Array(paires.length);
+  for (let r = 0; r < F.o.length; r++) {
+    if (!S.groupes.has(GRP[F.g[r]][0])) continue;
+    champ[lignePaire[r]] += F.n3[r]; obs[lignePaire[r]] += F.nobs[r];
+  }
+  const f = [];                                          // la catégorie se filtre sur la couche
+  paires.forEach((p, i) => {
+    if (!obs[i]) return;
+    f.push({ type: "Feature", properties: { i, c: p.c, n: Math.round(champ[i]), nobs: obs[i] },
+             geometry: { type: "LineString", coordinates: p.geom } });
+  });
+  return { type: "FeatureCollection", features: f };
+}
+
+// Étiquettes des principales villes (marqueurs HTML : pas de serveur de polices)
+const VILLES = ["Montréal", "Québec", "Gatineau", "Sherbrooke", "Trois-Rivières", "Saguenay", "Rimouski", "Rouyn-Noranda",
+                "Val-d'Or", "Sept-Îles", "Baie-Comeau", "Gaspé", "Drummondville", "Saint-Georges", "Chibougamau", "Rivière-du-Loup"];
+function ajouterEtiquettes(map) {
+  map._etiquettes = [];
+  NOEUDS.forEach(n => {
+    const ville = VILLES.includes(n.nom), fr = n.type.startsWith("frontiere");
+    if (!ville && !fr) return;
+    const el = document.createElement("div");
+    el.className = "etiq-ville" + (fr ? " fr" : "");
+    el.appendChild(document.createElement("span")).textContent = n.nom;
+    map._etiquettes.push(new maplibregl.Marker({ element: el, anchor: "left" }).setLngLat([n.lon, n.lat]).addTo(map));
+  });
+}
+
+// ---------- Application d'une étape sur une carte ----------
+const vis = (map, ids, on) => ids.forEach(id => map.setLayoutProperty(id, "visibility", on ? "visible" : "none"));
+const COUCHES = ["flux", "rattache", "arcs-fond", "arcs", "arcs-sel", "points", "noeuds", "postes", "postes-sel"];
+let LEGENDE = {};
+
+function etatArcs(map, valeurs, bornes, palette, options = {}) {
+  ARCS.forEach(p => {
+    const v = valeurs.get(p.id), cl = options.classer ? options.classer(v) : classer(v, bornes);
+    const faible = options.faible && (nobsArc.get(p.id) || 0) < SEUIL_OBS;
+    map.setFeatureState({ source: "arcs", id: p.id }, {
+      c: cl, w: cl < 0 ? 0.9 : (options.largeurs ? options.largeurs[cl] : 1.4 + cl * 0.55), o: cl < 0 ? 0.55 : (faible ? 0.45 : 1),
+    });
+  });
+  const expr = ["match", ["coalesce", ["feature-state", "c"], -1]];
+  palette.forEach((col, i) => expr.push(i, col));
+  expr.push(C.vide);
+  map.setPaintProperty("arcs", "line-color", expr);
+}
+
+function appliquerEtape(map, k) {
+  if (!map._pret) return;
+  const on = new Set();
+  vis(map, COUCHES, false);
+  map._etiquettes.forEach(m => { m.getElement().style.display = (k === 1 || k === 2) ? "none" : ""; });
+  map.setFilter("arcs-sel", ["==", ["get", "id"], S.selection ?? -1]);
+  map.setFilter("postes-sel", ["==", ["get", "code"], S.selPoste ?? ""]);
+
+  if (k === 0) {
+    const vals = new Map(ARCS.map(p => [p.id, p["cam_" + S.methode]]));
+    const b = quintiles([...vals.values()]);
+    etatArcs(map, vals, b, C.bleu);
+    LEGENDE[k] = { titre: `Camions par jour (DJMA ${S.methode})`, sous: "Classes sur les quintiles des arcs avec une valeur",
+                   bornes: b, palette: C.bleu, vals, fmt: fmt };
+    ["arcs", "noeuds", "arcs-sel"].forEach(x => on.add(x));
+  }
+  if (PUBLIQUE && (k === 1 || k === 2 || k === 4)) {
+    ["arcs-fond", "noeuds"].forEach(x => on.add(x));
+  } else if (k === 1 || k === 2) {
+    const champ = k === 1 && S.vue[1] === "nobs" ? "nobs" : "n";
+    map.setPaintProperty("flux", "line-width", largeurFlux(champ));
+    if (k === 1) {
+      map.setFilter("flux", null);
+      map.setPaintProperty("flux", "line-color", C.cat[0]);
+      map.setPaintProperty("flux", "line-opacity", 0.16);
+    } else {
+      const v = S.vue[2];
+      map.setFilter("flux", v === "gardes" ? ["<", ["get", "c"], 3] : v === "ecartes" ? ["==", ["get", "c"], 3] : null);
+      map.setPaintProperty("flux", "line-color", ["match", ["get", "c"], 0, C.cat[0], 1, C.cat[1], 2, C.cat[2], C.ecarte]);
+      map.setPaintProperty("flux", "line-opacity", ["case", ["==", ["get", "c"], 3], v === "ecartes" ? 0.3 : 0.1, 0.42]);
+    }
+    on.add("flux");
+  }
+  if (k === 3) {
+    const couleur = S.couleurPostes === "vides"
+      ? ["step", ["get", "vides"], C.bleu[0], 0.2, C.bleu[1], 0.3, C.bleu[2], 0.4, C.bleu[3], 0.5, C.bleu[4]]
+      : C.encre;
+    map.setPaintProperty("postes", "circle-color", couleur);
+    map.getSource("postes").setData(postesGeojson());
+    ["arcs-fond", "arcs-sel", "noeuds", "postes", "postes-sel"].forEach(x => on.add(x));
+  }
+  if (k === 4 && !PUBLIQUE) {
+    const v = S.vue[4];
+    map.setPaintProperty("noeuds", "circle-radius", v === "lieux" ? 2.4 : ["get", "r"]);
+    map.setPaintProperty("noeuds", "circle-color", v === "lieux" ? "#fff" : "rgba(42,120,214,0.45)");
+    map.setPaintProperty("noeuds", "circle-stroke-color", v === "lieux" ? C.encre2 : "#1b5aa6");
+    on.add("arcs-fond"); on.add("noeuds");
+    if (v !== "noeuds") { on.add("points"); on.add("rattache"); }
+  } else if (map.getLayer("noeuds")) {
+    map.setPaintProperty("noeuds", "circle-radius", 2.6);
+    map.setPaintProperty("noeuds", "circle-color", "#fff");
+    map.setPaintProperty("noeuds", "circle-stroke-color", C.encre2);
+  }
+  if (k === 5) {
+    const v = S.vue[5];
+    let vals, b, pal = C.bleu, titre, sous = "Classes sur les quintiles des arcs parcourus", f = fmt, opts = { faible: true };
+    if (v === "camions") { vals = new Map(CALC.map(c => [c.id, c.nSel])); titre = "Camions ENR routés, par an"; }
+    if (v === "tonnes") { vals = new Map(CALC.map(c => [c.id, c.tSel])); titre = "Tonnes ENR routées, par an"; }
+    if (v === "vides") {
+      vals = new Map(CALC.map(c => [c.id, c.pctVides])); b = [0.25, 0.32, 0.38, 0.45]; f = x => pct(x, 0);
+      titre = "Part de camions vides"; sous = "Camions vides ÷ camions routés (pondérés)";
+    }
+    if (v === "ratio") {
+      vals = new Map(CALC.map(c => [c.id, c.ratio])); b = [0.25, 0.5, 0.8, 1.25, 2, 4]; pal = C.div; f = x => x.toLocaleString("fr-CA", { maximumFractionDigits: 2 });
+      titre = "ENR routé ÷ DJMA camions (m4)"; sous = "(camions ENR par an ÷ 365) ÷ camions par jour comptés en 2025";
+      opts.largeurs = [2.6, 2.2, 1.9, 1.6, 1.9, 2.2, 2.6];
+    }
+    if (!b) b = quintiles([...vals.values()]);
+    etatArcs(map, vals, b, pal, opts);
+    LEGENDE[k] = { titre, sous, bornes: b, palette: pal, vals, fmt: f, faible: true };
+    map.setPaintProperty("postes", "circle-color", ["match", ["get", "chemin"], 0, C.chemin[0], 1, C.chemin[1], 2, C.chemin[2], 3, C.chemin[3], C.vide]);
+    ["arcs", "arcs-sel", "noeuds"].forEach(x => on.add(x));
+    if (v === "camions") { on.add("postes"); on.add("postes-sel"); }
+  }
+  if (k >= 6) {
+    const champ = k === 6 ? "parCamion2017" : (k === 7 ? "parCamion2026" : "valeurAn");
+    const vals = new Map(CALC.map(c => [c.id, c[champ]]));
+    const b = quintiles([...vals.values()]);
+    etatArcs(map, vals, b, C.or, { faible: true });
+    LEGENDE[k] = {
+      titre: k === 6 ? "$ moyen par camion, en $ de 2017" : (k === 7 ? "$ moyen par camion, en $ de 2026" : `$ par an sur l'arc (DJMA ${S.methode})`),
+      sous: "Classes sur les quintiles des arcs valorisés", bornes: b, palette: C.or, vals, fmt: dollars, faible: true,
+    };
+    ["arcs", "arcs-sel", "noeuds"].forEach(x => on.add(x));
+  }
+  vis(map, [...on], true);
+}
+
+// ---------- Rendu de la navigation ----------
+function rendreEtapes() {
+  const nav = document.getElementById("etapes");
+  nav.innerHTML = ETAPES.map((e, k) => `
+    <button type="button" class="etape${e.page ? " calcul-page" : ""}" data-k="${k}" ${k === S.etape ? 'aria-current="step"' : ""}>
+      <b>${k}</b><span>${esc(e.court)}<small>${esc(k === 2 ? fmt(M.n_garde) + " retenus" : e.sur)}</small></span>
+    </button>`).join("") +
+    `<p class="etapes-pied"><kbd>←</kbd> <kbd>→</kbd> pour changer d'étape. Les étapes 6 à 8 se recalculent dans la page.</p>`;
+  nav.querySelectorAll(".etape").forEach(b => b.addEventListener("click", () => allerA(+b.dataset.k)));
+  const choix = document.getElementById("choix-a");
+  choix.innerHTML = ETAPES.map((e, k) => `<option value="${k}" ${k === S.etapeA ? "selected" : ""}>${k} · ${esc(e.court)}</option>`).join("");
+  document.getElementById("nom-b").textContent = `${S.etape} · ${ETAPES[S.etape].court}`;
+}
+
+// ---------- Rendu du panneau « Lecture » ----------
+const tuile = (val, lib, cls = "") => `<div class="tuile ${cls}"><b class="num">${val}</b><span>${lib}</span></div>`;
+const segment = (cle, options, actif) => `<div class="segment" role="group">${options.map(([v, l]) =>
+  `<button type="button" data-seg="${cle}" data-v="${v}" aria-pressed="${v === actif}">${l}</button>`).join("")}</div>`;
+function puces() {
+  return `<div class="bloc"><h3>Marchandises affichées</h3>
+    <div class="puces">${GRP.map(([k, l]) => `<button type="button" class="puce" data-g="${k}" aria-pressed="${S.groupes.has(k)}">${esc(l)}</button>`).join("")}</div>
+    <div class="puces-actions"><button type="button" data-tous="1">Tout cocher</button><button type="button" data-tous="0">Tout décocher</button>
+    <button type="button" data-tous="charges">Chargés seulement</button></div></div>`;
+}
+function legendeArcs(L) {
+  if (!L || !L.bornes) return "";
+  const n = L.bornes.length + 1, comptes = new Array(n).fill(0);
+  let sans = 0;
+  L.vals.forEach(v => { const c = classer(v, L.bornes); if (c < 0) sans++; else comptes[c]++; });
+  const lignes = [];
+  for (let c = 0; c < n; c++) {
+    const lo = c === 0 ? null : L.bornes[c - 1], hi = c === n - 1 ? null : L.bornes[c];
+    const lib = lo == null ? `≤ ${L.fmt(hi)}` : (hi == null ? `> ${L.fmt(lo)}` : `${L.fmt(lo)} – ${L.fmt(hi)}`);
+    lignes.push(`<div class="leg"><svg viewBox="0 0 30 12" aria-hidden="true"><line x1="2" y1="6" x2="28" y2="6" stroke="${L.palette[c]}" stroke-width="${2 + c * 0.5}" stroke-linecap="round"/></svg><span>${lib}</span><span class="n">${comptes[c]}</span></div>`);
+  }
+  lignes.push(`<div class="leg"><svg viewBox="0 0 30 12" aria-hidden="true"><line x1="2" y1="6" x2="28" y2="6" stroke="${C.vide}" stroke-width="1.4"/></svg><span>Sans valeur</span><span class="n">${sans}</span></div>`);
+  if (L.faible) lignes.push(`<div class="leg"><svg viewBox="0 0 30 12" aria-hidden="true"><line x1="2" y1="6" x2="28" y2="6" stroke="${L.palette[Math.min(2, n - 1)]}" stroke-opacity=".45" stroke-width="3"/></svg><span>Trait pâle : moins de ${SEUIL_OBS} camions enquêtés</span><span class="n"></span></div>`);
+  return `<div class="legende"><h3>${esc(L.titre)}</h3><p class="sous">${esc(L.sous)}</p>${lignes.join("")}</div>`;
+}
+function listeBarres(lignes, couleur, max) {
+  const m = max ?? Math.max(...lignes.map(l => l.v), 1);
+  return `<div class="liste-barres">${lignes.map(l => `<div class="lb" ${l.attr || ""}><span class="nom" title="${esc(l.nom)}">${esc(l.nom)}</span>
+    <span class="piste"><i style="width:${Math.max(1.5, 100 * l.v / m)}%;background:${l.couleur || couleur}"></i></span><span class="val">${l.lib}</span></div>`).join("")}</div>`;
+}
+function blocSelection() {
+  if (S.selection == null) return `<p class="note">Clique sur un arc pour voir son détail.</p>`;
+  const p = parId.get(S.selection), c = calcParId().get(S.selection), i = posArc.get(S.selection);
+  const T = PA[S.poids === "n3" ? "t3" : "t4"][i], top = PA.top[i] || [];
+  const comp = GRP.map(([k, l], g) => ({ nom: l, v: T[g], lib: compact(T[g], "t") })).filter(x => x.v > 0 && x.nom).sort((a, b) => b.v - a.v);
+  return `<div class="selection"><h3>${esc(p.a)} – ${esc(p.b)}</h3>
+    <div class="kv">
+      <span>Longueur du tracé</span><span>${fmt(p.km)} km</span>
+      <span>Camions par jour, DJMA m1 · m2 · m3 · m4</span><span>${[1, 2, 3, 4].map(m => fmt(p["cam_m" + m])).join(" · ")}</span>
+      <span>Camions ENR routés, par an</span><span>${fmt(c.nAll)} <span style="color:var(--muted)">(≈ ${fmt(c.nAll / 365)}/j)</span></span>
+      <span>Camions enquêtés sur l'arc</span><span>${fmt(c.oAll)}</span>
+      <span>Part de vides</span><span>${pct(c.pctVides)}</span>
+      <span>$ par camion ($ 2017 · $ 2026)</span><span>${dollars(c.parCamion2017)} · ${dollars(c.parCamion2026)}</span>
+      <span>$ par an, DJMA ${S.methode}</span><span>${dollars(c.valeurAn)}</span>
+      <span>Fourchette m1 à m4</span><span>${dollars(c.vMin)} – ${dollars(c.vMax)}</span>
+    </div>
+    ${top.length ? `<h3 style="font-size:.82rem;font-family:var(--body);margin-top:4px">Principales paires de nœuds sur cet arc</h3>
+      ${listeBarres(top.map(([n, s]) => ({ nom: n, v: s, lib: pct(s, 0) })), C.cat[0], 1)}` : ""}
+    ${comp.length ? `<h3 style="font-size:.82rem;font-family:var(--body);margin-top:4px">Tonnes par an, par marchandise</h3>${listeBarres(comp.slice(0, 8), C.bleu[2])}` : ""}
+    <button type="button" class="ferme" data-fermer="1">Désélectionner</button></div>`;
+}
+
+function rendreLecture() {
+  const k = S.etape, L = LEGENDE[k];
+  const eyebrow = `Étape ${k} sur 8${ETAPES[k].page ? " · calculée dans la page" : ""}`;
+  let h = "";
+  const tete = (titre, lead) => `<div class="tete"><p class="eyebrow">${eyebrow}</p><h2>${titre}</h2><p>${lead}</p></div>`;
+
+  if (k === 0) {
+    const cams = ARCS.map(p => p.cam_m4).filter(v => v != null).sort((a, b) => a - b);
+    h += tete("Le réseau du volet 1", "Les 307 arcs entre les villes, avec leurs camions par jour (comptages MTMD 2025). C'est le multiplicateur final : le volet 2 n'ajoute que le $ par camion.");
+    h += `<div class="tuiles">${tuile(fmt(ARCS.length), "arcs")}${tuile(fmt(NOEUDS.length), "nœuds reliés, dont " + NOEUDS.filter(n => n.type.startsWith("frontiere")).length + " frontières")}
+      ${tuile(fmt(cams[Math.floor(cams.length / 2)]), "camions/jour, arc médian (m4)")}${tuile(fmt(cams[cams.length - 1]), "camions/jour, arc le plus chargé")}</div>`;
+    h += `<div class="bloc"><h3>Méthode DJMA</h3>${segment("methode", [["m1", "m1"], ["m2", "m2"], ["m3", "m3"], ["m4", "m4 · 80e percentile"]], S.methode)}
+      <p class="sous">Le choix vaut aussi pour l'étape 8.</p></div>`;
+    h += legendeArcs(L);
+  }
+  if (k === 1) {
+    h += tete(`${fmt(M.n_total)} camions enquêtés`, "L'Enquête nationale en bordure de route 2006-2007, partout au Canada. Chaque ligne relie un lieu de ramassage à un lieu de livraison.");
+    h += `<div class="tuiles">${tuile(fmt(M.n_total), "camions enquêtés, 1 fiche chacun")}${tuile(compact(M.n3_total), "trajets par an une fois pondérés (adjwgt3)")}
+      ${tuile(fmt(M.n_points), "lieux localisés (CSD, comtés)")}${tuile(pct(M.pct_vides_total), "des camions enquêtés roulent vides")}</div>`;
+    if (!PUBLIQUE) {
+      h += `<div class="bloc"><h3>Épaisseur des lignes</h3>${segment("vue1", [["n", "Trajets par an (pondéré)"], ["nobs", "Camions enquêtés (brut)"]], S.vue[1])}</div>`;
+      h += puces();
+    }
+    h += `<p class="note">${PUBLIQUE ? "Dans la version complète (locale), chaque ligne de la carte relie un lieu de ramassage à un lieu de livraison. " : ""}Lignes de désir à vol d'oiseau entre ramassage et livraison, pas le trajet routier. <b>L'ENR ne contient aucun montant en $.</b></p>`;
+  }
+  if (k === 2) {
+    const tot = M.n_total, cats = CATS.map(([c]) => M.cats[c]);
+    const partHors = n3ParCat[1] / (n3ParCat[0] + n3ParCat[1] + n3ParCat[2]);
+    h += tete(`${fmt(M.n_garde)} camions retenus`, "On garde les camions qui chargent ou livrent au Québec, où qu'ils aient été arrêtés, et ceux dont le trajet traverse le Québec.");
+    h += `<div class="tuiles">${tuile(pct(M.n_garde / tot, 1), "des fiches de l'ENR")}${tuile(fmt(M.n_vides_garde), "vides parmi les retenus, gardés à 0 $")}
+      ${tuile(compact(M.n3_garde), "trajets par an (adjwgt3)")}${tuile(pct(partHors), "du poids : arrêtés hors Québec")}</div>`;
+    h += `<div class="bloc"><h3>Les 4 catégories</h3>
+      <div class="barre-empilee" role="img" aria-label="Répartition des camions enquêtés">${cats.map((n, i) =>
+        `<div style="flex:${n};background:${i < 3 ? C.cat[i] : "var(--panel)"}" title="${esc(CATS[i][1])} : ${fmt(n)}"></div>`).join("")}</div>
+      ${CATS.map(([c, l], i) => `<div class="leg"><svg viewBox="0 0 30 12" aria-hidden="true"><rect x="2" y="1" width="26" height="10" rx="2" fill="${i < 3 ? C.cat[i] : "#e2e0d8"}"/></svg><span>${esc(l)}</span><span class="n">${fmt(cats[i])}</span></div>`).join("")}</div>`;
+    if (!PUBLIQUE) {
+      h += `<div class="bloc"><h3>Afficher</h3>${segment("vue2", [["gardes", "Retenus"], ["tous", "Retenus et écartés"], ["ecartes", "Écartés"]], S.vue[2])}</div>`;
+      h += puces();
+    }
+    h += `<p class="note">Ne garder que les postes du Québec ferait perdre les camions arrêtés en Ontario qui vont au Québec. Les transits sont repérés avec la liste des postes franchis (<code>MASTER_SITES_PASSED_LIST</code>).</p>`;
+  }
+  if (k === 3) {
+    const tri = [...POSTES].sort((a, b) => b.nobs - a.nobs);
+    const horsTotal = M.hors_qc_par_prov.reduce((a, [, n]) => a + n, 0);
+    h += tete(`${POSTES.length} postes d'enquête au Québec`, `Là où les camions ont été arrêtés. ${fmt(M.cats.qc_poste_qc)} camions retenus l'ont été au Québec ; ${fmt(horsTotal)} autres l'ont été hors Québec.`);
+    h += `<div class="bloc"><h3>Taille des cercles</h3>${segment("vue3", [["nobs", "Camions enquêtés"], ["n3", "Trajets par an"]], S.vue[3])}
+      <h3>Couleur</h3>${segment("couleurPostes", [["neutre", "Neutre"], ["vides", "Part de vides"]], S.couleurPostes)}</div>`;
+    if (S.couleurPostes === "vides") {
+      h += `<div class="legende"><h3>Part de camions vides au poste</h3>${["≤ 20 %", "20 – 30 %", "30 – 40 %", "40 – 50 %", "> 50 %"].map((l, i) =>
+        `<div class="leg"><svg viewBox="0 0 30 12" aria-hidden="true"><circle cx="15" cy="6" r="5" fill="${C.bleu[i]}"/></svg><span>${l}</span><span class="n"></span></div>`).join("")}</div>`;
+    }
+    if (S.selPoste) {
+      const p = POSTES.find(x => x.code === S.selPoste);
+      h += `<div class="selection"><h3>${esc(p.localite)} · ${esc(p.route)} ${esc(p.sens)}</h3><p class="sous">${esc(p.troncon)} · ${esc(p.code)}</p>
+        <div class="kv"><span>Camions enquêtés</span><span>${fmt(p.nobs)}</span><span>Trajets par an (pondérés)</span><span>${fmt(p.n3)}</span>
+        <span>Part de vides</span><span>${pct(p.pct_vides)}</span><span>Chargement moyen</span><span>${p.t_par_charge ?? "–"} t</span>
+        <span>Arc accroché</span><span>${esc(parId.get(p.arc)?.a)} – ${esc(parId.get(p.arc)?.b)} (${p.dist_arc_km} km)</span></div>
+        ${listeBarres(p.top.map(([n, s]) => ({ nom: n, v: s, lib: pct(s, 0) })), C.bleu[2], 1)}
+        <button type="button" class="ferme" data-fermer="1">Désélectionner</button></div>`;
+    }
+    h += `<div class="bloc"><h3>Postes, du plus enquêté au moins enquêté</h3><table class="tab"><thead><tr><th>Poste</th><th>Route</th><th>Enquêtés</th><th>Vides</th></tr></thead><tbody>
+      ${tri.map(p => `<tr class="cliquable" data-poste="${p.code}"><td>${esc(p.localite)}</td><td>${esc(p.route)} ${esc(p.sens.slice(0, 1))}</td><td>${fmt(p.nobs)}</td><td>${pct(p.pct_vides, 0)}</td></tr>`).join("")}
+      </tbody></table></div>`;
+    h += `<div class="bloc"><h3>Retenus mais arrêtés hors Québec</h3>${listeBarres(M.hors_qc_par_prov.map(([p, n]) => ({ nom: { ON: "Ontario", BC: "Colombie-Britannique", NB: "Nouveau-Brunswick", NF: "Terre-Neuve", MB: "Manitoba", AB: "Alberta", SK: "Saskatchewan", NS: "Nouvelle-Écosse", PE: "Î.-P.-É." }[p] || p, v: n, lib: fmt(n) })), C.cat[1])}</div>`;
+    h += `<p class="note attention">Positions <b>approximatives</b> : la localité du poste, saisie à la main d'après le libellé de l'ENR, puis accrochée au tracé le plus proche. À valider.</p>`;
+  }
+  if (k === 4) {
+    const q = M.qualite_bouts, ordre = ["csd", "cd", "prov", "comte", "etat"];
+    h += tete("Ramassages et livraisons → nœuds", "L'ENR ne donne qu'un code de municipalité (CSD de 2001). Chaque lieu québécois va au nœud municipal le plus proche ; un lieu hors Québec, à une frontière.");
+    h += `<div class="tuiles">${tuile(pct(q.csd), "des bouts de trajet : CSD exacte")}${tuile(pct(q.cd), "repli sur la division de recensement")}
+      ${tuile(fmt(M.n_local), "trajets locaux exclus (même nœud aux 2 bouts)")}${tuile(pct((q.comte || 0) + (q.etat || 0)), "aux États-Unis (comté ou État)")}</div>`;
+    if (!PUBLIQUE) h += `<div class="bloc"><h3>Afficher</h3>${segment("vue4", [["deux", "Lieux et nœuds"], ["lieux", "Lieux seulement"], ["noeuds", "Nœuds agrégés"]], S.vue[4])}</div>`;
+    h += `<div class="bloc"><h3>Précision de la localisation (bouts pondérés)</h3>
+      <div class="barre-empilee" role="img" aria-label="Précision de la localisation">${ordre.map(o => `<div style="flex:${q[o] || 0};background:${C.qual[o]}" title="${esc(QUAL.find(x => x[0] === o)[1])} : ${pct(q[o])}"></div>`).join("")}</div>
+      ${QUAL.map(([o, l]) => `<div class="leg"><svg viewBox="0 0 30 12" aria-hidden="true"><circle cx="15" cy="6" r="4.5" fill="${C.qual[o]}" stroke="#fff"/></svg><span>${esc(l)}</span><span class="n">${pct(q[o] || 0)}</span></div>`).join("")}</div>`;
+    if (!PUBLIQUE && S.vue[4] !== "lieux") h += `<div class="legende"><h3>Cercles bleus : bouts de trajet par nœud</h3><p class="sous">Aire proportionnelle aux ramassages + livraisons pondérés (par an). Max : ${compact(N3MAX)} au nœud le plus chargé.</p></div>`;
+    h += `<p class="note">Les fusions municipales de 2002 ont fait disparaître beaucoup de codes CSD de 2001 (Montréal, Québec, Lévis, Gatineau…). Ces lieux se replient sur leur division de recensement (ex. l'île de Montréal), ce qui suffit pour choisir un nœud.</p>`;
+    h += `<p class="note">Hors Québec, la frontière est choisie trajet par trajet : celle qui minimise <b>${M.detour.toLocaleString("fr-CA")} × vol d'oiseau + chemin dans le graphe</b>.${PUBLIQUE ? "" : " Les lignes grises montrent la frontière la plus souvent retenue pour chaque lieu."}</p>`;
+  }
+  if (k === 5) {
+    const tri = [...POSTES].filter(p => p.part_chemin != null).sort((a, b) => a.part_chemin - b.part_chemin);
+    h += tete("Chaque camion roule sur le graphe", "Plus court chemin en km (tracés OSRM) entre ses deux nœuds. Il compte sur tous les arcs du chemin, pas seulement là où on l'a arrêté.");
+    h += `<div class="tuiles">${tuile(fmt(M.n_route), "camions routés")}${tuile(fmt(M.n_paires_routees), "paires de lieux, 1 calcul chacune")}
+      ${tuile(pct(M.part_chemin_global, 0), "des camions arrêtés à un poste ont un chemin qui passe par l'arc du poste")}${tuile(compact(M.n3_route), "trajets par an routés")}</div>`;
+    h += `<div class="bloc"><h3>Couleur des arcs</h3>${segment("vue5", [["camions", "Camions/an"], ["tonnes", "Tonnes/an"], ["vides", "% vides"], ["ratio", "ENR ÷ DJMA"]], S.vue[5])}
+      <h3>Poids d'expansion</h3>${segment("poids", [["n3", "adjwgt3 (ENR)"], ["n4", "adjwgt4 (test)"]], S.poids)}</div>`;
+    h += legendeArcs(L);
+    if (S.vue[5] === "camions") {
+      h += `<div class="legende"><h3>Postes : le chemin calculé passe-t-il par l'arc du poste ?</h3>${["< 25 %", "25 – 50 %", "50 – 75 %", "≥ 75 %"].map((l, i) =>
+        `<div class="leg"><svg viewBox="0 0 30 12" aria-hidden="true"><circle cx="15" cy="6" r="5" fill="${C.chemin[i]}" stroke="#fff"/></svg><span>${l} des camions du poste</span><span class="n"></span></div>`).join("")}</div>`;
+    }
+    if (S.vue[5] === "ratio") h += `<p class="note">Un rapport bas n'est pas une erreur en soi : le DJMA compte aussi les camions locaux et ceux qui ne passent par aucun poste, et l'ENR date de 2006-2007. Il sert à repérer les arcs où le routage concentre ou évite les camions.</p>`;
+    if (S.vue[5] === "camions" || S.vue[5] === "tonnes") h += puces();
+    h += blocSelection();
+    h += `<div class="bloc"><h3>Postes où le routage s'écarte le plus</h3><p class="sous">Part pondérée des camions arrêtés au poste dont le chemin calculé emprunte l'arc du poste.</p>
+      ${listeBarres(tri.slice(0, 12).map(p => ({ nom: `${p.localite} · ${p.route} ${p.sens}`, v: p.part_chemin, lib: pct(p.part_chemin, 0),
+        couleur: C.chemin[Math.min(3, Math.floor(p.part_chemin / 0.25))], attr: `data-poste="${p.code}" style="cursor:pointer"` })), null, 1)}</div>`;
+    h += `<p class="note attention">À examiner : aux postes frontaliers (Lacolle, Les Cèdres), le chemin le plus court sort par une autre frontière voisine. Un poids de passage par les postes réellement franchis (<code>SITES_PASSED</code>) est une piste d'amélioration.</p>`;
+  }
+  if (k === 6) {
+    const tg = M.groupes_t3, maxT = Math.max(...Object.values(tg));
+    h += tete("Une valeur pour chaque tonne", "L'ENR ne donne aucun $. Chaque groupe de marchandises reçoit un $/t. En attendant la CFAF : <b>3 000 $/t partout</b> (moyenne 2017 du camionnage pour compte d'autrui).");
+    h += tuilesValeur("parCamion2017", "$ 2017");
+    h += `<div class="bloc"><h3>$/t par groupe, en $ de 2017 <span class="provisoire" style="margin-left:6px">provisoire</span></h3>
+      <p class="sous">Modifie une valeur : la carte se recalcule. Tonnes = camions retenus (pondérés) par an.</p>
+      <table class="tab"><thead><tr><th>Groupe</th><th>Tonnes/an</th><th>$/t</th></tr></thead><tbody>
+      ${GRP.filter(([g]) => g !== "vide").map(([g, l]) => `<tr><td>${esc(l)}</td><td><span class="mini" style="width:${Math.max(2, 46 * tg[g] / maxT)}px"></span>${compact(tg[g])}</td>
+        <td>${g === "inconnu" && S.inconnu === "moyenne" ? `<span class="mono" style="font-size:.72rem;color:var(--muted)">moy. de l'arc</span>` : `<input type="number" min="0" step="100" data-prix="${g}" value="${S.prix[g]}" aria-label="$ par tonne, ${esc(l)}">`}</td></tr>`).join("")}
+      </tbody></table></div>`;
+    h += `<div class="bloc"><h3>Marchandise « inconnue »</h3>${segment("inconnu", [["moyenne", "$/t moyen des marchandises connues de l'arc"], ["saisie", "Valeur saisie"]], S.inconnu)}</div>`;
+    h += `<div class="bloc"><h3>Groupe de marchandises</h3>${puces().replace('<div class="bloc"><h3>Marchandises affichées</h3>', "<div>")}<p class="sous">Décocher des groupes montre la part de la valeur portée par ceux qui restent ; les vides restent au dénominateur.</p></div>`;
+    h += legendeArcs(L);
+    h += blocSelection();
+    h += `<p class="note">Les 12 groupes ci-dessus sont des <b>groupes de travail</b> regroupant les 54 marchandises de l'ENR (voir « Logique »). Ils seront remplacés par les 12 groupes de la CFAF (tableau 23-10-0142-01) dès que l'API de StatCan répond.</p>`;
+  }
+  if (k === 7) {
+    const st = M.statcan || {};
+    h += tete("En dollars de 2026", "Les $/t de la CFAF sont en $ de 2017. On les ramène en $ de 2026 avec l'IPPI (StatCan 18-10-0266-01) ; l'IPC du Québec servira de test de sensibilité.");
+    h += `<p class="statut-statcan"><i class="${st.ippi === "disponible" ? "ok" : ""}"></i>API StatCan (IPPI) : ${esc(st.ippi || "non vérifiée")} le ${esc(st.verifie_le || "?")}${st.ippi !== "disponible" ? " · facteur laissé à 1,000 en attendant" : ""}</p>`;
+    h += `<div class="bloc"><h3>Facteur d'actualisation</h3>
+      <div class="param"><label for="i17">IPPI, moyenne 2017</label><input id="i17" type="number" step="0.1" min="0" value="${S.indice2017}" placeholder="à saisir"></div>
+      <div class="param"><label for="i26">IPPI, moyenne 2026 (ou 12 derniers mois)</label><input id="i26" type="number" step="0.1" min="0" value="${S.indice2026}" placeholder="à saisir"></div>
+      <div class="param"><label for="fac"><b>Facteur appliqué</b></label><input id="fac" type="number" step="0.001" min="0" value="${S.facteur.toFixed(3)}"></div>
+      <p class="sous">Le facteur se calcule depuis les deux indices, ou se saisit directement.</p></div>`;
+    h += tuilesValeur("parCamion2026", "$ 2026");
+    h += legendeArcs(L);
+    h += blocSelection();
+  }
+  if (k === 8) {
+    const val = CALC.filter(c => c.valeurAn > 0).sort((a, b) => b.valeurAn - a.valeurAn);
+    const med = val.length ? val[Math.floor(val.length / 2)].valeurAn : null;
+    h += tete("$ par an sur chaque arc", `$ par camion (contenu ENR 2006-2007, en $ ${S.facteur === 1 ? "de 2017 tant que l'IPPI n'est pas chargé" : "de 2026"}) × camions par jour (DJMA 2025) × 365.`);
+    h += `<div class="tuiles">${tuile(dollars(med), "par an, arc médian", "usd")}${tuile(dollars(val[0]?.valeurAn), "par an, arc le plus élevé", "usd")}
+      ${tuile(fmt(val.length), "arcs valorisés")}${tuile(fmt(ARCS.length - val.length), "arcs sans valeur (ni camion ENR ni DJMA)")}</div>`;
+    h += `<div class="bloc"><h3>Méthode DJMA</h3>${segment("methode", [["m1", "m1"], ["m2", "m2"], ["m3", "m3"], ["m4", "m4"]], S.methode)}</div>`;
+    h += legendeArcs(L);
+    h += blocSelection();
+    h += `<div class="bloc"><h3>Les 10 arcs les plus élevés</h3>${listeBarres(val.slice(0, 10).map(c => ({ nom: `${parId.get(c.id).a} – ${parId.get(c.id).b}`, v: c.valeurAn, lib: dollars(c.valeurAn), attr: `data-arc="${c.id}" style="cursor:pointer"` })), C.or[2])}</div>`;
+    h += `<p class="note attention"><b>Ne pas additionner les arcs.</b> Un même camion compte sur chacun des arcs qu'il emprunte. Montants provisoires tant que les $/t de la CFAF et l'IPPI ne sont pas chargés.</p>`;
+  }
+  document.getElementById("lecture").innerHTML = h;
+  brancherLecture();
+}
+function tuilesValeur(champ, unite) {
+  let num = 0, den = 0;
+  CALC.forEach(c => { if (c[champ] != null && c.nAll > 0) { num += c[champ] * c.nAll; den += c.nAll; } });
+  const v = CALC.map(c => c[champ]).filter(x => x != null).sort((a, b) => a - b);
+  return `<div class="tuiles">${tuile(dollars(den ? num / den : null), `par camion, moyenne pondérée des arcs (${unite})`, "usd")}
+    ${tuile(dollars(v[Math.floor(v.length / 2)]), `par camion, arc médian (${unite})`, "usd")}
+    ${tuile(M.t_par_charge.toLocaleString("fr-CA") + " t", "par camion chargé (ENR, retenus)")}
+    ${tuile(pct(M.pct_vides_garde_pondere, 0), "de camions vides (pondérés), comptés à 0 $")}</div>`;
+}
+
+// ---------- Rendu du panneau « Logique » ----------
+function surligner(code, langage) {
+  const motsCles = langage === "py"
+    ? /\b(def|return|for|in|if|elif|else|import|from|as|not|and|or|None|True|False|with|try|except|continue|lambda|is|assert|raise)\b/g
+    : /\b(function|return|const|let|if|else|for|null|new|true|false)\b/g;
+  const marque = langage === "py" ? "#" : "//";
+  return code.split("\n").map(ligne => {
+    let i = 0, q = null, coupe = -1;
+    for (; i < ligne.length; i++) {
+      const ch = ligne[i];
+      if (q) { if (ch === "\\") i++; else if (ch === q) q = null; continue; }
+      if (ch === '"' || ch === "'" || ch === "`") { q = ch; continue; }
+      if (ligne.startsWith(marque, i)) { coupe = i; break; }
+    }
+    const corps = coupe >= 0 ? ligne.slice(0, coupe) : ligne, com = coupe >= 0 ? ligne.slice(coupe) : "";
+    const parts = corps.split(/("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g).map((p, j) =>
+      j % 2 ? `<span class="s">${esc(p)}</span>` : esc(p).replace(motsCles, '<span class="k">$1</span>'));
+    return parts.join("") + (com ? `<span class="c">${esc(com)}</span>` : "");
+  }).join("\n");
+}
+const CODE = {
+  0: [["py", "charger_graphe()", D.code.graphe]],
+  1: [["py", "charger_enr() · groupe_marchandise()", D.code.chargement]],
+  2: [["py", "classer_population()", D.code.population]],
+  3: [["py", "valider_postes()", D.code.postes]],
+  4: [["py", "cle_lieu() · localiser_points()", D.code.localisation], ["py", "rattacher_noeuds()", D.code.rattachement]],
+  5: [["py", "router_camions() · cumuler_par_arc()", D.code.routage]],
+  6: [["js", "valoriserArc() — dans cette page", valoriserArc.toString()], ["py", "Table de passage ENR → groupes de travail", D.code.table]],
+  7: [["js", "actualiser() — dans cette page", actualiser.toString()], ["py", "verifier_statcan()", D.code.statcan]],
+  8: [["js", "valeurAnnuelle() — dans cette page", valeurAnnuelle.toString()], ["js", "valoriserArc()", valoriserArc.toString()]],
+};
+const RESUME = {
+  0: "Le graphe NetworkX du volet 1 : chaque arc est pondéré par la longueur de son tracé OSRM.",
+  1: "Jointure 1 pour 1 des quatre fichiers ENR, puis tonnes annuelles = kg du chargement ÷ 1 000 × trajets annualisés.",
+  2: "Le filtre du 2026-10-20, appliqué tel quel : 37 603 camions.",
+  3: "Chaque poste est accroché au tracé le plus proche ; on mesure ensuite si les chemins calculés y passent.",
+  4: "D'abord on trouve des coordonnées pour chaque code de l'ENR, ensuite on rattache chaque lieu à un nœud.",
+  5: "Un plus court chemin par paire de lieux, réutilisé par tous les camions de la paire, puis un cumul par arc et par groupe.",
+  6: "Ce calcul tourne dans la page : il se refait à chaque modification d'un $/t.",
+  7: "Le facteur multiplie tous les $/t. La fonction Python teste l'API StatCan à chaque génération de la page.",
+  8: "La dernière multiplication : contenu moyen d'un camion × camions d'aujourd'hui × 365.",
+};
+function rendreLogique() {
+  const k = S.etape;
+  document.getElementById("logique").innerHTML = `<div class="tete"><p class="eyebrow">Étape ${k} · logique</p><h2>${esc(ETAPES[k].court)}</h2><p>${esc(RESUME[k])}</p></div>` +
+    CODE[k].map(([lang, titre, src], j) => `<div class="bloc"><div class="code-tete"><h3>${esc(titre)}</h3><button type="button" class="copie" data-copie="${j}">Copier</button></div>
+      <span class="fichier">${lang === "py" ? "scripts/visualisation_volet2.py" : "JavaScript de cette page"}</span>
+      <pre class="code"><code>${surligner(src, lang)}</code></pre></div>`).join("");
+  document.querySelectorAll("[data-copie]").forEach(b => b.addEventListener("click", () => {
+    navigator.clipboard?.writeText(CODE[k][+b.dataset.copie][2]).then(() => { b.textContent = "Copié"; setTimeout(() => (b.textContent = "Copier"), 1200); });
+  }));
+}
+
+// ---------- Interactions du panneau ----------
+function brancherLecture() {
+  const zone = document.getElementById("lecture");
+  zone.querySelectorAll("[data-seg]").forEach(b => b.addEventListener("click", () => {
+    const cle = b.dataset.seg, v = b.dataset.v;
+    if (cle === "methode") S.methode = v;
+    else if (cle === "poids") S.poids = v;
+    else if (cle === "inconnu") S.inconnu = v;
+    else if (cle === "couleurPostes") S.couleurPostes = v;
+    else S.vue[+cle.slice(3)] = v;
+    toutRafraichir();
+  }));
+  zone.querySelectorAll("[data-g]").forEach(b => b.addEventListener("click", () => {
+    const g = b.dataset.g; S.groupes.has(g) ? S.groupes.delete(g) : S.groupes.add(g); majGroupes();
+  }));
+  zone.querySelectorAll("[data-tous]").forEach(b => b.addEventListener("click", () => {
+    const t = b.dataset.tous;
+    S.groupes = new Set(t === "1" ? GRP.map(g => g[0]) : t === "charges" ? GRP.map(g => g[0]).filter(g => g !== "vide") : []);
+    majGroupes();
+  }));
+  zone.querySelectorAll("[data-prix]").forEach(inp => inp.addEventListener("change", () => {
+    const v = parseFloat(inp.value); if (isFinite(v) && v >= 0) { S.prix[inp.dataset.prix] = v; toutRafraichir(); }
+  }));
+  const i17 = zone.querySelector("#i17"), i26 = zone.querySelector("#i26"), fac = zone.querySelector("#fac");
+  const majIndices = () => { S.indice2017 = i17.value; S.indice2026 = i26.value; S.facteur = actualiser(+i17.value, +i26.value); toutRafraichir(); };
+  i17?.addEventListener("change", majIndices); i26?.addEventListener("change", majIndices);
+  fac?.addEventListener("change", () => { const v = parseFloat(fac.value); if (isFinite(v) && v > 0) { S.facteur = v; toutRafraichir(); } });
+  zone.querySelectorAll("[data-poste]").forEach(el => el.addEventListener("click", () => choisirPoste(el.dataset.poste)));
+  zone.querySelectorAll("[data-arc]").forEach(el => el.addEventListener("click", () => choisirArc(+el.dataset.arc, true)));
+  zone.querySelectorAll("[data-fermer]").forEach(el => el.addEventListener("click", () => { S.selection = null; S.selPoste = null; toutRafraichir(); }));
+}
+let fluxEnAttente = null;
+function majGroupes() {
+  clearTimeout(fluxEnAttente);
+  fluxEnAttente = setTimeout(() => pourChaqueCarte(m => m.getSource("flux").setData(fluxGeojson())), 60);
+  toutRafraichir();
+}
+function choisirPoste(code) {
+  S.selPoste = code; const p = POSTES.find(x => x.code === code);
+  S.selection = p.arc;
+  carteB.flyTo({ center: [p.lon, p.lat], zoom: Math.max(carteB.getZoom(), 7), duration: 700 });
+  toutRafraichir();
+}
+function choisirArc(id, voler) {
+  S.selection = id;
+  if (voler) {
+    const f = D.arcs.features.find(x => x.properties.id === id), xs = [], ys = [];
+    (f.geometry.type === "LineString" ? [f.geometry.coordinates] : f.geometry.coordinates).flat().forEach(([x, y]) => { xs.push(x); ys.push(y); });
+    carteB.fitBounds([[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], { padding: 90, maxZoom: 7.5, duration: 700 });
+  }
+  toutRafraichir();
+}
+
+// ---------- Infobulles et clics sur la carte ----------
+const bulle = document.getElementById("infobulle");
+function contenuBulle(map, f, k) {
+  const L = map.getLayer(f.layer.id) && f.layer.id, cp = calcParId();
+  const l = (a, b) => `<div class="l"><span>${a}</span><span>${b}</span></div>`;
+  if (L === "flux") {
+    const p = paires[f.properties.i];
+    return `<strong>${esc(P.nom[p.o])} → ${esc(P.nom[p.d])}</strong>${l("Trajets par an", fmt(f.properties.n))}${l("Camions enquêtés", fmt(f.properties.nobs))}
+      <div class="note">${esc(CATS[p.c][1])}</div>`;
+  }
+  if (L === "arcs-hit") {
+    const p = parId.get(f.properties.id), c = cp.get(p.id);
+    let h = `<strong>${esc(p.a)} – ${esc(p.b)}</strong>${l("Tracé", fmt(p.km) + " km")}${l("Camions/jour (" + S.methode + ")", fmt(p["cam_" + S.methode]))}`;
+    if (k === 5) h += l("Camions ENR routés/an", fmt(c.nSel)) + l("Tonnes/an", compact(c.tSel, "t")) + l("Vides", pct(c.pctVides)) + l("ENR ÷ DJMA", c.ratio == null ? "–" : c.ratio.toLocaleString("fr-CA", { maximumFractionDigits: 2 })) + l("Enquêtés", fmt(c.oAll));
+    if (k === 6) h += l("$ par camion ($ 2017)", dollars(c.parCamion2017)) + l("Enquêtés", fmt(c.oAll));
+    if (k === 7) h += l("$ par camion ($ 2026)", dollars(c.parCamion2026));
+    if (k === 8) h += l("$ par an", dollars(c.valeurAn)) + l("Fourchette m1–m4", `${dollars(c.vMin)} – ${dollars(c.vMax)}`);
+    if (k === 0) h += l("DJMA total", fmt(p["djma_" + S.methode])) + l("Statut", esc(p.statut));
+    if (k >= 5 && c.oAll < SEUIL_OBS) h += `<div class="note">Moins de ${SEUIL_OBS} camions enquêtés : valeur fragile.</div>`;
+    return h + (k >= 5 ? `<div class="note">Clique pour le détail.</div>` : "");
+  }
+  if (L === "noeuds") {
+    const n = noeudParId.get(f.properties.id);
+    const types = { municipalite: "municipalité", noeud_intermediaire: "nœud intermédiaire", frontiere_canada: "frontière (Canada)", frontiere_usa: "frontière (États-Unis)" };
+    if (PUBLIQUE) return `<strong>${esc(n.nom)}</strong>${l("Type", esc(types[n.type] || n.type))}`;
+    return `<strong>${esc(n.nom)}</strong>${l("Type", esc(types[n.type] || n.type))}${l("Ramassages + livraisons/an", fmt(n.n3))}${l("dont vides", fmt(n.n3_vides))}${l("Lieux rattachés", fmt(n.npts))}${n.n3_local ? l("Trajets locaux exclus/an", fmt(n.n3_local)) : ""}`;
+  }
+  if (L === "points") {
+    const i = f.properties.i, n = P.noeud[i] && noeudParId.get(P.noeud[i]);
+    return `<strong>${esc(P.nom[i])}</strong>${l("Localisation", esc(QUAL.find(q => q[0] === P.qual[i])[1]))}${l("Bouts de trajet/an", fmt(P.n3[i]))}${n ? l("Nœud", esc(n.nom)) : ""}${P.dist[i] != null ? l("Distance au nœud", P.dist[i] + " km") : ""}`;
+  }
+  if (L === "postes") {
+    const p = POSTES.find(x => x.code === f.properties.code);
+    return `<strong>${esc(p.localite)} · ${esc(p.route)} ${esc(p.sens)}</strong><div class="note" style="margin:0 0 4px">${esc(p.troncon)}</div>${l("Camions enquêtés", fmt(p.nobs))}${l("Vides", pct(p.pct_vides))}${l("Chemin par l'arc du poste", pct(p.part_chemin, 0))}`;
+  }
+  return "";
+}
+function brancherSouris(map, quelleEtape) {
+  const couches = ["flux", "arcs-hit", "noeuds", "points", "postes"];
+  map.on("mousemove", e => {
+    const k = quelleEtape();
+    const actives = couches.filter(c => map.getLayer(c) && (c === "arcs-hit" ? [0, 5, 6, 7, 8].includes(k) : map.getLayoutProperty(c, "visibility") === "visible"));
+    const f = actives.length ? map.queryRenderedFeatures(e.point, { layers: actives }) : [];
+    const ordre = ["postes", "points", "noeuds", "arcs-hit", "flux"];
+    f.sort((a, b) => ordre.indexOf(a.layer.id) - ordre.indexOf(b.layer.id) || (b.properties.n || 0) - (a.properties.n || 0));
+    if (!f.length) { bulle.hidden = true; map.getCanvas().style.cursor = ""; return; }
+    bulle.innerHTML = contenuBulle(map, f[0], k);
+    bulle.hidden = false;
+    const r = document.getElementById("scene").getBoundingClientRect();
+    const x = e.point.x + 14, y = e.point.y + 14;
+    bulle.style.left = Math.min(x, r.width - bulle.offsetWidth - 8) + "px";
+    bulle.style.top = Math.min(y, r.height - bulle.offsetHeight - 8) + "px";
+    map.getCanvas().style.cursor = f[0].layer.id === "flux" ? "" : "pointer";
+  });
+  map.on("mouseout", () => { bulle.hidden = true; });
+  map.on("click", e => {
+    const k = quelleEtape();
+    const postes = map.getLayoutProperty("postes", "visibility") === "visible" ? map.queryRenderedFeatures(e.point, { layers: ["postes"] }) : [];
+    if (postes.length) { choisirPoste(postes[0].properties.code); return; }
+    if ([0, 5, 6, 7, 8].includes(k)) {
+      const a = map.queryRenderedFeatures(e.point, { layers: ["arcs-hit"] });
+      if (a.length) { choisirArc(a[0].properties.id, false); return; }
+    }
+  });
+}
+
+// ---------- Orchestration ----------
+let carteA = null, carteB = null;
+const pourChaqueCarte = fn => [carteB, carteA].forEach(m => m && m._pret && fn(m));
+function toutRafraichir() {
+  calculer();
+  if (carteB && carteB._pret) appliquerEtape(carteB, S.etape);
+  if (carteA && carteA._pret && S.comparer) appliquerEtape(carteA, S.etapeA);
+  rendreEtapes();
+  document.getElementById("bandeau").hidden = !(PUBLIQUE && [1, 2, 4].includes(S.etape));
+  if (S.onglet === "lecture") rendreLecture(); else rendreLogique();
+}
+function allerA(k) {
+  if (k < 0 || k > 8) return;
+  const ancien = ETAPES[S.etape].vue;
+  S.etape = k;
+  if (k !== 3 && k !== 5) S.selPoste = null;
+  try { history.replaceState(null, "", "#etape=" + k); } catch (e) {}
+  toutRafraichir();
+  if (carteB && ETAPES[k].vue !== ancien) carteB.fitBounds(VUES[ETAPES[k].vue], { padding: 24, duration: 800 });
+  document.getElementById("lecture").scrollTop = 0;
+}
+function synchroniser(a, b) {
+  let actif = null;
+  const copier = (de, vers) => () => {
+    if (actif && actif !== de) return;
+    actif = de; vers.jumpTo({ center: de.getCenter(), zoom: de.getZoom(), bearing: de.getBearing(), pitch: de.getPitch() }); actif = null;
+  };
+  a.on("move", copier(a, b)); b.on("move", copier(b, a));
+}
+function placerRideau(x) {
+  const scene = document.getElementById("scene"), w = scene.clientWidth;
+  x = Math.max(40, Math.min(w - 40, x));
+  document.getElementById("rideau").style.left = x + "px";
+  document.getElementById("carte-a").style.clipPath = `inset(0 ${w - x}px 0 0)`;
+}
+function activerComparaison(on) {
+  S.comparer = on;
+  document.getElementById("btn-comparer").setAttribute("aria-pressed", on);
+  ["carte-a", "rideau", "etiq-a", "etiq-b"].forEach(id => (document.getElementById(id).hidden = !on));
+  if (on && !carteA) {
+    if (S.etapeA === S.etape) S.etapeA = Math.max(0, S.etape - 1);
+    carteA = creerCarte("carte-a");
+    carteA.on("load", () => {
+      construireCouches(carteA); carteA._pret = true;
+      carteA.getSource("flux").setData(fluxGeojson());
+      carteA.jumpTo({ center: carteB.getCenter(), zoom: carteB.getZoom() });
+      synchroniser(carteA, carteB); brancherSouris(carteA, () => S.etapeA);
+      toutRafraichir();
+    });
+  }
+  if (on) { carteA?.resize(); placerRideau(document.getElementById("scene").clientWidth / 2); }
+  toutRafraichir();
+}
+
+// ---------- Diagnostic : la carte a besoin de WebGL ----------
+function webglDisponible() {
+  try { const c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); }
+  catch (e) { return false; }
+}
+function afficherProbleme(titre, detail) {
+  const zone = document.getElementById("chargement");
+  if (!zone) return;
+  zone.innerHTML = `<div class="probleme" role="alert"><h2>${titre}</h2>${detail}
+    <p class="sous">Le panneau de droite et l'onglet « Logique » fonctionnent quand même.</p></div>`;
+}
+const AIDE_WEBGL = `<p>Ce navigateur n'a pas WebGL, l'accélération graphique dont la carte a besoin.</p>
+  <ol><li>Ouvre <code>edge://settings/system</code> (Edge) ou <code>chrome://settings/system</code> (Chrome).</li>
+  <li>Active « Utiliser l'accélération graphique lorsqu'elle est disponible ».</li>
+  <li>Redémarre le navigateur, puis rouvre ce fichier.</li></ol>
+  <p class="sous">Pour vérifier : <code>edge://gpu</code> ou <code>chrome://gpu</code>, ligne « WebGL ». En bureau à distance ou en machine virtuelle, WebGL est souvent bloqué : ouvre alors la page sur un poste local.</p>`;
+
+function lancerCarte() {
+  if (!webglDisponible()) { afficherProbleme("La carte ne peut pas s'afficher", AIDE_WEBGL); return; }
+  try { carteB = creerCarte("carte-b"); }
+  catch (e) { carteB = null; afficherProbleme("La carte ne peut pas s'afficher", AIDE_WEBGL + `<p class="sous">Détail : ${esc(e.message)}</p>`); return; }
+  carteB.on("load", () => {
+    try {
+      construireCouches(carteB); carteB._pret = true;
+      carteB.getSource("flux").setData(fluxGeojson());
+      brancherSouris(carteB, () => S.etape);
+      document.getElementById("chargement").remove();
+      toutRafraichir();
+    } catch (e) {
+      afficherProbleme("Erreur pendant la préparation de la carte", `<p class="sous">Détail : ${esc(e.message)}</p>`);
+    }
+  });
+  setTimeout(() => {
+    if (carteB && !carteB._pret) afficherProbleme("La carte tarde à se charger",
+      `<p>Vérifie la connexion internet (bibliothèque MapLibre et polices), puis recharge la page (F5). Si rien ne change, appuie sur F12, onglet « Console », et note le message en rouge.</p>`);
+  }, 15000);
+}
+
+function demarrer() {
+  document.getElementById("date-gen").textContent = M.genere_le;
+  if (PUBLIQUE) document.getElementById("mention-publique").textContent = " · version publique";
+  calculer(); rendreEtapes(); rendreLecture();
+  document.getElementById("btn-comparer").addEventListener("click", () => carteB && carteB._pret && activerComparaison(!S.comparer));
+  document.getElementById("choix-a").addEventListener("change", e => { S.etapeA = +e.target.value; toutRafraichir(); });
+  const rideau = document.getElementById("rideau");
+  rideau.addEventListener("pointerdown", e => {
+    rideau.setPointerCapture(e.pointerId);
+    const bouger = ev => placerRideau(ev.clientX - document.getElementById("scene").getBoundingClientRect().left);
+    rideau.addEventListener("pointermove", bouger);
+    rideau.addEventListener("pointerup", () => rideau.removeEventListener("pointermove", bouger), { once: true });
+  });
+  window.addEventListener("resize", () => S.comparer && placerRideau(parseFloat(rideau.style.left) || 0));
+  ["lecture", "logique"].forEach(o => document.getElementById("tab-" + o).addEventListener("click", () => {
+    S.onglet = o;
+    ["lecture", "logique"].forEach(x => {
+      document.getElementById("tab-" + x).setAttribute("aria-selected", x === o);
+      document.getElementById(x).hidden = x !== o;
+    });
+    toutRafraichir();
+  }));
+  document.addEventListener("keydown", e => {
+    if (e.target.closest("input,select,textarea")) return;
+    if (e.key === "ArrowRight") allerA(S.etape + 1);
+    if (e.key === "ArrowLeft") allerA(S.etape - 1);
+  });
+  lancerCarte();
+}
+if (window.maplibregl) demarrer();
+else afficherProbleme("La bibliothèque de carte n'a pas pu être chargée",
+  "<p>La page télécharge MapLibre depuis unpkg.com : il faut une connexion internet, et ce site ne doit pas être bloqué par le réseau.</p>");
+</script>
+</body>
+</html>
