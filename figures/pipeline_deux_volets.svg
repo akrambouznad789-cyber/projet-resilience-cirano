@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 470" width="1100" height="470" role="img" aria-labelledby="titre desc">
+  <title id="titre">Deux volets successifs</title>
+  <desc id="desc">Volet 1 : des comptages routiers au trafic par liaison. Volet 2 : de l'enquête sur les camions à la valeur des marchandises par liaison. Le trafic en camions du Volet 1 alimente la dernière étape du Volet 2.</desc>
+  <defs>
+    <marker id="fleche" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#7f7d76" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="fleche-pont" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#17181b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      text{font-family:"Segoe UI","Helvetica Neue",Helvetica,Arial,sans-serif;fill:#17181b}
+      .eyebrow{font-size:12px;font-weight:700;letter-spacing:1.6px}
+      .phase{font-size:21px;font-weight:700}
+      .phase-sous{font-size:12.5px;fill:#4f4e4a}
+      .pastille{font-size:11px;font-weight:700}
+      .titre{font-size:14px;font-weight:700}
+      .sous{font-size:11.5px;fill:#4f4e4a}
+      .num{font-size:11px;font-weight:700;fill:#ffffff}
+      .res-titre{font-size:14px;font-weight:700;fill:#ffffff}
+      .res-sous{font-size:11.5px;fill:#ffffff}
+      .pont{font-size:12px;font-weight:700}
+      .pont-sous{font-size:11px;fill:#4f4e4a}
+      .lien{fill:none;stroke:#7f7d76;stroke-width:1.6;marker-end:url(#fleche)}
+    </style>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="1099" height="469" rx="16" fill="#ffffff" stroke="#e2e0d8"/>
+
+  <!-- ===== Volet 1 ===== -->
+  <rect x="16" y="16" width="1068" height="176" rx="12" fill="#f5f8fd"/>
+  <text x="36" y="56" class="eyebrow" style="fill:#1f5fae">VOLET 1</text>
+  <text x="36" y="84" class="phase">Le trafic</text>
+  <text x="36" y="104" class="phase-sous">sur chaque liaison</text>
+  <rect x="36" y="122" width="76" height="22" rx="11" fill="#e3f4ea"/>
+  <text x="74" y="137" class="pastille" text-anchor="middle" style="fill:#1d6b45">Terminé</text>
+
+  <g>
+    <rect x="190" y="56" width="156" height="96" rx="10" fill="#ffffff" stroke="#b8d0f1"/>
+    <circle cx="210" cy="76" r="10" fill="#2a78d6"/><text x="210" y="80" class="num" text-anchor="middle">1</text>
+    <text x="204" y="110" class="titre">Comptages routiers</text>
+    <text x="204" y="128" class="sous">MTQ, 7 823 tronçons</text>
+    <text x="204" y="143" class="sous">de route comptés</text>
+  </g>
+  <g>
+    <rect x="370" y="56" width="156" height="96" rx="10" fill="#ffffff" stroke="#b8d0f1"/>
+    <circle cx="390" cy="76" r="10" fill="#2a78d6"/><text x="390" y="80" class="num" text-anchor="middle">2</text>
+    <text x="384" y="110" class="titre">Combler les trous</text>
+    <text x="384" y="128" class="sous">années manquantes</text>
+    <text x="384" y="143" class="sous">prédites par un modèle</text>
+  </g>
+  <g>
+    <rect x="550" y="56" width="156" height="96" rx="10" fill="#ffffff" stroke="#b8d0f1"/>
+    <circle cx="570" cy="76" r="10" fill="#2a78d6"/><text x="570" y="80" class="num" text-anchor="middle">3</text>
+    <text x="564" y="110" class="titre">Tracer les liaisons</text>
+    <text x="564" y="128" class="sous">itinéraire réel entre villes,</text>
+    <text x="564" y="143" class="sous">comptages rattachés</text>
+  </g>
+  <g>
+    <rect x="730" y="56" width="156" height="96" rx="10" fill="#ffffff" stroke="#b8d0f1"/>
+    <circle cx="750" cy="76" r="10" fill="#2a78d6"/><text x="750" y="80" class="num" text-anchor="middle">4</text>
+    <text x="744" y="110" class="titre">Trafic par liaison</text>
+    <text x="744" y="128" class="sous">véhicules et camions</text>
+    <text x="744" y="143" class="sous">par jour, 4 méthodes</text>
+  </g>
+  <g>
+    <rect x="910" y="56" width="156" height="96" rx="10" fill="#1f5fae"/>
+    <text x="924" y="84" class="res-sous" style="font-weight:700;letter-spacing:1px">RÉSULTAT</text>
+    <text x="924" y="110" class="res-titre">Réseau enrichi</text>
+    <text x="924" y="128" class="res-sous">304 liaisons sur 307</text>
+    <text x="924" y="143" class="res-sous">ont leur trafic (99 %)</text>
+  </g>
+  <path class="lien" d="M348 104 H366"/>
+  <path class="lien" d="M528 104 H546"/>
+  <path class="lien" d="M708 104 H726"/>
+  <path class="lien" d="M888 104 H906"/>
+
+  <!-- ===== Volet 2 ===== -->
+  <rect x="16" y="278" width="1068" height="176" rx="12" fill="#fdf8ec"/>
+  <text x="36" y="318" class="eyebrow" style="fill:#875600">VOLET 2</text>
+  <text x="36" y="346" class="phase">La valeur</text>
+  <text x="36" y="366" class="phase-sous">de ce qui y circule</text>
+  <rect x="36" y="384" width="76" height="22" rx="11" fill="#fcefcf"/>
+  <text x="74" y="399" class="pastille" text-anchor="middle" style="fill:#875600">En cours</text>
+
+  <g>
+    <rect x="190" y="318" width="156" height="96" rx="10" fill="#ffffff" stroke="#f0d38a"/>
+    <circle cx="210" cy="338" r="10" fill="#c98500"/><text x="210" y="342" class="num" text-anchor="middle">1</text>
+    <text x="204" y="372" class="titre">Enquête routière</text>
+    <text x="204" y="390" class="sous">114 734 camions arrêtés</text>
+    <text x="204" y="405" class="sous">et interrogés (2006-2007)</text>
+  </g>
+  <g>
+    <rect x="370" y="318" width="156" height="96" rx="10" fill="#ffffff" stroke="#f0d38a"/>
+    <circle cx="390" cy="338" r="10" fill="#c98500"/><text x="390" y="342" class="num" text-anchor="middle">2</text>
+    <text x="384" y="372" class="titre">Cibler le Québec</text>
+    <text x="384" y="390" class="sous">37 603 camions qui</text>
+    <text x="384" y="405" class="sous">touchent le Québec</text>
+  </g>
+  <g>
+    <rect x="550" y="318" width="156" height="96" rx="10" fill="#ffffff" stroke="#f0d38a"/>
+    <circle cx="570" cy="338" r="10" fill="#c98500"/><text x="570" y="342" class="num" text-anchor="middle">3</text>
+    <text x="564" y="372" class="titre">Faire rouler</text>
+    <text x="564" y="390" class="sous">chaque camion sur le</text>
+    <text x="564" y="405" class="sous">réseau, par le plus court</text>
+  </g>
+  <g>
+    <rect x="730" y="318" width="156" height="96" rx="10" fill="#ffffff" stroke="#f0d38a"/>
+    <circle cx="750" cy="338" r="10" fill="#c98500"/><text x="750" y="342" class="num" text-anchor="middle">4</text>
+    <text x="744" y="372" class="titre">Donner un prix</text>
+    <text x="744" y="390" class="sous">$ par tonne transportée,</text>
+    <text x="744" y="405" class="sous">ramenés en $ de 2026</text>
+  </g>
+  <g>
+    <rect x="910" y="318" width="156" height="96" rx="10" fill="#9a6400"/>
+    <text x="924" y="346" class="res-sous" style="font-weight:700;letter-spacing:1px">RÉSULTAT</text>
+    <text x="924" y="372" class="res-titre">Valeur par liaison</text>
+    <text x="924" y="390" class="res-sous">$ de marchandises</text>
+    <text x="924" y="405" class="res-sous">par an, en fourchette</text>
+  </g>
+  <path class="lien" d="M348 366 H366"/>
+  <path class="lien" d="M528 366 H546"/>
+  <path class="lien" d="M708 366 H726"/>
+  <path class="lien" d="M888 366 H906"/>
+
+  <!-- ===== Pont entre les volets (dessiné en dernier, au-dessus des fonds) ===== -->
+  <path d="M988 154 V312" fill="none" stroke="#17181b" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#fleche-pont)"/>
+  <text x="976" y="218" class="pont" text-anchor="end">camions par jour</text>
+  <text x="976" y="235" class="pont-sous" text-anchor="end">sur chaque liaison</text>
+</svg>

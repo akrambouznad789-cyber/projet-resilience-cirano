@@ -1,0 +1,23 @@
+# Python 3.11 ou plus récent
+# Installation : pip install -r requirements.txt
+
+# Géomatique
+geopandas>=1.0
+shapely>=2.0
+pyogrio>=0.9
+pyproj>=3.6
+
+# Calcul et apprentissage automatique
+numpy>=1.26
+pandas>=2.2
+scipy>=1.11
+scikit-learn>=1.4
+networkx>=3.2
+
+# Figures et appels web (API OSRM)
+matplotlib>=3.8
+requests>=2.31
+
+# Portfolio cartographique (portfolio/make_maps.py) seulement
+mapclassify>=2.6
+folium>=0.17

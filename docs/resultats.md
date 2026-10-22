@@ -1,4 +1,4 @@
-[← Méthodes](methodes.md) · **Résultats** · [README](../README.md)
+[← Méthodes](methodes.md) · **Résultats** · [README](../README.md) · [Volet 2 →](volet2.md)
 
 ---
 
@@ -27,4 +27,4 @@ Concrètement, 19 arcs n'ont aucun segment propre après filtrage. Ce ne sont pa
 
 ---
 
-[← Méthodes](methodes.md) · [README](../README.md)
+[← Méthodes](methodes.md) · [README](../README.md) · [Volet 2 →](volet2.md)
