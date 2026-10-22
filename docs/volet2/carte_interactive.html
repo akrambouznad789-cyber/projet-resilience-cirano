@@ -36,22 +36,28 @@ button{font:inherit;color:inherit}
 .mono{font-family:var(--mono)}
 
 /* ---------- Grille de l'application ---------- */
-.app{display:grid;height:100vh;grid-template-columns:210px minmax(0,1fr) 410px;grid-template-rows:56px minmax(0,1fr);grid-template-areas:"barre barre barre" "etapes scene panneau"}
+.app{display:grid;height:100vh;grid-template-columns:230px minmax(0,1fr) 410px;grid-template-rows:56px minmax(0,1fr);grid-template-areas:"barre barre barre" "etapes scene panneau"}
 .barre{grid-area:barre;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 16px;border-bottom:1px solid var(--rule);background:var(--card)}
 .barre .eyebrow{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block;line-height:1.2}
 .barre h1{font-size:1.2rem;font-weight:800;line-height:1.15}
 .barre-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
 .provisoire{font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--usd-ink);border:1px dashed var(--usd);border-radius:4px;padding:2px 7px;white-space:nowrap}
-.btn{border:1px solid var(--rule);background:var(--card);border-radius:999px;padding:6px 14px;font-weight:700;font-size:.82rem;cursor:pointer}
+.btn{border:1px solid var(--rule);background:var(--card);border-radius:999px;padding:6px 14px;font-weight:700;font-size:.82rem;cursor:pointer;color:var(--ink);text-decoration:none;white-space:nowrap}
+a.btn:hover{background:var(--panel)}
 .btn[aria-pressed="true"]{background:var(--ink);color:var(--card);border-color:var(--ink)}
 
 /* ---------- Étapes ---------- */
-.etapes{grid-area:etapes;overflow-y:auto;border-right:1px solid var(--rule);background:var(--panel);padding:12px 10px;display:flex;flex-direction:column;gap:2px}
-.etape{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:center;text-align:left;border:0;background:transparent;border-radius:8px;padding:7px 8px;cursor:pointer;color:var(--ink2)}
+.etapes{grid-area:etapes;overflow-y:auto;border-right:1px solid var(--rule);background:var(--panel);padding:8px 10px 12px;display:flex;flex-direction:column;gap:2px}
+/* Barre commune aux deux volets (même format que docs/volet1/) */
+.groupe-etapes{margin:12px 8px 4px;font-family:var(--mono);font-size:.64rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);line-height:1.3}
+.groupe-etapes span{font-weight:700}
+.groupe-etapes.v1 span{color:#1f5fae} .groupe-etapes.v2 span{color:#875600}
+.etape{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:center;text-align:left;border:0;background:transparent;border-radius:8px;padding:6px 8px;cursor:pointer;color:var(--ink2);text-decoration:none}
 .etape:hover{background:rgba(0,0,0,.04)}
 .etape b{width:28px;height:28px;border-radius:7px;border:1.5px solid var(--muted);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:.95rem;color:var(--ink2);background:var(--card)}
 .etape span{font-size:.84rem;line-height:1.25}
 .etape small{display:block;font-family:var(--mono);font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.etape.v1 b{border-color:#86b6ef;color:#1f5fae} .etape.v2 b{border-color:#e9c46a;color:#875600}
 .etape[aria-current="step"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .etape[aria-current="step"] b{background:var(--ink);border-color:var(--ink);color:var(--card)}
 .etape.calcul-page small{color:var(--usd-ink)}
@@ -178,6 +184,7 @@ pre.code .k{color:#8fb8f0}
   .etape{grid-template-columns:24px auto;flex:0 0 auto}
   .etape b{width:24px;height:24px}
   .etape small,.etapes-pied{display:none}
+  .groupe-etapes{flex:0 0 auto;margin:0 6px;align-self:center}
   .panneau{border-left:0;border-top:1px solid var(--rule)}
   .defile{overflow:visible}
 }
@@ -198,10 +205,11 @@ pre.code .k{color:#8fb8f0}
     <div class="barre-actions">
       <span class="provisoire" title="Groupes de marchandises, $/t et facteur d'actualisation provisoires">Hypothèses provisoires</span>
       <button type="button" class="btn" id="btn-comparer" aria-pressed="false">Comparer deux étapes</button>
+      <a class="btn" href="https://github.com/akrambouznad789-cyber/projet-resilience-cirano">Code sur GitHub</a>
     </div>
   </header>
 
-  <nav class="etapes" id="etapes" aria-label="Étapes de la méthode"></nav>
+  <nav class="etapes" id="etapes" aria-label="Étapes des deux volets"></nav>
 
   <main class="scene" id="scene">
     <div id="carte-b" class="carte" role="region" aria-label="Carte de l'étape courante"></div>
@@ -942,14 +950,21 @@ function appliquerEtape(map, k) {
 }
 
 // ---------- Rendu de la navigation ----------
+// Étapes du Volet 1 : pages de docs/volet1/ (même liste que ETAPES_V1 dans scripts/generer_site_volet1.py)
+const ETAPES_V1 = [["Données", "trois couches de départ"], ["Complétion", "combler les trous"], ["Routage", "tracer les liaisons"],
+                   ["Méthodes DJMA", "4 façons de résumer"], ["Résultats", "304 liaisons sur 307"]];
+const URL_V1 = PUBLIQUE ? "../volet1/" : "https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet1/";
 function rendreEtapes() {
   const nav = document.getElementById("etapes");
-  nav.innerHTML = ETAPES.map((e, k) => `
-    <button type="button" class="etape${e.page ? " calcul-page" : ""}" data-k="${k}" ${k === S.etape ? 'aria-current="step"' : ""}>
+  nav.innerHTML = `<p class="groupe-etapes v1"><span>Volet 1</span> Le trafic</p>` +
+    ETAPES_V1.map(([court, sur], i) => `<a class="etape v1" href="${URL_V1}#etape=${i + 1}"><b>${i + 1}</b><span>${esc(court)}<small>${esc(sur)}</small></span></a>`).join("") +
+    `<p class="groupe-etapes v2"><span>Volet 2</span> La valeur</p>` +
+    ETAPES.map((e, k) => `
+    <button type="button" class="etape v2${e.page ? " calcul-page" : ""}" data-k="${k}" ${k === S.etape ? 'aria-current="step"' : ""}>
       <b>${k}</b><span>${esc(e.court)}<small>${esc(k === 2 ? fmt(M.n_garde) + " retenus" : e.sur)}</small></span>
     </button>`).join("") +
     `<p class="etapes-pied"><kbd>←</kbd> <kbd>→</kbd> pour changer d'étape. Les étapes 6 à 8 se recalculent dans la page.</p>`;
-  nav.querySelectorAll(".etape").forEach(b => b.addEventListener("click", () => allerA(+b.dataset.k)));
+  nav.querySelectorAll("button.etape").forEach(b => b.addEventListener("click", () => allerA(+b.dataset.k)));
   const choix = document.getElementById("choix-a");
   choix.innerHTML = ETAPES.map((e, k) => `<option value="${k}" ${k === S.etapeA ? "selected" : ""}>${k} · ${esc(e.court)}</option>`).join("");
   document.getElementById("nom-b").textContent = `${S.etape} · ${ETAPES[S.etape].court}`;

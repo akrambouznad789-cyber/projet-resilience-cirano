@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Volet 1 · Le trafic sur chaque liaison</title>
+<meta name="description" content="Résilience du réseau routier québécois, Volet 1 : comptages routiers, complétion des données, routage et trafic par liaison.">
+<!-- Gabarit de scripts/generer_site_volet1.py : la navigation et les étapes sont injectées à la génération. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;700&family=Overpass:wght@600;800&family=Overpass+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  color-scheme:light;
+  --bg:#fafaf8; --panel:#f2f1ec; --card:#ffffff; --ink:#17181b; --ink2:#4f4e4a; --muted:#7f7d76; --rule:#e2e0d8;
+  --v1:#1f5fae; --v1-soft:#e4eefa; --v1-bord:#86b6ef; --v2:#875600; --v2-bord:#e9c46a;
+  --display:"Overpass","Arimo",system-ui,sans-serif;
+  --body:"Arimo","Helvetica Neue",Arial,sans-serif;
+  --mono:"Overpass Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:10px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:var(--display);margin:0;text-wrap:balance}
+p{margin:0}
+a{color:var(--v1)}
+:focus-visible{outline:2px solid var(--v1);outline-offset:2px}
+
+/* ---------- Coque commune aux deux volets ---------- */
+.app{display:grid;height:100vh;grid-template-columns:230px minmax(0,1fr);grid-template-rows:56px minmax(0,1fr);grid-template-areas:"barre barre" "etapes lecture"}
+.barre{grid-area:barre;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 16px;border-bottom:1px solid var(--rule);background:var(--card)}
+.barre .eyebrow{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block;line-height:1.2}
+.barre h1{font-size:1.2rem;font-weight:800;line-height:1.15}
+.barre-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.btn{border:1px solid var(--rule);background:var(--card);border-radius:999px;padding:6px 14px;font-weight:700;font-size:.82rem;color:var(--ink);text-decoration:none;white-space:nowrap}
+.btn:hover{background:var(--panel)}
+.btn.principal{background:var(--ink);color:var(--card);border-color:var(--ink)}
+.btn.principal:hover{background:#2f3136}
+
+.etapes{grid-area:etapes;overflow-y:auto;border-right:1px solid var(--rule);background:var(--panel);padding:8px 10px 12px;display:flex;flex-direction:column;gap:2px}
+.groupe-etapes{margin:12px 8px 4px;font-family:var(--mono);font-size:.64rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);line-height:1.3}
+.groupe-etapes span{font-weight:700}
+.groupe-etapes.v1 span{color:var(--v1)} .groupe-etapes.v2 span{color:var(--v2)}
+.etape{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:center;text-align:left;border:0;background:transparent;border-radius:8px;padding:6px 8px;cursor:pointer;color:var(--ink2);text-decoration:none}
+.etape:hover{background:rgba(0,0,0,.04)}
+.etape b{width:28px;height:28px;border-radius:7px;border:1.5px solid var(--muted);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:.95rem;color:var(--ink2);background:var(--card)}
+.etape.v1 b{border-color:var(--v1-bord);color:var(--v1)} .etape.v2 b{border-color:var(--v2-bord);color:var(--v2)}
+.etape span{font-size:.84rem;line-height:1.25}
+.etape small{display:block;font-family:var(--mono);font-size:.6rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.etape[aria-current="step"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.etape[aria-current="step"] b{background:var(--ink);border-color:var(--ink);color:var(--card)}
+
+/* ---------- Lecture ---------- */
+.lecture{grid-area:lecture;overflow-y:auto;min-height:0}
+.colonne{max-width:860px;margin:0 auto;padding:32px 32px 64px}
+.tete{display:flex;flex-direction:column;gap:6px;margin-bottom:26px;padding-bottom:22px;border-bottom:1px solid var(--rule)}
+.tete .eyebrow{font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--v1)}
+.tete h2{font-size:clamp(1.8rem,3.4vw,2.4rem);font-weight:800;line-height:1.08}
+.tete .intro{font-size:1.08rem;color:var(--ink2);max-width:64ch}
+
+.md{display:flex;flex-direction:column;gap:16px}
+.md > *{margin:0}
+.md h3{font-size:1.3rem;font-weight:800;margin-top:18px;scroll-margin-top:16px}
+.md h4{font-size:1.05rem;font-weight:700;margin-top:8px;scroll-margin-top:16px}
+.md p,.md li{color:var(--ink2)}
+.md strong{color:var(--ink)}
+.md ul,.md ol{padding-left:22px;display:flex;flex-direction:column;gap:4px}
+.md img{display:block;max-width:100%!important;height:auto;margin:0 auto;border:1px solid var(--rule);border-radius:8px;background:#fff}
+.md a[target="_blank"]:has(img){display:block}
+.md code{font-family:var(--mono);font-size:.85em;background:var(--panel);padding:1px 5px;border-radius:4px}
+.md blockquote{margin:0;border-left:3px solid var(--v1-bord);background:var(--v1-soft);padding:10px 14px;border-radius:0 8px 8px 0}
+.md blockquote p{color:var(--ink)}
+.md table{border-collapse:collapse;width:100%;font-size:.88rem;display:block;overflow-x:auto}
+.md th,.md td{padding:7px 9px;border-bottom:1px solid var(--rule);text-align:left;vertical-align:top}
+.md th{font-family:var(--mono);font-size:.7rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border-bottom:1.5px solid var(--ink2)}
+.md td{color:var(--ink2)}
+.md .highlight pre,.md pre{margin:0;background:#16181b;color:#e8e6df;border-radius:8px;padding:14px 16px;font-family:var(--mono);font-size:.78rem;line-height:1.6;overflow-x:auto}
+.md pre code{background:none;padding:0;color:inherit;font-size:inherit}
+.md .pl-k{color:#8fb8f0} .md .pl-s,.md .pl-pds{color:#e5c07b} .md .pl-c{color:#8f9aa6;font-style:italic}
+.md .pl-en{color:#9fdcc3} .md .pl-c1{color:#f4b183} .md .pl-v,.md .pl-smi,.md .pl-s1{color:#e8e6df}
+.md hr{border:0;border-top:1px solid var(--rule);margin:8px 0}
+
+.suite{display:flex;justify-content:space-between;gap:12px;margin-top:36px;padding-top:20px;border-top:1px solid var(--rule)}
+.suite a{font-weight:700;text-decoration:none;border:1px solid var(--rule);border-radius:999px;padding:8px 16px;background:var(--card);color:var(--ink)}
+.suite a:hover{background:var(--panel)}
+.suite a:last-child{margin-left:auto}
+.pied{font-size:.78rem;color:var(--muted);margin-top:28px}
+
+@media (max-width:1100px){
+  .app{height:auto;min-height:100vh;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto;grid-template-areas:"barre" "etapes" "lecture"}
+  .barre{padding:10px 16px;flex-wrap:wrap}
+  .etapes{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--rule);padding:8px 16px;align-items:center}
+  .etape{grid-template-columns:24px auto;flex:0 0 auto}
+  .etape b{width:24px;height:24px}
+  .etape small{display:none}
+  .groupe-etapes{flex:0 0 auto;margin:0 6px}
+  .lecture{overflow:visible}
+  .colonne{padding:24px 16px 48px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="barre">
+    <div>
+      <span class="eyebrow">CIRANO · Volet 1 · terminé · mis à jour le 2026-10-22</span>
+      <h1>Le trafic sur chaque liaison</h1>
+    </div>
+    <div class="barre-actions">
+      <a class="btn" href="https://github.com/akrambouznad789-cyber/projet-resilience-cirano">Code sur GitHub</a>
+      <a class="btn principal" href="../volet2/carte_interactive.html#etape=0">Volet 2 : carte interactive →</a>
+    </div>
+  </header>
+
+  <nav class="etapes" aria-label="Étapes des deux volets">
+<p class="groupe-etapes v1"><span>Volet 1</span> Le trafic</p><a class="etape v1" href="#etape=1" data-k="1"><b>1</b><span>Données<small>trois couches de départ</small></span></a><a class="etape v1" href="#etape=2" data-k="2"><b>2</b><span>Complétion<small>combler les trous</small></span></a><a class="etape v1" href="#etape=3" data-k="3"><b>3</b><span>Routage<small>tracer les liaisons</small></span></a><a class="etape v1" href="#etape=4" data-k="4"><b>4</b><span>Méthodes DJMA<small>4 façons de résumer</small></span></a><a class="etape v1" href="#etape=5" data-k="5"><b>5</b><span>Résultats<small>304 liaisons sur 307</small></span></a><p class="groupe-etapes v2"><span>Volet 2</span> La valeur</p><a class="etape v2" href="../volet2/carte_interactive.html#etape=0"><b>0</b><span>Réseau du volet 1<small>point de départ</small></span></a><a class="etape v2" href="../volet2/carte_interactive.html#etape=1"><b>1</b><span>ENR brute<small>114 734 camions</small></span></a><a class="etape v2" href="../volet2/carte_interactive.html#etape=2"><b>2</b><span>Filtre Québec<small>37 603 retenus</small></span></a><a class="etape v2" href="../volet2/carte_interactive.html#etape=3"><b>3</b><span>Postes d&#x27;enquête<small>où on les arrête</small></span></a><a class="etape v2" href="../volet2/carte_interactive.html#etape=4"><b>4</b><span>Rattachement aux nœuds<small>lieux → nœuds</small></span></a><a class="etape v2" href="../volet2/carte_interactive.html#etape=5"><b>5</b><span>Routage sur le graphe<small>chemin par camion</small></span></a><a class="etape v2" href="../volet2/carte_interactive.html#etape=6"><b>6</b><span>$ par tonne<small>calcul dans la page</small></span></a><a class="etape v2" href="../volet2/carte_interactive.html#etape=7"><b>7</b><span>Actualisation $ 2026<small>calcul dans la page</small></span></a><a class="etape v2" href="../volet2/carte_interactive.html#etape=8"><b>8</b><span>Valeur par arc<small>calcul dans la page</small></span></a>
+  </nav>
+
+  <main class="lecture" id="lecture">
+    <div class="colonne">
+<section class="etape-v1" id="etape-1" data-k="1"><header class="tete"><p class="eyebrow">Volet 1 · étape 1 sur 5</p><h2>Données</h2><p class="intro">Les trois couches géographiques de départ, et le problème des comptages manquants.</p></header><div class="md"><p dir="auto">Le projet croise trois couches géographiques distinctes, qui répondent chacune à une question différente sur le même territoire :</p>
+<table role="table">
+<thead>
+<tr>
+<th>Couche</th>
+<th>Fichier</th>
+<th>Rôle</th>
+<th>Modifiable ?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Nœuds et liens</strong></td>
+<td><code class="notranslate">data/raw/reseau_arcs.gpkg</code> (couches <code class="notranslate">noeuds</code>, <code class="notranslate">arcs</code>)</td>
+<td>Définit <em>quelles villes</em> et <em>quelles paires de villes</em> on étudie — le graphe simplifié du projet</td>
+<td>Oui — un simple fichier (id, nom, ville A, ville B, distance) : ajouter ou retirer une ville ne touche à rien d'autre dans le pipeline</td>
+</tr>
+<tr>
+<td><strong>Réseau routier (RTSS)</strong></td>
+<td><code class="notranslate">data/raw/ReseauRoutier_RTSS.gpkg</code> (MTQ)</td>
+<td>La géométrie détaillée des routes du Québec, avec leur classification (autoroute, nationale, régionale, collectrice…) — sert à router chaque lien sur de vraies routes</td>
+<td>Non — donnée source du MTQ</td>
+</tr>
+<tr>
+<td><strong>Comptage routier</strong></td>
+<td><code class="notranslate">data/raw/DebitCirculation.gpkg</code> (MTQ)</td>
+<td>7 823 stations de comptage réel, chacune avec jusqu'à 10 ans de mesures (DJMA, DJME, DJMH, % camions)</td>
+<td>Non — donnée source du MTQ, c'est elle qui porte le problème de données manquantes</td>
+</tr>
+</tbody>
+</table>
+<p dir="auto">Aucune des deux couches du MTQ ne suffirait seule : le réseau routier (RTSS) donne la géométrie et le type de chaque route mais aucune mesure de trafic, tandis que le comptage fournit les mesures sans indiquer le type de route où elles ont été prises. C'est leur jonction spatiale qui associe à chaque valeur de DJMA le type de route correspondant.</p>
+<h3 id="e1-réseau-graphe--nœuds-et-liens">Réseau graphe — nœuds et liens</h3>
+<p dir="auto">307 liens simplifiés relient 207 villes du Québec (municipalités, nœuds intermédiaires, points frontière). C'est le graphe étudié par le projet, indépendant des deux couches suivantes — modifiable en éditant directement <code class="notranslate">reseau_arcs.gpkg</code>.</p>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer" href="../../figures/reseau_graphe.png"><img src="../../figures/reseau_graphe.png" alt="Réseau graphe — nœuds et liens" style="max-width: 100%;"></a></p>
+<table role="table">
+<thead>
+<tr>
+<th>Nœuds</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="notranslate">ID</code></td>
+<td>Identifiant unique du nœud (préfixe <code class="notranslate">M</code> municipalité, <code class="notranslate">N</code> nœud intermédiaire, <code class="notranslate">F</code> point frontière)</td>
+</tr>
+<tr>
+<td><code class="notranslate">NOM</code></td>
+<td>Nom de la ville / municipalité</td>
+</tr>
+<tr>
+<td><code class="notranslate">TYPE</code></td>
+<td>Municipalité, nœud intermédiaire ou point frontière</td>
+</tr>
+<tr>
+<td><code class="notranslate">NB_ARCS</code></td>
+<td>Nombre de liens connectés à ce nœud</td>
+</tr>
+</tbody>
+</table>
+<table role="table">
+<thead>
+<tr>
+<th>Arcs</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="notranslate">ID_ARC</code></td>
+<td>Identifiant unique du lien</td>
+</tr>
+<tr>
+<td><code class="notranslate">VILLE_A</code> / <code class="notranslate">VILLE_B</code></td>
+<td>Les deux villes reliées par ce lien</td>
+</tr>
+<tr>
+<td><code class="notranslate">DIST_KM</code></td>
+<td>Distance à vol d'oiseau entre A et B</td>
+</tr>
+<tr>
+<td><code class="notranslate">SOURCE</code></td>
+<td>Comment la paire a été retenue (BFS, forcé, nœud, frontière)</td>
+</tr>
+</tbody>
+</table>
+<p dir="auto">Exemple : le nœud <code class="notranslate">M001</code> est Acton Vale (5 arcs) ; l'arc n° 3 relie East Angus (<code class="notranslate">M044</code>) à Sherbrooke (<code class="notranslate">M166</code>), à 20,04 km à vol d'oiseau.</p>
+<h3 id="e1-réseau-routier--rtss">Réseau routier — RTSS</h3>
+<p dir="auto">Chaque lien du graphe est ensuite routé sur le réseau routier réel du MTQ — 12 567 segments classifiés par type de route — qui sert de base géométrique au routage (voir <a href="#etape=3">Routage</a>).</p>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer" href="../../figures/reseau_routier.png"><img src="../../figures/reseau_routier.png" alt="Réseau routier — RTSS, coloré par type de route" style="max-width: 100%;"></a></p>
+<table role="table">
+<thead>
+<tr>
+<th>Variable retenue</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="notranslate">ide_sous_r</code></td>
+<td>Identifiant unique du sous-tronçon</td>
+</tr>
+<tr>
+<td><code class="notranslate">num_route</code></td>
+<td>Numéro de route officiel</td>
+</tr>
+<tr>
+<td><code class="notranslate">val_longr_</code></td>
+<td>Longueur du sous-tronçon, en mètres</td>
+</tr>
+<tr>
+<td><code class="notranslate">des_clasf_</code></td>
+<td>Classification fonctionnelle (autoroute, nationale, régionale…)</td>
+</tr>
+<tr>
+<td><code class="notranslate">nom_sous_r</code></td>
+<td>Nom ou description du sous-tronçon</td>
+</tr>
+</tbody>
+</table>
+<p dir="auto">Exemple : le sous-tronçon <code class="notranslate">51159</code> est la route <code class="notranslate">00010</code>, sur 5 548 m, classée Autoroute (« Autoroute des Cantons-de-l'Est »).</p>
+<table role="table">
+<thead>
+<tr>
+<th>Type de route</th>
+<th>Segments</th>
+<th>%</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Autoroute</td>
+<td>4 222</td>
+<td>33,6 %</td>
+</tr>
+<tr>
+<td>Nationale</td>
+<td>2 859</td>
+<td>22,8 %</td>
+</tr>
+<tr>
+<td>Régionale</td>
+<td>1 581</td>
+<td>12,6 %</td>
+</tr>
+<tr>
+<td>Collectrice</td>
+<td>1 963</td>
+<td>15,6 %</td>
+</tr>
+<tr>
+<td>Autre / sans classe</td>
+<td>1 942</td>
+<td>15,5 %</td>
+</tr>
+</tbody>
+</table>
+<h3 id="e1-comptage-routier">Comptage routier</h3>
+<p dir="auto">Enfin, 7 823 stations de comptage MTQ portent les mesures de trafic (DJMA, % camions) qui viennent enrichir le réseau — la table brute a 110 colonnes, peu lisibles telles quelles :</p>
+<table role="table">
+<thead>
+<tr>
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="notranslate">ide_sectn_trafc</code></td>
+<td>Identifiant unique du segment de comptage</td>
+</tr>
+<tr>
+<td><code class="notranslate">des_debut</code> / <code class="notranslate">fin_sous_route</code></td>
+<td>Description textuelle des deux extrémités</td>
+</tr>
+<tr>
+<td><code class="notranslate">djma_annee_i</code> / <code class="notranslate">val_djma_annee_i</code></td>
+<td>Année mesurée / valeur du DJMA (i = 1 à 10)</td>
+</tr>
+<tr>
+<td><code class="notranslate">cam_annee_i</code> / <code class="notranslate">val_cam_annee_i</code></td>
+<td>Année mesurée / valeur du % camions (i = 1 à 10)</td>
+</tr>
+</tbody>
+</table>
+<p dir="auto">Exemple : la station <code class="notranslate">30610</code> (Rang St-Rémi → Bretelles A-50 Ouest) rapporte pour 2025 un DJMA de 8 100 véh./jour et 8,3 % de camions.</p>
+<p dir="auto">C'est ici que se loge le problème de données manquantes : seuls <strong>34,7 %</strong> des segments ont un DJMA complet sur 10 ans, et seulement <strong>1,7 %</strong> ont un % camions complet.</p>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer" href="../../figures/comptage_routier.png"><img src="../../figures/comptage_routier.png" alt="Comptage routier — complétude du DJMA" style="max-width: 100%;"></a></p>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer" href="../../figures/comptage_completude.png"><img src="../../figures/comptage_completude.png" alt="Complétude DJMA vs % camions" style="max-width: 100%;"></a></p>
+<p dir="auto">Un DJMA complet ne garantit presque jamais un % camions complet. C'est ce trou précis que la section suivante comble par apprentissage automatique.</p></div><nav class="suite" aria-label="Étapes voisines"><span></span><a href="#etape=2">Complétion →</a></nav></section>
+<section class="etape-v1" id="etape-2" data-k="2"><header class="tete"><p class="eyebrow">Volet 1 · étape 2 sur 5</p><h2>Complétion</h2><p class="intro">Comment les années et les parts de camions manquantes sont comblées : interpolation, forêts aléatoires, stations voisines.</p></header><div class="md"><p dir="auto">Source : <code class="notranslate">DebitCirculation.gpkg</code> (MTQ), 7 823 segments routiers, chacun avec jusqu'à 10 années de mesures DJMA (débit) et %camion. Une grande partie de ces mesures sont manquantes : seuls <strong>2 716 segments (35 %)</strong> ont un DJMA complet sans aucun trou, et seulement <strong>132 segments (2 %)</strong> ont un %camion complet.</p>
+<p dir="auto">La complétion se fait en cascade, du plus fiable au plus incertain.</p>
+<h3 id="e2-1-interpolation--extrapolation-temporelle">1. Interpolation / extrapolation temporelle</h3>
+<p dir="auto">Les trous internes (un an manquant entouré de valeurs connues) sont comblés par interpolation linéaire. Aux deux extrémités de la plage manquante, chaque bord prolonge son propre <strong>gradient local</strong> — une régression sur les 3 points connus les plus proches de ce bord — plutôt qu'une tendance unique calculée sur toute la plage connue : si le début et la fin de la série n'évoluent pas dans le même sens, un bord ne doit pas hériter de la pente de l'autre.</p>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer" href="../../figures/extrapolation_gradient.png"><img src="../../figures/extrapolation_gradient.png" alt="Interpolation et extrapolation — gradient local par bord" style="max-width: 100%;"></a></p>
+<p dir="auto">Exemple réel (segment #28787) : entre 2017 et 2022, le DJMA chute d'abord fortement (8 700 → 6 200) puis remonte légèrement (5 300 → 5 900). Une régression globale unique sur ces 6 points aurait extrapolé une pente moyenne descendante sur toute la plage — 2016 estimé à 9 007, 2025 à 3 247 — en contradiction avec la reprise observée en fin de série. En prolongeant plutôt le gradient propre à chaque bord (2017-2019 pour 2016, 2020-2022 pour 2023-2025), 2016 est estimé à 10 300 (cohérent avec la chute qui précède) et 2025 à 6 933 (cohérent avec la reprise qui suit).</p>
+<h3 id="e2-2-randomforest-iterativeimputer-mice">2. RandomForest (IterativeImputer, MICE)</h3>
+<p dir="auto">Pour les 910 segments avec un DJMA connu mais <strong>aucune</strong> valeur de %camion, un <code class="notranslate">RandomForestRegressor</code> (50 arbres) apprend la relation entre %camion et 38 features : le profil DJMA, les débits de pointe (DJME/DJMH), le profil horaire (30e heure), le type de route (jointure spatiale la plus proche avec le réseau RTSS — autoroute/nationale/régionale/collectrice) et la localisation géographique du segment.</p>
+<p dir="auto"><strong>Validation honnête</strong> (validation croisée 5-fold, hors échantillon) :</p>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer" href="../../figures/validation_randomforest.png"><img src="../../figures/validation_randomforest.png" alt="Validation RandomForest" style="max-width: 100%;"></a></p>
+<p dir="auto">R² = 0,306, RMSE = 6,1 points. Avec le seul DJMA comme prédicteur, le modèle était peu informatif (R² = 0,037) : la corrélation brute DJMA ↔ %camion est quasi nulle (Pearson −0,13), un segment à fort débit n'étant pas nécessairement plus emprunté par les camions. En ajoutant le type de route, les débits de pointe et la localisation, le modèle capte un signal réel — le type d'axe (autoroute logistique vs route urbaine) explique une bonne part du %camion, là où le débit seul n'en disait presque rien.</p>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer" href="../../figures/randomforest_subsets.png"><img src="../../figures/randomforest_subsets.png" alt="RandomForest — prédictions par type de route" style="max-width: 100%;"></a></p>
+<p dir="auto">Ce signal se voit en séparant les prédictions par type de route, le "subset" le plus structurant du modèle : R² = 0,44 sur les routes nationales et 0,38 sur les autoroutes, mais seulement 0,11 sur les collectrices et −0,03 sur les segments hors classification (« Autre ») — moins bon que la moyenne. Le résultat reste donc imparfait et inégal selon le type d'axe, mais le RandomForest enrichi est un estimateur nettement plus convaincant que le modèle DJMA-seul pour ces 910 segments qui, sans lui, n'auraient aucune valeur du tout.</p>
+<h3 id="e2-3-knn-géographique--idw">3. KNN géographique + IDW</h3>
+<p dir="auto">En dernier recours, pour les segments sans aucune mesure d'aucune année, complétion par pondération inverse à la distance (IDW, poids = 1/distance²) sur les 5 stations voisines les plus proches, avec priorité aux voisins de même direction (<code class="notranslate">index_agreg</code>, nord/ouest).</p>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer" href="../../figures/knn_geographique.png"><img src="../../figures/knn_geographique.png" alt="Complétion géographique — KNN + IDW" style="max-width: 100%;"></a></p>
+<p dir="auto">Exemple réel (segment #30014) : ses 5 voisins pondérés vont de 1 520 à 14 015 véh./jour selon leur distance — le plus proche (2 421 véh./jour, à ~1 km) pèse 43 % de l'estimation finale, le plus éloigné (14 015 véh./jour, à ~4,3 km) seulement 14 %. La valeur résultante (5 302 véh./jour) est une moyenne pondérée par cette proximité, pas une simple moyenne des 5.</p>
+<p dir="auto"><strong>Important — à ne pas confondre avec la complétion géographique des arcs (<a href="#etape=4">Méthodes</a>) :</strong> ce KNN comble les trous temporels d'une station de comptage MTQ qui <em>existe déjà</em> dans <code class="notranslate">DebitCirculation.gpkg</code>, en lui empruntant la série d'une station voisine. Il n'invente jamais une station là où le MTQ n'en a posé aucune. Certains arcs du réseau n'ont d'ailleurs, après le routage et son filtrage, aucun segment propre : ces arcs-là sont traités en aval, une fois le DJMA agrégé par arc : voir « Complétion géographique des échecs » dans <a href="#etape=4">Méthodes</a>, qui leur emprunte le DJMA de l'arc valide le plus proche plutôt que d'inventer une station.</p>
+<h3 id="e2-synthèse--évolution-de-la-complétude">Synthèse — évolution de la complétude</h3>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer" href="../../figures/evolution_completion.png"><img src="../../figures/evolution_completion.png" alt="Évolution de complétude des données" style="max-width: 100%;"></a></p>
+<p dir="auto">DJMA et %camion ne progressent pas au même rythme à travers la cascade : l'étape 1 comble la majorité du DJMA (35 % → 58 %) mais seulement la moitié du %camion (2 % → 53 %), faute de valeurs connues sur ces segments pour interpoler. L'étape 2 (RandomForest) est spécifique au %camion — elle ne touche jamais le DJMA, d'où le palier à 58 % sur cette courbe. L'étape 3 (KNN géographique) ferme les deux à 100 % : les <strong>7 823 segments × 10 ans</strong> ont désormais une valeur DJMA et %camion, sans aucune case vide.</p></div><nav class="suite" aria-label="Étapes voisines"><a href="#etape=1">← Données</a><a href="#etape=3">Routage →</a></nav></section>
+<section class="etape-v1" id="etape-3" data-k="3"><header class="tete"><p class="eyebrow">Volet 1 · étape 3 sur 5</p><h2>Routage</h2><p class="intro">Comment chaque liaison est tracée sur le vrai réseau routier, puis reçoit les bons comptages grâce à 3 filtres géométriques.</p></header><div class="md"><p dir="auto">Pour chaque arc du graphe (deux villes reliées), le tracé routier le plus optimal entre les deux villes est généré par un algorithme de routage — indispensable vu le nombre d'arcs à traiter (307) et le besoin d'un traitement reproductible et objectif. Ce critère (un seul trajet par arc) pourra être révisé, par exemple en intégrant plusieurs trajets par arc ou en priorisant certains types de routes (autoroutes, routes nationales).</p>
+<p dir="auto"><code class="notranslate">algo_jointure_routes_liens.py</code> route chaque paire de villes via l'API <strong>OSRM</strong>, puis associe au tracé les segments du réseau MTQ (<code class="notranslate">ReseauRoutier_RTSS</code>) porteurs d'une mesure DJMA, filtrés en 3 passes séquentielles :</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-k">def</span> <span class="pl-en">filtre_distance_trace</span>(<span class="pl-s1">segs</span>, <span class="pl-s1">trace</span>, <span class="pl-s1">dist_max_m</span>):
+    <span class="pl-s">"""Filtre 1 — distance segment complet → tracé (pas du centroïde)."""</span>
+    <span class="pl-s1">distances</span> <span class="pl-c1">=</span> <span class="pl-s1">segs</span>.<span class="pl-c1">geometry</span>.<span class="pl-c1">distance</span>(<span class="pl-s1">trace</span>)
+    <span class="pl-k">return</span> <span class="pl-s1">segs</span>[<span class="pl-s1">distances</span> <span class="pl-c1">&lt;=</span> <span class="pl-s1">dist_max_m</span>].<span class="pl-c1">copy</span>()
+
+<span class="pl-k">def</span> <span class="pl-en">filtre_direction</span>(<span class="pl-s1">segs</span>, <span class="pl-s1">trace</span>, <span class="pl-s1">angle_max_deg</span>):
+    <span class="pl-s">"""Filtre 2 — alignement directionnel segment vs tracé."""</span>
+    ...
+    <span class="pl-k">return</span> <span class="pl-s1">segs</span>[<span class="pl-en">diff_angle</span>(<span class="pl-s1">angle_seg</span>, <span class="pl-s1">angle_tr</span>) <span class="pl-c1">&lt;=</span> <span class="pl-s1">angle_max_deg</span>].<span class="pl-c1">copy</span>()
+
+<span class="pl-k">def</span> <span class="pl-en">filtre_proximite_ab</span>(<span class="pl-s1">segs</span>, <span class="pl-s1">pt_a</span>, <span class="pl-s1">pt_b</span>, <span class="pl-s1">buffer_ab_m</span>):
+    <span class="pl-s">"""Filtre 3 — exclut les segments trop proches de A ou B (trafic intraurbain)."""</span>
+    ...
+    <span class="pl-k">return</span> <span class="pl-s1">segs</span>[<span class="pl-c1">not</span> (<span class="pl-s1">trop_proche_de_a</span> <span class="pl-c1">or</span> <span class="pl-s1">trop_proche_de_b</span>)].<span class="pl-c1">copy</span>()</pre></div>
+<table role="table">
+<thead>
+<tr>
+<th>Filtre</th>
+<th>Seuil</th>
+<th>Rôle</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Distance au tracé</td>
+<td>≤ 400 m</td>
+<td>Exclut les routes parallèles captées par erreur</td>
+</tr>
+<tr>
+<td>Direction</td>
+<td>≤ 45° d'écart</td>
+<td>Exclut les segments perpendiculaires (bretelles, croisements)</td>
+</tr>
+<tr>
+<td>Exclusion intraurbaine</td>
+<td>&lt; 3 km de A ou B (arcs de plus de 6 km seulement)</td>
+<td>Exclut le trafic de distribution locale près des villes d'origine/destination</td>
+</tr>
+</tbody>
+</table>
+<p dir="auto">Un clip préalable au territoire québécois (buffer 2 km autour du réseau RTSS) supprime aussi les détours par d'autres provinces avant la recherche de segments DJMA.</p>
+<h3 id="e3-vérification">Vérification</h3>
+<p dir="auto">Le filtrage en cascade a fait l'objet d'une vérification manuelle sommaire, pas d'une validation statistique sur l'ensemble du réseau. Dans QGIS, un arc à la fois est isolé (couches « tracé routé » et « segments retenus » filtrées sur son identifiant), puis le trajet, les segments retenus et l'arc lui-même sont comparés visuellement.</p>
+<p dir="auto">Sur une dizaine d'arcs, environ 95 % des cas sont concluants : les segments retenus correspondent bien au tracé. Les cas mis en défaut sont de deux types — des segments sans lien avec l'arc, captés malgré les filtres, et des segments dont le tracé diverge légèrement de celui de l'arc sans dépasser le seuil de rejet. Cette vérification reste exploratoire : elle montre que la méthode se comporte comme prévu dans la grande majorité des cas, sans valider exhaustivement les 307 arcs.</p>
+<h3 id="e3-arcs-sans-segment-retenu">Arcs sans segment retenu</h3>
+<p dir="auto">Sur les 307 arcs, 22 ne retiennent aucun segment : 3 sortent du territoire québécois et 19 sont en statut <code class="notranslate">aucun_djma</code>. Ces 19 ne sont pas dépourvus de stations à proximité : chacun compte entre 2 et 44 segments de comptage dans la zone de recherche de 1,5 km autour du tracé. Le rejeu des filtres montre à quelle étape le dernier candidat disparaît :</p>
+<table role="table">
+<thead>
+<tr>
+<th>Étape qui écarte le dernier candidat</th>
+<th>Arcs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Distance au tracé (aucun segment à ≤ 400 m)</td>
+<td>6</td>
+</tr>
+<tr>
+<td>Direction (segments restants mal orientés)</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Exclusion des abords de A/B</td>
+<td>8</td>
+</tr>
+</tbody>
+</table>
+<p dir="auto">Ces arcs sont complétés en aval par emprunt au plus proche voisin (voir <a href="#etape=4&amp;ancre=complétion-géographique-des-échecs">Méthodes</a>).</p>
+<h3 id="e3-segments-par-arc">Segments par arc</h3>
+<p dir="auto">Le nombre de segments DJMA retenus (<code class="notranslate">n_segs_djma</code>) varie fortement d'un arc à l'autre — de 1 à 108 sur les 285 arcs routés avec succès, médiane à 8.</p>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer" href="../../figures/segments_par_arc.png"><img src="../../figures/segments_par_arc.png" alt="Réseau enrichi — segments DJMA par arc" style="max-width: 100%;"></a></p>
+<p dir="auto">Cette taille d'échantillon par arc sert de base pour évaluer, arc par arc, quelle méthode d'agrégation DJMA (m1-m4, voir <a href="#etape=4">Méthodes</a>) est la mieux justifiée.</p></div><nav class="suite" aria-label="Étapes voisines"><a href="#etape=2">← Complétion</a><a href="#etape=4">Méthodes DJMA →</a></nav></section>
+<section class="etape-v1" id="etape-4" data-k="4"><header class="tete"><p class="eyebrow">Volet 1 · étape 4 sur 5</p><h2>Méthodes DJMA</h2><p class="intro">Les 4 façons de résumer le trafic d&#x27;une liaison à partir de ses tronçons, et leurs écarts.</p></header><div class="md"><p dir="auto">Chaque segment de comptage du MTQ porte jusqu'à dix années de mesures ; pour chaque segment rattaché à un arc, c'est la valeur la plus récente disponible qui est retenue, afin de représenter les résultats de façon uniforme dans le temps. Un arc étant relié à plusieurs segments, leurs valeurs doivent ensuite être combinées en une seule. Quatre méthodes sont retenues plutôt qu'une seule : elles donnent une vue d'ensemble plus robuste et permettent de vérifier si les hypothèses de départ se confirment (par exemple, si une moyenne pondérée est réellement plus pertinente qu'une autre).</p>
+<p dir="auto">Pour chaque arc, le DJMA agrégé est calculé de 4 façons à partir de ses segments sous-jacents :</p>
+<table role="table">
+<thead>
+<tr>
+<th>Méthode</th>
+<th>Logique</th>
+<th>Médiane (véh./jour)</th>
+<th>Minimum</th>
+<th>Maximum</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>m1</strong></td>
+<td>Moyenne simple des segments</td>
+<td>11 947</td>
+<td>488</td>
+<td>182 999</td>
+</tr>
+<tr>
+<td><strong>m2</strong></td>
+<td>Pondérée par longueur de segment</td>
+<td>14 216</td>
+<td>486</td>
+<td>179 149</td>
+</tr>
+<tr>
+<td><strong>m3</strong></td>
+<td>Pondérée par type d'axe routier (hiérarchie MTQ)</td>
+<td>12 152</td>
+<td>482</td>
+<td>182 999</td>
+</tr>
+<tr>
+<td><strong>m4</strong></td>
+<td>80e percentile par rang (nearest-rank) : valeur réelle du segment classé à la position <code class="notranslate">round(0,8 × n)</code>, sans interpolation ni moyenne</td>
+<td>15 351</td>
+<td>530</td>
+<td>185 912</td>
+</tr>
+</tbody>
+</table>
+<p dir="auto">m4 donne systématiquement les valeurs les plus élevées : c'est la conséquence directe de sa conception (80e percentile, pour représenter des conditions de circulation chargées), là où m1-m3 visent une tendance centrale.</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-k">def</span> <span class="pl-en">calculer_m1</span>(<span class="pl-s1">segments</span>):
+    <span class="pl-s">"""m1 — Moyenne simple des DJMA des segments sous-jacents."""</span>
+    <span class="pl-k">return</span> <span class="pl-en">moyenne</span>([<span class="pl-s1">s</span>.<span class="pl-c1">djma</span> <span class="pl-k">for</span> <span class="pl-s1">s</span> <span class="pl-c1">in</span> <span class="pl-s1">segments</span>])
+
+<span class="pl-k">def</span> <span class="pl-en">calculer_m2</span>(<span class="pl-s1">segments</span>):
+    <span class="pl-s">"""m2 — Moyenne pondérée par longueur de segment (mètres)."""</span>
+    <span class="pl-s1">poids</span> <span class="pl-c1">=</span> [<span class="pl-s1">s</span>.<span class="pl-c1">longueur_m</span> <span class="pl-k">for</span> <span class="pl-s1">s</span> <span class="pl-c1">in</span> <span class="pl-s1">segments</span>]
+    <span class="pl-k">return</span> <span class="pl-en">moyenne_ponderee</span>([<span class="pl-s1">s</span>.<span class="pl-c1">djma</span> <span class="pl-k">for</span> <span class="pl-s1">s</span> <span class="pl-c1">in</span> <span class="pl-s1">segments</span>], <span class="pl-s1">poids</span>)
+
+<span class="pl-k">def</span> <span class="pl-en">calculer_m3</span>(<span class="pl-s1">segments</span>):
+    <span class="pl-s">"""m3 — Moyenne pondérée par type d'axe (hiérarchie fonctionnelle MTQ)."""</span>
+    <span class="pl-s1">poids_type</span> <span class="pl-c1">=</span> {<span class="pl-s">"Autoroute"</span>: <span class="pl-c1">4</span>, <span class="pl-s">"Nationale"</span>: <span class="pl-c1">3</span>, <span class="pl-s">"Régionale"</span>: <span class="pl-c1">2</span>, <span class="pl-s">"Collectrice"</span>: <span class="pl-c1">2</span>, <span class="pl-s">"Autre"</span>: <span class="pl-c1">1</span>}
+    <span class="pl-s1">poids</span> <span class="pl-c1">=</span> [<span class="pl-s1">poids_type</span>.<span class="pl-c1">get</span>(<span class="pl-s1">s</span>.<span class="pl-c1">type_route</span>, <span class="pl-c1">1</span>) <span class="pl-k">for</span> <span class="pl-s1">s</span> <span class="pl-c1">in</span> <span class="pl-s1">segments</span>]
+    <span class="pl-k">return</span> <span class="pl-en">moyenne_ponderee</span>([<span class="pl-s1">s</span>.<span class="pl-c1">djma</span> <span class="pl-k">for</span> <span class="pl-s1">s</span> <span class="pl-c1">in</span> <span class="pl-s1">segments</span>], <span class="pl-s1">poids</span>)
+
+<span class="pl-k">def</span> <span class="pl-en">calculer_m4</span>(<span class="pl-s1">segments</span>, <span class="pl-s1">percentile</span><span class="pl-c1">=</span><span class="pl-c1">0.80</span>):
+    <span class="pl-s">"""m4 — 80e percentile par rang (nearest-rank) : valeur RÉELLE d'un segment, jamais interpolée."""</span>
+    <span class="pl-s1">tries</span> <span class="pl-c1">=</span> <span class="pl-en">sorted</span>(<span class="pl-s1">segments</span>, <span class="pl-s1">key</span><span class="pl-c1">=</span><span class="pl-k">lambda</span> <span class="pl-s1">s</span>: <span class="pl-s1">s</span>.<span class="pl-c1">djma</span>)
+    <span class="pl-s1">rang</span>  <span class="pl-c1">=</span> <span class="pl-en">min</span>(<span class="pl-en">max</span>(<span class="pl-en">round</span>(<span class="pl-s1">percentile</span> <span class="pl-c1">*</span> <span class="pl-en">len</span>(<span class="pl-s1">tries</span>)), <span class="pl-c1">1</span>), <span class="pl-en">len</span>(<span class="pl-s1">tries</span>))
+    <span class="pl-k">return</span> <span class="pl-s1">tries</span>[<span class="pl-s1">rang</span> <span class="pl-c1">-</span> <span class="pl-c1">1</span>].<span class="pl-c1">djma</span></pre></div>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer" href="../../figures/carte_divergence_methodes.png"><img src="../../figures/carte_divergence_methodes.png" alt="Carte de l'écart entre les 4 méthodes DJMA" style="max-width: 100%;"></a></p>
+<p dir="auto">Plutôt qu'une simple comparaison statistique, cette carte projette l'écart relatif entre les 4 méthodes directement sur le réseau routier québécois : la couleur de chaque arc (pâle → ambre → rouge) encode son écart relatif entre m1-m4, le reste du réseau restant en trame grise pour le contexte. Un arc où les 4 méthodes s'accordent reste pâle, presque invisible ; un arc où elles divergent fortement ressort en rouge vif. Les trois écarts les plus marqués :</p>
+<table role="table">
+<thead>
+<tr>
+<th>Arc</th>
+<th>Écart relatif</th>
+<th>Segments mobilisés</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Laurier-Station – Saint-Apollinaire</td>
+<td>156 %</td>
+<td>8</td>
+</tr>
+<tr>
+<td>L'Ancienne-Lorette – Nœud Lac-St-Jean</td>
+<td>147 %</td>
+<td>108</td>
+</tr>
+<tr>
+<td>Donnacona – Saint-Augustin-de-Desmaures</td>
+<td>142 %</td>
+<td>12</td>
+</tr>
+</tbody>
+</table>
+<p dir="auto">Pour le premier et le troisième, le faible nombre de segments suffit à l'expliquer : un seul segment extrême pèse beaucoup plus sur m4 (percentile) que sur m1-m3 (moyennes). Le deuxième est plus révélateur : avec 108 segments, c'est l'un des arcs les mieux documentés du réseau, et l'écart y reste très élevé. La divergence ne tient donc pas qu'au manque de données ; elle vient probablement aussi de profils de circulation hétérogènes (trafic local mêlé à du transit à très fort débit) qu'une moyenne et un percentile élevé traduisent différemment — hypothèse non vérifiée à ce stade.</p>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer" href="../../figures/boites_ecarts_methodes.png"><img src="../../figures/boites_ecarts_methodes.png" alt="Boîtes à moustaches — écarts relatifs à m4" style="max-width: 100%;"></a></p>
+<p dir="auto">La carte montre <em>où</em> ça diverge ; ce graphique montre <em>de combien</em>, en distribution, sur les mêmes 285 arcs (les 19 arcs complétés géographiquement en sont exclus — voir plus bas). m4 sert de référence commune aux trois boîtes puisque c'est la méthode qui s'écarte le plus des trois autres. Les trois médianes sont proches (+18 % à +20 %) : m4 dépasse typiquement m1-m3 d'environ un cinquième, cohérent avec son rôle de capter un 80e percentile plutôt qu'une tendance centrale. Les distributions sont étalées vers le haut (quelques arcs dépassent +100 %, un extrême à +465 % pour m2) mais rarement négatives au-delà de −40/−75 % : m4 est presque toujours ≥ aux moyennes, jamais dramatiquement en-dessous.</p>
+<p dir="auto">m1, m2 et m3 sont fortement corrélées entre elles (Pearson ≥ 0,979) car elles moyennent la même population de segments différemment. m4 reste bien corrélée (Pearson ≈ 0,97-0,98) tout en s'en écartant légèrement : c'est voulu, elle vise à capturer les pointes de trafic (80e percentile réel) plutôt que la tendance centrale. 134 des 285 arcs mesurés directement (47 %) montrent un écart relatif &gt; 30 % entre méthodes — un signal que le choix de méthode d'agrégation a un impact réel et doit être fait explicitement selon l'usage.</p>
+<h3 id="e4-quelle-méthode-pour-quel-usage-">Quelle méthode pour quel usage ?</h3>
+<table role="table">
+<thead>
+<tr>
+<th>Usage visé</th>
+<th>Méthode adaptée</th>
+<th>Pourquoi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Planification générale — représenter une condition de circulation typique</td>
+<td>m1, m2 ou m3 (moyennes)</td>
+<td>Tendance centrale de la population de segments de l'arc</td>
+</tr>
+<tr>
+<td>Dimensionnement d'une infrastructure, scénario de perturbation en conditions chargées</td>
+<td>m4 (80e percentile réel)</td>
+<td>Valeur observée près du sommet de la distribution : pointes de trafic plutôt que valeur typique, ce qui vise l'analyse de résilience prévue ensuite</td>
+</tr>
+</tbody>
+</table>
+<p dir="auto">Le dépôt livre les quatre valeurs par arc sans en imposer une : le choix se fait en aval, selon l'usage.</p>
+<h3 id="e4-complétion-géographique-des-échecs">Complétion géographique des échecs</h3>
+<p dir="auto">19 des 307 arcs (statut <code class="notranslate">aucun_djma</code> — aucun segment MTQ retenu après les filtres du <a href="#etape=3&amp;ancre=arcs-sans-segment-retenu">Routage</a>) n'ont aucun segment propre : m1-m4 y sont indéfinis par construction, faute de mesure à agréger. Plutôt que de laisser ces arcs vides, <code class="notranslate">completer_echecs_geographique()</code> leur emprunte le DJMA (m1-m4) de l'arc valide le plus proche géométriquement.</p>
+<div class="highlight highlight-source-python" dir="auto"><pre class="notranslate"><span class="pl-k">def</span> <span class="pl-en">completer_echecs_geographique</span>(<span class="pl-s1">arcs</span>):
+    <span class="pl-s">"""Emprunte le DJMA de l'arc valide (statut == 'ok') le plus proche."""</span>
+    <span class="pl-s1">valides</span> <span class="pl-c1">=</span> <span class="pl-s1">arcs</span>[<span class="pl-s1">arcs</span>.<span class="pl-c1">statut</span> <span class="pl-c1">==</span> <span class="pl-s">"ok"</span>]
+    <span class="pl-k">for</span> <span class="pl-s1">arc</span> <span class="pl-c1">in</span> <span class="pl-s1">arcs</span>[<span class="pl-s1">arcs</span>.<span class="pl-c1">statut</span> <span class="pl-c1">==</span> <span class="pl-s">"aucun_djma"</span>]:
+        <span class="pl-s1">distances</span>   <span class="pl-c1">=</span> <span class="pl-s1">valides</span>.<span class="pl-c1">geometry</span>.<span class="pl-c1">distance</span>(<span class="pl-s1">arc</span>.<span class="pl-c1">geometry</span>)  <span class="pl-c"># tracé à tracé</span>
+        <span class="pl-s1">plus_proche</span> <span class="pl-c1">=</span> <span class="pl-s1">valides</span>[<span class="pl-en">argmin</span>(<span class="pl-s1">distances</span>)]
+        <span class="pl-s1">arc</span>.<span class="pl-c1">djma_m1</span>, <span class="pl-s1">arc</span>.<span class="pl-c1">djma_m2</span>, <span class="pl-s1">arc</span>.<span class="pl-c1">djma_m3</span>, <span class="pl-s1">arc</span>.<span class="pl-c1">djma_m4</span> <span class="pl-c1">=</span> (
+            <span class="pl-s1">plus_proche</span>.<span class="pl-c1">djma_m1</span>, <span class="pl-s1">plus_proche</span>.<span class="pl-c1">djma_m2</span>, <span class="pl-s1">plus_proche</span>.<span class="pl-c1">djma_m3</span>, <span class="pl-s1">plus_proche</span>.<span class="pl-c1">djma_m4</span>
+        )
+        <span class="pl-s1">arc</span>.<span class="pl-c1">djma_complete</span>, <span class="pl-s1">arc</span>.<span class="pl-c1">djma_arc_source</span> <span class="pl-c1">=</span> <span class="pl-c1">True</span>, <span class="pl-s1">plus_proche</span>.<span class="pl-c1">ID_ARC</span>
+        <span class="pl-c"># n_segs_m{N} reste à 0 : toujours aucun segment MTQ propre à cet arc</span></pre></div>
+<p dir="auto">Un seul plus proche voisin — pas de moyenne pondérée façon KNN+IDW (cf. <a href="#etape=2">Complétion</a>) : il n'existe ici aucune mesure partielle à compléter, seulement une meilleure estimation à emprunter. La distance au donneur est <strong>0 km dans les 19 cas</strong> : le plus proche voisin géométrique d'un arc est presque toujours un arc qui lui est directement connecté dans le graphe (même ville de départ ou d'arrivée), pas un arc choisi par proximité de coordonnées au sens large. Ex. Noeud_Baie_James–Radisson (aucune mesure) emprunte à Wemindji–Noeud_Baie_James, le corridor adjacent qui partage son nœud "Noeud_Baie_James" ; Montréal–Westmount emprunte à Montréal–Saint-Lambert.</p>
+<p dir="auto">Chaque valeur empruntée reste traçable — <code class="notranslate">djma_complete = True</code>, <code class="notranslate">djma_arc_source</code> (ID de l'arc donneur) et <code class="notranslate">djma_distance_source_km</code> sont conservés dans <code class="notranslate">graphe_routier_djma.gpkg</code> — pour ne jamais confondre une mesure réelle avec une estimation empruntée en aval (cartes, statistiques). Les 3 arcs <code class="notranslate">hors_quebec</code> (tracé sortant du territoire) ne sont pas concernés : leur géométrie elle-même est hors du réseau QC comparé, la proximité y est moins interprétable.</p></div><nav class="suite" aria-label="Étapes voisines"><a href="#etape=3">← Routage</a><a href="#etape=5">Résultats →</a></nav></section>
+<section class="etape-v1" id="etape-5" data-k="5"><header class="tete"><p class="eyebrow">Volet 1 · étape 5 sur 5</p><h2>Résultats</h2><p class="intro">Le réseau final : 304 liaisons sur 307 ont leur trafic, et les 22 cas particuliers sont expliqués.</p></header><div class="md"><p dir="auto">L'ensemble du pipeline — complétion, routage, agrégation DJMA — transforme les 307 liens ville-à-ville du graphe de départ en un réseau routier enrichi en trafic réel, prêt à servir de base à l'analyse de résilience : <strong>285 arcs sur 307 (92,8 %)</strong> portent une valeur DJMA calculée directement à partir des segments de comptage MTQ rattachés à leur tracé (3 306 rattachements, portant sur 2 648 segments distincts : un même segment peut servir à plusieurs arcs), et <strong>19 autres</strong> en reçoivent une par emprunt au plus proche voisin, ce qui porte la couverture à <strong>304 arcs sur 307 (99 %)</strong>.</p>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer" href="../../figures/carte_reseau_resultats.png"><img src="../../figures/carte_reseau_resultats.png" alt="Réseau enrichi — DJMA par arc et couverture du routage" style="max-width: 100%;"></a></p>
+<p dir="auto">Les 22 arcs en échec ne sont pas un problème de complétion des données : la cascade d'imputation (section précédente) porte la complétude temporelle des stations MTQ <em>existantes</em> à 100 %, mais elle ne peut pas faire apparaître une station là où le MTQ n'en a jamais installé. Le KNN géographique de la <a href="#etape=2&amp;ancre=3-knn-géographique--idw">complétion des données</a> comble les trous temporels d'une station <em>déjà présente</em> dans <code class="notranslate">DebitCirculation.gpkg</code> en lui empruntant la série d'une station voisine — il n'invente jamais une station là où le MTQ n'en a posé aucune. Les arcs en échec, eux, se jouent une étape plus loin : après routage et filtrage géométrique, aucun segment RTSS porteur d'une mesure ne se retrouve associé à l'arc, et m1 à m4 n'ont alors rien à agréger. Ces arcs sont donc traités en aval, par la <a href="#etape=4&amp;ancre=complétion-géographique-des-échecs">complétion géographique des échecs</a>, qui leur emprunte le DJMA de l'arc valide le plus proche.</p>
+<p dir="auto">Concrètement, 19 arcs n'ont aucun segment propre après filtrage. Ce ne sont pas des arcs sans aucune station à proximité — tous en comptent entre 2 et 44 dans la zone de recherche de 1,5 km autour du tracé — mais des arcs où aucun segment ne survit aux trois filtres du <a href="#etape=3&amp;ancre=arcs-sans-segment-retenu">routage</a> : 13 se situent dans le Grand Montréal, où le MTQ compte le réseau provincial et non les rues municipales, les 6 autres sont des liaisons régionales ou frontalières (Baie-James, Stanstead–Vermont, Gatineau–Ontario-Sud, Danville–Val-des-Sources, Granby). Ils reçoivent une valeur empruntée, toujours signalée comme telle dans les données. Dans les 19 cas, l'arc donneur partage directement un nœud (une ville) avec l'arc complété (distance 0 km) : c'est la valeur du corridor adjacent, jamais une estimation fondée sur une proximité lointaine. Les 3 derniers arcs sortent du territoire québécois (liaisons interprovinciales), n'ont aucun segment RTSS/DJMA à associer et restent sans valeur.</p>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer" href="../../figures/carte_montreal_resultats.png"><img src="../../figures/carte_montreal_resultats.png" alt="Zoom — Grand Montréal" style="max-width: 100%;"></a></p>
+<p dir="auto">13 des 19 échecs se concentrent dans un rayon de 55 km autour de Montréal (île, couronnes nord et sud) — trop denses pour rester lisibles à l'échelle du Québec ci-dessus. Ce zoom les isole individuellement : chacun correspond à une paire de villes proches (ex. Pointe-Claire–Dollard-des-Ormeaux, Hampstead–Côte-Saint-Luc) dont le tracé le plus court ne retient aucun segment du réseau provincial compté par le MTQ — 5 n'ont aucun segment à moins de 400 m du tracé, 4 ne gardent que des segments mal orientés, 4 que des segments trop proches des villes A/B.</p>
+<table role="table">
+<thead>
+<tr>
+<th>Indicateur</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Arcs avec mesure MTQ directe</td>
+<td>285 / 307 (92,8 %)</td>
+</tr>
+<tr>
+<td>Segments DJMA mobilisés</td>
+<td>3 306 rattachements segment–arc (2 648 segments distincts), médiane 8 par arc</td>
+</tr>
+<tr>
+<td>Longueur de tracé médiane</td>
+<td>25,8 km (couverte à 24,9 km par le RTSS québécois)</td>
+</tr>
+<tr>
+<td>Échecs de routage — aucun segment retenu par les filtres</td>
+<td>19 — complétés par emprunt au plus proche voisin</td>
+</tr>
+<tr>
+<td>Échecs de routage — hors territoire québécois</td>
+<td>3 — sans valeur</td>
+</tr>
+<tr>
+<td><strong>Couverture globale</strong></td>
+<td><strong>304 / 307 (99 %)</strong></td>
+</tr>
+</tbody>
+</table></div><nav class="suite" aria-label="Étapes voisines"><a href="#etape=4">← Méthodes DJMA</a><a href="../volet2/carte_interactive.html#etape=0">Volet 2 : la carte interactive →</a></nav></section>
+      <p class="pied">Polytechnique Montréal · CIRANO · Transports Canada · MTMD. Données de comptage : MTMD, Données Québec, licence CC BY 4.0.</p>
+    </div>
+  </main>
+</div>
+<script>
+"use strict";
+// Une étape affichée à la fois ; l'adresse (#etape=k&ancre=…) garde l'étape et la section.
+const sections = [...document.querySelectorAll(".etape-v1")];
+const liens = [...document.querySelectorAll("a.etape.v1")];
+const N = sections.length;
+function lireAdresse() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  return { k: Math.min(N, Math.max(1, parseInt(p.get("etape"), 10) || 1)), ancre: p.get("ancre") };
+}
+function afficher() {
+  const { k, ancre } = lireAdresse();
+  sections.forEach(s => { s.hidden = +s.dataset.k !== k; });
+  liens.forEach(a => a.toggleAttribute("aria-current", +a.dataset.k === k));
+  liens.forEach(a => { if (+a.dataset.k === k) a.setAttribute("aria-current", "step"); });
+  document.title = `${sections[k - 1].querySelector("h2").textContent} · Volet 1 · Le trafic sur chaque liaison`;
+  const cible = ancre && document.getElementById(`e${k}-${ancre}`);
+  if (cible) cible.scrollIntoView();
+  else { document.getElementById("lecture").scrollTop = 0; window.scrollTo(0, 0); }
+}
+window.addEventListener("hashchange", afficher);
+document.addEventListener("keydown", e => {
+  if (e.target.closest("input,select,textarea")) return;
+  const { k } = lireAdresse();
+  if (e.key === "ArrowRight" && k < N) location.hash = "etape=" + (k + 1);
+  if (e.key === "ArrowLeft" && k > 1) location.hash = "etape=" + (k - 1);
+});
+afficher();
+</script>
+</body>
+</html>

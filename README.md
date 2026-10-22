@@ -5,9 +5,8 @@
 Projet de recherche mené avec Polytechnique Montréal et le CIRANO, en collaboration avec Transports Canada et le ministère des Transports et de la Mobilité durable du Québec (MTMD).
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](requirements.txt)
-[![Volet 1 terminé](https://img.shields.io/badge/Volet%201-termin%C3%A9-2c8a66)](#volet-1--le-trafic-sur-chaque-liaison)
-[![Volet 2 en cours](https://img.shields.io/badge/Volet%202-en%20cours-c98500)](#volet-2--la-valeur-de-ce-qui-y-circule)
-[![Carte interactive](https://img.shields.io/badge/carte%20interactive-en%20ligne-1f5fae)](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet2/carte_interactive.html)
+[![Volet 1 terminé](https://img.shields.io/badge/Volet%201-termin%C3%A9-2c8a66)](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet1/)
+[![Volet 2 en cours](https://img.shields.io/badge/Volet%202-en%20cours-c98500)](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet2/carte_interactive.html)
 
 <p align="center">
   <img src="figures/carte_reseau_resultats.png" width="760" alt="Carte du Québec : les 307 liaisons routières du projet, colorées selon le trafic journalier moyen">
@@ -32,6 +31,14 @@ Les deux volets sont distincts, mais le second s'appuie sur le premier. Le Volet
 
 *Terminé.* Chaque liaison entre deux villes est tracée sur le vrai réseau routier, puis reçoit les comptages du MTQ situés sur son itinéraire.
 
+<p align="center">
+  <a href="https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet1/">
+    <img src="figures/volet1_site.png" width="820" alt="Capture de la page du Volet 1 : la barre des étapes des deux volets à gauche, et l'étape Données affichée">
+  </a>
+</p>
+
+**[Parcourir le Volet 1 →](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet1/)** Les 5 étapes se lisent dans le même format que la carte du Volet 2 : une barre d'étapes à gauche, commune aux deux volets, et une étape affichée à la fois.
+
 | Indicateur | Valeur |
 |---|---|
 | Liaisons avec un trafic mesuré directement | 285 sur 307 |
@@ -39,15 +46,15 @@ Les deux volets sont distincts, mais le second s'appuie sur le premier. Le Volet
 | Liaisons hors Québec, sans valeur | 3 |
 | **Couverture totale** | **304 sur 307 (99 %)** |
 
-Le détail, une page par étape :
-
-| Page | En une phrase |
+| Étape | En une phrase |
 |---|---|
-| [Données](docs/donnees.md) | Les trois couches de départ, et le problème des comptages manquants. |
-| [Complétion](docs/completion.md) | Comment les trous sont comblés : interpolation, forêts aléatoires, stations voisines. |
-| [Routage](docs/routage.md) | Comment chaque liaison est tracée et reçoit les bons comptages (3 filtres géométriques). |
-| [Méthodes](docs/methodes.md) | Les 4 façons de résumer le trafic d'une liaison, et leurs écarts. |
-| [Résultats](docs/resultats.md) | Le réseau final et ses 22 cas particuliers expliqués. |
+| 1 · [Données](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet1/#etape=1) | Les trois couches de départ, et le problème des comptages manquants. |
+| 2 · [Complétion](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet1/#etape=2) | Comment les trous sont comblés : interpolation, forêts aléatoires, stations voisines. |
+| 3 · [Routage](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet1/#etape=3) | Comment chaque liaison est tracée et reçoit les bons comptages (3 filtres géométriques). |
+| 4 · [Méthodes DJMA](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet1/#etape=4) | Les 4 façons de résumer le trafic d'une liaison, et leurs écarts. |
+| 5 · [Résultats](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet1/#etape=5) | Le réseau final et ses 22 cas particuliers expliqués. |
+
+Les mêmes pages se lisent aussi directement sur GitHub, dans [`docs/`](docs/donnees.md).
 
 ## Volet 2 — La valeur de ce qui y circule
 
@@ -59,7 +66,7 @@ Le détail, une page par étape :
   </a>
 </p>
 
-**[Ouvrir la carte interactive →](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet2/carte_interactive.html)** Elle compte 9 étapes, un mode de comparaison entre deux étapes, des prix modifiables et le code de chaque étape. Elle fonctionne dans tout navigateur récent, même sans accélération graphique.
+**[Ouvrir la carte interactive →](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet2/carte_interactive.html)** Elle compte 9 étapes, avec la même barre à gauche que le Volet 1, un mode de comparaison entre deux étapes, des prix modifiables et le code de chaque étape. Elle fonctionne dans tout navigateur récent, même sans accélération graphique.
 
 À ce stade, les étapes de données sont réelles : 37 603 camions retenus, 36 847 rejoués sur le réseau. Les prix par tonne et l'actualisation en dollars de 2026 sont encore provisoires ; les montants affichés ne doivent pas être cités. La méthode, les premiers constats et la suite sont décrits sur la page [Volet 2](docs/volet2.md).
 
@@ -91,9 +98,10 @@ Le détail, une page par étape :
 │   ├── generer_figure_donnees.py            Figures des pages Données et Complétion
 │   ├── generer_figures_resultats.py         Figures des pages Méthodes et Résultats
 │   ├── style_figures.py                     Style commun des figures
-│   ├── visualisation_volet2.py              Volet 2 · carte interactive
-│   └── gabarits/                            Page HTML de la carte
-├── docs/                                  Une page d'explication par étape
+│   ├── generer_site_volet1.py               Volet 1 · page web (docs/volet1/)
+│   ├── visualisation_volet2.py              Volet 2 · carte interactive (docs/volet2/)
+│   └── gabarits/                            Gabarits HTML des deux pages web
+├── docs/                                  Une page d'explication par étape, et le site des deux volets
 ├── figures/                               Cartes et graphiques
 ├── data/                                  Données d'entrée (MTQ) et résultats (GeoPackage)
 ├── qgis/                                  Projet QGIS livrable, chemins relatifs
@@ -119,6 +127,7 @@ python scripts/comparaison_methodes_djma.py
 python scripts/nettoyage_projet_qgis.py
 python scripts/generer_figures_resultats.py
 python scripts/generer_figure_donnees.py
+python scripts/generer_site_volet1.py             # page web du Volet 1 (utilise gh, l'outil GitHub)
 
 # Volet 2 : nécessite les microdonnées ENR, qui ne sont pas publiées
 ENR_DIR=/chemin/vers/les/fichiers/ENR python scripts/visualisation_volet2.py --publique

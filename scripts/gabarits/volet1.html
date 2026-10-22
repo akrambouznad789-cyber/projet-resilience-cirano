@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Volet 1 · Le trafic sur chaque liaison</title>
+<meta name="description" content="Résilience du réseau routier québécois, Volet 1 : comptages routiers, complétion des données, routage et trafic par liaison.">
+<!-- Gabarit de scripts/generer_site_volet1.py : la navigation et les étapes sont injectées à la génération. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;700&family=Overpass:wght@600;800&family=Overpass+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  color-scheme:light;
+  --bg:#fafaf8; --panel:#f2f1ec; --card:#ffffff; --ink:#17181b; --ink2:#4f4e4a; --muted:#7f7d76; --rule:#e2e0d8;
+  --v1:#1f5fae; --v1-soft:#e4eefa; --v1-bord:#86b6ef; --v2:#875600; --v2-bord:#e9c46a;
+  --display:"Overpass","Arimo",system-ui,sans-serif;
+  --body:"Arimo","Helvetica Neue",Arial,sans-serif;
+  --mono:"Overpass Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:10px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:var(--display);margin:0;text-wrap:balance}
+p{margin:0}
+a{color:var(--v1)}
+:focus-visible{outline:2px solid var(--v1);outline-offset:2px}
+
+/* ---------- Coque commune aux deux volets ---------- */
+.app{display:grid;height:100vh;grid-template-columns:230px minmax(0,1fr);grid-template-rows:56px minmax(0,1fr);grid-template-areas:"barre barre" "etapes lecture"}
+.barre{grid-area:barre;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 16px;border-bottom:1px solid var(--rule);background:var(--card)}
+.barre .eyebrow{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block;line-height:1.2}
+.barre h1{font-size:1.2rem;font-weight:800;line-height:1.15}
+.barre-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.btn{border:1px solid var(--rule);background:var(--card);border-radius:999px;padding:6px 14px;font-weight:700;font-size:.82rem;color:var(--ink);text-decoration:none;white-space:nowrap}
+.btn:hover{background:var(--panel)}
+.btn.principal{background:var(--ink);color:var(--card);border-color:var(--ink)}
+.btn.principal:hover{background:#2f3136}
+
+.etapes{grid-area:etapes;overflow-y:auto;border-right:1px solid var(--rule);background:var(--panel);padding:8px 10px 12px;display:flex;flex-direction:column;gap:2px}
+.groupe-etapes{margin:12px 8px 4px;font-family:var(--mono);font-size:.64rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);line-height:1.3}
+.groupe-etapes span{font-weight:700}
+.groupe-etapes.v1 span{color:var(--v1)} .groupe-etapes.v2 span{color:var(--v2)}
+.etape{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:center;text-align:left;border:0;background:transparent;border-radius:8px;padding:6px 8px;cursor:pointer;color:var(--ink2);text-decoration:none}
+.etape:hover{background:rgba(0,0,0,.04)}
+.etape b{width:28px;height:28px;border-radius:7px;border:1.5px solid var(--muted);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:.95rem;color:var(--ink2);background:var(--card)}
+.etape.v1 b{border-color:var(--v1-bord);color:var(--v1)} .etape.v2 b{border-color:var(--v2-bord);color:var(--v2)}
+.etape span{font-size:.84rem;line-height:1.25}
+.etape small{display:block;font-family:var(--mono);font-size:.6rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.etape[aria-current="step"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.etape[aria-current="step"] b{background:var(--ink);border-color:var(--ink);color:var(--card)}
+
+/* ---------- Lecture ---------- */
+.lecture{grid-area:lecture;overflow-y:auto;min-height:0}
+.colonne{max-width:860px;margin:0 auto;padding:32px 32px 64px}
+.tete{display:flex;flex-direction:column;gap:6px;margin-bottom:26px;padding-bottom:22px;border-bottom:1px solid var(--rule)}
+.tete .eyebrow{font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--v1)}
+.tete h2{font-size:clamp(1.8rem,3.4vw,2.4rem);font-weight:800;line-height:1.08}
+.tete .intro{font-size:1.08rem;color:var(--ink2);max-width:64ch}
+
+.md{display:flex;flex-direction:column;gap:16px}
+.md > *{margin:0}
+.md h3{font-size:1.3rem;font-weight:800;margin-top:18px;scroll-margin-top:16px}
+.md h4{font-size:1.05rem;font-weight:700;margin-top:8px;scroll-margin-top:16px}
+.md p,.md li{color:var(--ink2)}
+.md strong{color:var(--ink)}
+.md ul,.md ol{padding-left:22px;display:flex;flex-direction:column;gap:4px}
+.md img{display:block;max-width:100%!important;height:auto;margin:0 auto;border:1px solid var(--rule);border-radius:8px;background:#fff}
+.md a[target="_blank"]:has(img){display:block}
+.md code{font-family:var(--mono);font-size:.85em;background:var(--panel);padding:1px 5px;border-radius:4px}
+.md blockquote{margin:0;border-left:3px solid var(--v1-bord);background:var(--v1-soft);padding:10px 14px;border-radius:0 8px 8px 0}
+.md blockquote p{color:var(--ink)}
+.md table{border-collapse:collapse;width:100%;font-size:.88rem;display:block;overflow-x:auto}
+.md th,.md td{padding:7px 9px;border-bottom:1px solid var(--rule);text-align:left;vertical-align:top}
+.md th{font-family:var(--mono);font-size:.7rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border-bottom:1.5px solid var(--ink2)}
+.md td{color:var(--ink2)}
+.md .highlight pre,.md pre{margin:0;background:#16181b;color:#e8e6df;border-radius:8px;padding:14px 16px;font-family:var(--mono);font-size:.78rem;line-height:1.6;overflow-x:auto}
+.md pre code{background:none;padding:0;color:inherit;font-size:inherit}
+.md .pl-k{color:#8fb8f0} .md .pl-s,.md .pl-pds{color:#e5c07b} .md .pl-c{color:#8f9aa6;font-style:italic}
+.md .pl-en{color:#9fdcc3} .md .pl-c1{color:#f4b183} .md .pl-v,.md .pl-smi,.md .pl-s1{color:#e8e6df}
+.md hr{border:0;border-top:1px solid var(--rule);margin:8px 0}
+
+.suite{display:flex;justify-content:space-between;gap:12px;margin-top:36px;padding-top:20px;border-top:1px solid var(--rule)}
+.suite a{font-weight:700;text-decoration:none;border:1px solid var(--rule);border-radius:999px;padding:8px 16px;background:var(--card);color:var(--ink)}
+.suite a:hover{background:var(--panel)}
+.suite a:last-child{margin-left:auto}
+.pied{font-size:.78rem;color:var(--muted);margin-top:28px}
+
+@media (max-width:1100px){
+  .app{height:auto;min-height:100vh;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto;grid-template-areas:"barre" "etapes" "lecture"}
+  .barre{padding:10px 16px;flex-wrap:wrap}
+  .etapes{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--rule);padding:8px 16px;align-items:center}
+  .etape{grid-template-columns:24px auto;flex:0 0 auto}
+  .etape b{width:24px;height:24px}
+  .etape small{display:none}
+  .groupe-etapes{flex:0 0 auto;margin:0 6px}
+  .lecture{overflow:visible}
+  .colonne{padding:24px 16px 48px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="barre">
+    <div>
+      <span class="eyebrow">CIRANO · Volet 1 · terminé · mis à jour le __GENERE_LE__</span>
+      <h1>Le trafic sur chaque liaison</h1>
+    </div>
+    <div class="barre-actions">
+      <a class="btn" href="__URL_DEPOT__">Code sur GitHub</a>
+      <a class="btn principal" href="__URL_V2__#etape=0">Volet 2 : carte interactive →</a>
+    </div>
+  </header>
+
+  <nav class="etapes" aria-label="Étapes des deux volets">
+<!--__NAV__-->
+  </nav>
+
+  <main class="lecture" id="lecture">
+    <div class="colonne">
+<!--__SECTIONS__-->
+      <p class="pied">Polytechnique Montréal · CIRANO · Transports Canada · MTMD. Données de comptage : MTMD, Données Québec, licence CC BY 4.0.</p>
+    </div>
+  </main>
+</div>
+<script>
+"use strict";
+// Une étape affichée à la fois ; l'adresse (#etape=k&ancre=…) garde l'étape et la section.
+const sections = [...document.querySelectorAll(".etape-v1")];
+const liens = [...document.querySelectorAll("a.etape.v1")];
+const N = sections.length;
+function lireAdresse() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  return { k: Math.min(N, Math.max(1, parseInt(p.get("etape"), 10) || 1)), ancre: p.get("ancre") };
+}
+function afficher() {
+  const { k, ancre } = lireAdresse();
+  sections.forEach(s => { s.hidden = +s.dataset.k !== k; });
+  liens.forEach(a => a.toggleAttribute("aria-current", +a.dataset.k === k));
+  liens.forEach(a => { if (+a.dataset.k === k) a.setAttribute("aria-current", "step"); });
+  document.title = `${sections[k - 1].querySelector("h2").textContent} · Volet 1 · Le trafic sur chaque liaison`;
+  const cible = ancre && document.getElementById(`e${k}-${ancre}`);
+  if (cible) cible.scrollIntoView();
+  else { document.getElementById("lecture").scrollTop = 0; window.scrollTo(0, 0); }
+}
+window.addEventListener("hashchange", afficher);
+document.addEventListener("keydown", e => {
+  if (e.target.closest("input,select,textarea")) return;
+  const { k } = lireAdresse();
+  if (e.key === "ArrowRight" && k < N) location.hash = "etape=" + (k + 1);
+  if (e.key === "ArrowLeft" && k > 1) location.hash = "etape=" + (k - 1);
+});
+afficher();
+</script>
+</body>
+</html>
