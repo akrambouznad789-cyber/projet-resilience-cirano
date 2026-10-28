@@ -15,7 +15,10 @@ import importlib
 from jumeau_cirano import __version__
 
 # commande → (aide, "module:fonction(args)")
-COMMANDES: dict[str, tuple[str, str]] = {}
+COMMANDES: dict[str, tuple[str, str]] = {
+    "reseau": ("graphe RTSS, rattachement des liaisons, point de contrôle",
+               "jumeau_cirano.reseau.commande:executer"),
+}
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -26,6 +29,8 @@ def main(argv: list[str] | None = None) -> None:
     for nom, (aide, _) in COMMANDES.items():
         p = sous.add_parser(nom, help=aide)
         p.add_argument("--config", help="fichier YAML (défaut : celui de configs/ pour cette commande)")
+        p.add_argument("--echantillon", action="store_true",
+                       help="travailler sur l'échantillon géographique de la config")
     args = analyseur.parse_args(argv)
     module, fonction = COMMANDES[args.commande][1].split(":")
     getattr(importlib.import_module(module), fonction)(args)

@@ -1,0 +1,73 @@
+# Réseau routier du jumeau : graphe RTSS, routes alternatives par liaison, sections de comptage.
+# Chemins relatifs à la racine du dépôt. Un autre réseau de liaisons (reseau_arcs.gpkg)
+# peut être substitué ici sans toucher au code.
+
+entrees:
+  rtss: data/raw/ReseauRoutier_RTSS.gpkg
+  liaisons: data/raw/reseau_arcs.gpkg          # couches "arcs" et "noeuds" (le graphe du Volet 1)
+  sections: data/raw/DebitCirculation.gpkg
+  traces_osrm: data/processed/graphe_routier.gpkg   # couche trace_osrm : référence du point de contrôle
+  djma: data/processed/graphe_routier_djma.gpkg     # statut de chaque liaison (ok, aucun_djma, hors_quebec)
+  sections_completes: data/processed/debits_completes.gpkg
+
+sortie: data/processed/reseau_multi_routes.gpkg
+rapport: outputs/jumeau/controle_reseau.md
+
+crs: "EPSG:32198"
+
+graphe:
+  statuts_gardes: [A, T]              # actives + « T » (tronçons récents en service : A-73, R-175, bretelles A-40)
+  classes_exclues: ["51", "52", "53"] # rues locales (58 segments isolés)
+  tolerance_noeud_m: 1.0              # extrémités confondues en un même nœud
+  tolerance_croisement_m: 2.0         # extrémité posée sur une autre ligne → carrefour (coupe)
+  tolerance_jonction_m: 100.0         # extrémité pendante raccordée à la ligne la plus proche (bretelles : 20 à 100 m)
+  rattachement_max_km: 2.0            # nœud du graphe des liaisons → nœud RTSS le plus proche
+  # Le RTSS s'interrompt là où une route numérotée traverse une ville (tronçon municipal) :
+  # deux extrémités pendantes du même numéro de route sont reliées par un raccord estimé.
+  raccord_municipal_max_km: 6.0
+  facteur_detour_raccord: 1.3         # longueur du raccord = 1,3 × vol d'oiseau
+  # Vitesses camion par classe RTSS (hypothèse, km/h) : servent au temps de parcours
+  vitesses_kmh:
+    "10": 90   # Autoroute
+    "20": 80   # Nationale
+    "30": 70   # Régionale
+    "40": 70   # Collectrice
+    "60": 60   # Accès aux ressources
+    "70": 60   # Accès aux ressources et localités isolées
+    "00": 50   # Sans classe (bretelles, raccords)
+    "MU": 40   # Raccord municipal estimé (traversée de ville hors RTSS)
+
+# Connecteurs d'accès (« centroid connectors ») : une ville rejoint le réseau supérieur par ses
+# rues municipales, absentes du RTSS. Chaque nœud des liaisons est relié aux nœuds RTSS proches,
+# un par numéro de route.
+acces:
+  routes_max: 4          # au plus 4 routes différentes par ville
+  rayon_km: 8.0          # dans un rayon de 8 km : traversée d'une ville moyenne (sinon, le nœud le plus proche)
+  facteur_detour: 1.3    # longueur = 1,3 × vol d'oiseau
+  vitesse_kmh: 40        # rues municipales
+
+# Échantillon géographique (règle du CLAUDE.md : valider sur un échantillon d'abord)
+echantillon:
+  nom: couloir Montréal–Québec
+  lon_min: -74.2
+  lat_min: 45.3
+  lon_max: -71.0
+  lat_max: 47.0
+
+controle:
+  seuil_interurbain_km: 10.0     # tracé OSRM ≥ 10 km : liaison interurbaine (les autres : rues municipales)
+  ratio_longueur_max: 1.15       # topologie : plus court chemin RTSS en km ≤ 1,15 × tracé OSRM
+  part_liaisons_min: 0.90        # le contrôle passe si 90 % des liaisons interurbaines respectent le seuil
+  tampon_recouvrement_m: 100.0   # accord de route : part du chemin le plus rapide à moins de 100 m d'OSRM
+  recouvrement_min: 0.80
+
+alternatives:
+  k: 3                          # au plus 3 routes par liaison
+  facteur_penalite: 1.5         # liens déjà empruntés × 1,5 pour chercher la suivante
+  detour_max: 1.3               # minutes ≤ 1,3 × la meilleure route
+  recouvrement_max: 0.6         # une alternative ne reprend pas plus de 60 % d'une route gardée
+  exclusion_noeud_tiers_km: 2.0 # sinon c'est un autre chemin du graphe, pas une alternative
+
+sections:
+  tampon_m: 30.0                # recouvrement géométrique d'une section avec la route
+  recouvrement_min: 0.5         # au moins 50 % de la section le long de la route, même numéro de route

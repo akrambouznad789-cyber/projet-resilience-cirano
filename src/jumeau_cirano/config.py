@@ -29,6 +29,80 @@ class Schema(BaseModel):
 S = TypeVar("S", bound=Schema)
 
 
+# ---------------------------------------------------------------------------
+# Réseau (configs/reseau.yaml)
+# ---------------------------------------------------------------------------
+
+class EntreesReseau(Schema):
+    rtss: str
+    liaisons: str
+    sections: str
+    traces_osrm: str
+    djma: str
+    sections_completes: str
+
+
+class ParamGraphe(Schema):
+    statuts_gardes: list[str]
+    classes_exclues: list[str]
+    tolerance_noeud_m: float
+    tolerance_croisement_m: float
+    tolerance_jonction_m: float
+    rattachement_max_km: float
+    raccord_municipal_max_km: float
+    facteur_detour_raccord: float
+    vitesses_kmh: dict[str, float]
+
+
+class ParamAcces(Schema):
+    routes_max: int
+    rayon_km: float
+    facteur_detour: float
+    vitesse_kmh: float
+
+
+class Emprise(Schema):
+    nom: str
+    lon_min: float
+    lat_min: float
+    lon_max: float
+    lat_max: float
+
+
+class ParamControle(Schema):
+    seuil_interurbain_km: float
+    ratio_longueur_max: float
+    part_liaisons_min: float
+    tampon_recouvrement_m: float
+    recouvrement_min: float
+
+
+class ParamAlternatives(Schema):
+    k: int
+    facteur_penalite: float
+    detour_max: float
+    recouvrement_max: float
+    exclusion_noeud_tiers_km: float
+
+
+class ParamSections(Schema):
+    tampon_m: float
+    recouvrement_min: float
+
+
+class ConfigReseau(Schema):
+    entrees: EntreesReseau
+    sortie: str
+    rapport: str
+    crs: str
+    graphe: ParamGraphe
+    acces: ParamAcces
+    echantillon: Emprise
+    controle: ParamControle
+    alternatives: ParamAlternatives
+    sections: ParamSections
+
+
 def chemin_absolu(chemin: str | Path) -> Path:
     """Chemin relatif à la racine du dépôt, ou absolu tel quel."""
     p = Path(chemin)
