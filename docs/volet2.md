@@ -26,8 +26,8 @@ valeur annuelle d'une liaison = camions par jour (Volet 1) × $ moyen par camion
 | 1 | Enquête brute | Toutes les fiches de l'enquête, partout au Canada. Aucune ne contient de montant en dollars. | 114 734 camions |
 | 2 | Cibler le Québec | On garde les camions qui chargent ou livrent au Québec, où qu'ils aient été arrêtés, et ceux dont le trajet traverse le Québec. | 37 603 camions, dont 9 057 vides |
 | 3 | Postes d'enquête | Les lieux où les camions ont été arrêtés au Québec. | 49 postes |
-| 4 | Localiser | L'enquête ne donne qu'un code de municipalité. Chaque lieu est rattaché au nœud le plus proche du réseau ; hors Québec, à un point frontière. | 44 % au code exact |
-| 5 | Faire rouler | Chaque camion suit le plus court chemin sur le réseau. Il compte sur toutes les liaisons de son trajet, pas seulement là où on l'a arrêté. | 36 847 camions routés |
+| 4 | Localiser | L'enquête ne donne qu'un code de municipalité, celui de 2001. Chaque lieu est rattaché au nœud le plus proche du réseau ; hors Québec, à un point frontière. | 100 % des lieux canadiens au code exact |
+| 5 | Faire rouler | Chaque camion suit le plus court chemin sur le réseau. Il compte sur toutes les liaisons de son trajet, pas seulement là où on l'a arrêté. | 36 879 camions routés |
 | 6 | Donner un prix | Chaque groupe de marchandises reçoit un prix par tonne (Statistique Canada, Cadre de données sur le transport de marchandises). | provisoire : 3 000 $/t |
 | 7 | Actualiser | Les prix sont ramenés en dollars de 2026 avec l'indice des prix des produits industriels. | provisoire |
 | 8 | Valeur par liaison | $ moyen par camion × camions par jour × 365, avec une fourchette selon la méthode de calcul du trafic. | provisoire |
@@ -36,8 +36,8 @@ Les étapes 6 à 8 sont calculées directement dans la page : on peut y modifier
 
 ### Ce que la carte révèle déjà
 
-- **Le routage est à affiner.** Pour seulement 48 % des camions arrêtés à un poste d'enquête, le chemin calculé passe bien par la liaison de ce poste. Aux postes frontaliers comme Lacolle, le plus court chemin sort souvent par une autre frontière voisine. L'enquête indique les postes réellement franchis par chaque camion : s'en servir pour guider le routage est la prochaine amélioration.
-- **La localisation est approximative pour une partie des lieux.** Les fusions municipales de 2002 ont fait disparaître beaucoup de codes de municipalité de 2001. Seulement 44 % des lieux retrouvent leur code exact ; les autres sont placés au centre de leur division de recensement (par exemple l'île de Montréal), ce qui suffit pour choisir un nœud du réseau.
+- **Le routage est à affiner.** Pour seulement 51 % des camions arrêtés à un poste d'enquête, le chemin calculé passe bien par la liaison de ce poste. Aux postes frontaliers comme Lacolle, le plus court chemin sort souvent par une autre frontière voisine. L'enquête indique les postes réellement franchis par chaque camion : s'en servir pour guider le routage est la prochaine amélioration.
+- **Le niveau de détail des lieux compte.** L'enquête code ses lieux selon les municipalités de 2001, avant les fusions de 2002. Avec les limites municipales de la même année, chaque lieu canadien retrouve sa municipalité. Si on regroupait plutôt les lieux par division de recensement (en général une MRC), 47 % des ramassages et livraisons au Québec changeraient de nœud. La carte permet de comparer les deux niveaux.
 - **Plus d'un camion sur trois roule vide** (37 % une fois pondérés). Ces camions restent dans la moyenne à 0 $, parce que les comptages du Volet 1 les incluent aussi.
 
 ### Ce qui reste à faire

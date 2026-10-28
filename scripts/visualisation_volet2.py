@@ -15,11 +15,14 @@ Pseudo-code
 2. classer_population()   catégorie de chaque camion : qc_poste_qc, qc_poste_hors,
                           transit (aucun CP/CD au QC, mais au moins 1 poste QC franchi)
                           ou ecarte
-3. localiser_points()     CSD 2001 → point représentatif de la CSD 2016 de même code ;
-                          repli sur la division de recensement (4 premiers chiffres),
-                          puis sur la province ; comtés américains → Gazetteer 2020
+3. localiser_points()     SDR 2001 → point représentatif de la SDR 2001 de même code
+                          (même édition que l'ENR) ; repli sur la division de
+                          recensement (DR, 4 premiers chiffres), puis sur la province ;
+                          comtés américains → Gazetteer 2020
 4. rattacher_noeuds()     point québécois → nœud municipal le plus proche du graphe ;
-                          point hors Québec → nœuds frontières candidats
+                          point hors Québec → nœuds frontières candidats ;
+                          agreger_divisions() refait le rattachement au niveau DR,
+                          pour comparaison (affichage seulement, le routage reste en SDR)
 5. router_camions()       plus court chemin (km OSRM) entre nœuds ; pour un bout hors
                           Québec, la frontière qui minimise la distance totale ;
                           cumul des camions et des tonnes par arc et par groupe
@@ -33,7 +36,7 @@ restent modifiables à la volée.
 
 Données ENR : lues hors du dépôt (variable d'environnement ENR_DIR), jamais
 copiées dans Git. La page complète contient des agrégats tirés de l'ENR (flux
-entre CSD) : elle reste locale, dans outputs/ (exclu de Git). L'option
+entre SDR) : elle reste locale, dans outputs/ (exclu de Git). L'option
 --publique écrit en plus docs/volet2/carte_interactive.html, sans flux ni lieux
 ENR : seuls les résultats par arc, par poste et les chiffres globaux y restent.
 
@@ -77,13 +80,25 @@ FICHIER_DJMA   = RACINE / "data" / "processed" / "graphe_routier_djma.gpkg"
 FICHIER_TRACES = RACINE / "data" / "processed" / "graphe_routier.gpkg"
 DIR_REFERENCE  = RACINE / "data" / "reference"
 
-URL_CSD_2016  = ("https://ftp.maps.canada.ca/pub/statcan_statcan/Census_Recensement/"
-                 "census_subdivisions_2016/census_subdivisions_2016_en.gdb.zip")
+# Limites des SDR 2001 (fichier cartographique, MapInfo). Statistique Canada
+# refuse les téléchargements par script : le zip est déposé à la main dans le cache.
+FICHIER_SDR_2001 = DIR_CACHE / "gcsd000b01m_e.zip"
+URL_SDR_2001  = ("https://www12.statcan.gc.ca/census-recensement/2011/geo/bound-limit/"
+                 "bound-limit-2001-fra.cfm")
 URL_COMTES_US = ("https://www2.census.gov/geo/docs/maps-data/data/gazetteer/"
                  "2020_Gazetteer/2020_Gaz_counties_national.zip")
 
 CRS_QC         = "EPSG:32198"
+CRS_STATCAN    = "EPSG:3347"     # Lambert conique de Statistique Canada
 CRS_WGS84      = "EPSG:4326"
+
+# Le fichier des SDR 2001 ne donne pas le nom des provinces (repli rare).
+PROVINCES: dict[str, str] = {
+    "10": "Terre-Neuve-et-Labrador", "11": "Île-du-Prince-Édouard", "12": "Nouvelle-Écosse",
+    "13": "Nouveau-Brunswick", "24": "Québec", "35": "Ontario", "46": "Manitoba",
+    "47": "Saskatchewan", "48": "Alberta", "59": "Colombie-Britannique", "60": "Yukon",
+    "61": "Territoires du Nord-Ouest", "62": "Nunavut",
+}
 DETOUR_ROUTIER = 1.2      # distance routière ≈ 1,2 × vol d'oiseau, hors Québec
 TOL_ARC_M      = 300      # simplification des tracés OSRM pour l'affichage
 TOP_PAIRES     = 5        # paires O-D affichées par arc
@@ -316,46 +331,59 @@ def classer_population(df: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def charger_references_geo() -> tuple[gpd.GeoDataFrame, pd.DataFrame]:
-    """Points représentatifs des CSD 2016 (StatCan) et des comtés américains (Census)."""
-    zip_csd = telecharger(URL_CSD_2016, DIR_CACHE / "csd2016.gdb.zip")
-    gdb = DIR_CACHE / "csd2016" / "census_subdivisions_2016_en.gdb"
-    if not gdb.exists():
-        zipfile.ZipFile(zip_csd).extractall(DIR_CACHE / "csd2016")
-    csd = gpd.read_file(gdb)[["CSDUID", "CSDNAME", "CDUID", "CDNAME", "PRUID", "PRNAME", "geometry"]]
+    """Limites des SDR 2001 (StatCan) et points des comtés américains (Census).
+
+    L'ENR code ses lieux en SDR 2001. Seule l'édition 2001 des limites retrouve
+    tous ses codes : les éditions 2016 à 2024 n'en retrouvent qu'environ 36 % au
+    Québec, à cause des fusions municipales de 2002.
+    """
+    if not FICHIER_SDR_2001.exists():
+        raise FileNotFoundError(
+            f"{FICHIER_SDR_2001} absent : télécharger dans un navigateur le fichier "
+            f"cartographique MapInfo des subdivisions de recensement depuis {URL_SDR_2001}")
+    sdr = gpd.read_file(f"zip://{FICHIER_SDR_2001}!gcsd000b02m_e/gcsd000b02m_e.MIF",
+                        columns=["CSDUID", "CSDNAME", "PRUID"])
+    sdr = (sdr.to_crs(CRS_STATCAN)                     # une SDR peut compter plusieurs polygones
+              .dissolve(by="CSDUID", aggfunc={"CSDNAME": "first", "PRUID": "first"}).reset_index())
+    sdr["CDUID"] = sdr["CSDUID"].str[:4]
 
     zip_us = telecharger(URL_COMTES_US, DIR_CACHE / "us_counties_2020.zip")
     with zipfile.ZipFile(zip_us) as z:
         nom = [n for n in z.namelist() if n.endswith(".txt")][0]
         comtes = pd.read_csv(z.open(nom), sep="\t", dtype={"GEOID": str})
     comtes.columns = [c.strip() for c in comtes.columns]
-    return csd, comtes[["USPS", "GEOID", "NAME", "INTPTLAT", "INTPTLONG"]]
+    return sdr, comtes[["USPS", "GEOID", "NAME", "INTPTLAT", "INTPTLONG"]]
 
 
-def cle_lieu(prov: pd.Series, csd: pd.Series, comte: pd.Series) -> pd.Series:
-    """Clé brute d'un lieu ENR : CSD (Canada), comté FIPS ou État (États-Unis)."""
+def cle_lieu(prov: pd.Series, sdr: pd.Series, comte: pd.Series) -> pd.Series:
+    """Clé brute d'un lieu ENR : SDR (Canada), comté FIPS ou État (États-Unis)."""
     cle = pd.Series(None, index=prov.index, dtype=object)
-    canada = prov.str.startswith("CA-") & (csd.str.len() == 7)
+    canada = prov.str.startswith("CA-") & (sdr.str.len() == 7)
     usa = prov.str.startswith("US-")
-    cle[canada] = "C" + csd[canada]
+    cle[canada] = "C" + sdr[canada]
     avec_comte = usa & (comte.str.len() == 5)
     cle[avec_comte] = "U" + comte[avec_comte]
     cle[usa & ~avec_comte] = "S" + prov[usa & ~avec_comte].str[3:]
     return cle
 
 
-def localiser_points(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """CSD 2001 → CSD 2016 de même code, sinon division de recensement, sinon province."""
-    csd, comtes = charger_references_geo()
-    rep = csd.copy()
+def localiser_points(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """SDR 2001 de même code, sinon division de recensement (DR), sinon province.
+
+    Renvoie aussi les points représentatifs des DR touchées, pour le rattachement
+    au niveau DR (comparaison des deux granularités).
+    """
+    sdr, comtes = charger_references_geo()
+    rep = sdr.copy()
     rep["geometry"] = rep.geometry.representative_point()
     rep = rep.to_crs(CRS_WGS84)
     rep["lon"], rep["lat"] = rep.geometry.x, rep.geometry.y
-    par_csd = rep.set_index("CSDUID")
+    par_sdr = rep.set_index("CSDUID")
 
-    cd = csd.dissolve(by="CDUID", aggfunc={"CDNAME": "first", "PRUID": "first"})
-    cd["geometry"] = cd.geometry.representative_point()
-    cd = cd.to_crs(CRS_WGS84)
-    pr = csd.dissolve(by="PRUID", aggfunc={"PRNAME": "first"})
+    dr = sdr.dissolve(by="CDUID", aggfunc={"PRUID": "first"})
+    dr["geometry"] = dr.geometry.representative_point()
+    dr = dr.to_crs(CRS_WGS84)
+    pr = sdr.dissolve(by="PRUID")
     pr["geometry"] = pr.geometry.representative_point()
     pr = pr.to_crs(CRS_WGS84)
 
@@ -369,33 +397,40 @@ def localiser_points(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         df[["cle_cd", "CD_PROV"]].set_axis(["cle", "prov"], axis=1),
     ]).dropna().drop_duplicates("cle").set_index("cle")["prov"]
 
-    resolus: dict[str, tuple] = {}   # clé brute → (id_point, lon, lat, qualité, prov, nom)
+    resolus: dict[str, tuple] = {}   # clé brute → (id_point, lon, lat, qualité, prov, nom, DR)
     for cle, prov in prov_par_cle.items():
         code, pays = cle[1:], ("US" if prov.startswith("US-") else prov)
-        if cle[0] == "C" and code in par_csd.index:
-            r = par_csd.loc[code]
-            resolus[cle] = (cle, r.lon, r.lat, "csd", prov, r.CSDNAME)
-        elif cle[0] == "C" and code[:4] in cd.index:
-            r = cd.loc[code[:4]]
-            resolus[cle] = ("D" + code[:4], r.geometry.x, r.geometry.y, "cd", prov, f"{r.CDNAME} (division)")
+        id_dr = "D" + code[:4] if cle[0] == "C" and code[:4] in dr.index else None
+        if cle[0] == "C" and code in par_sdr.index:
+            r = par_sdr.loc[code]
+            resolus[cle] = (cle, r.lon, r.lat, "sdr", prov, r.CSDNAME, id_dr)
+        elif id_dr is not None:
+            r = dr.loc[code[:4]]
+            resolus[cle] = (id_dr, r.geometry.x, r.geometry.y, "dr", prov, f"DR {code[:4]} (division)", id_dr)
         elif cle[0] == "C" and code[:2] in pr.index:
             r = pr.loc[code[:2]]
-            resolus[cle] = ("P" + code[:2], r.geometry.x, r.geometry.y, "prov", prov, f"{r.PRNAME} (province)")
+            resolus[cle] = ("P" + code[:2], r.geometry.x, r.geometry.y, "prov", prov,
+                            f"{PROVINCES.get(code[:2], code[:2])} (province)", None)
         elif cle[0] == "U" and code in comtes.index:
             r = comtes.loc[code]
-            resolus[cle] = (cle, r.INTPTLONG, r.INTPTLAT, "comte", pays, f"{r.NAME}, {r.USPS}")
+            resolus[cle] = (cle, r.INTPTLONG, r.INTPTLAT, "comte", pays, f"{r.NAME}, {r.USPS}", None)
         elif prov[3:] in etats.index:
             r = etats.loc[prov[3:]]
-            resolus[cle] = ("S" + prov[3:], r.INTPTLONG, r.INTPTLAT, "etat", pays, f"{prov[3:]} (État)")
+            resolus[cle] = ("S" + prov[3:], r.INTPTLONG, r.INTPTLAT, "etat", pays, f"{prov[3:]} (État)", None)
 
-    points = (pd.DataFrame(resolus.values(), columns=["pid", "lon", "lat", "qual", "prov", "nom"])
+    points = (pd.DataFrame(resolus.values(), columns=["pid", "lon", "lat", "qual", "prov", "nom", "dr"])
                 .drop_duplicates("pid").reset_index(drop=True))
     index_point = {pid: i for i, pid in enumerate(points["pid"])}
     vers_id = {cle: index_point[v[0]] for cle, v in resolus.items()}
     df["o_pt"] = df["cle_cp"].map(vers_id).astype("Int64")
     df["d_pt"] = df["cle_cd"].map(vers_id).astype("Int64")
     df["localise"] = df["o_pt"].notna() & df["d_pt"].notna()
-    return df, points
+
+    divisions = (points.dropna(subset=["dr"]).drop_duplicates("dr")[["dr", "prov"]]
+                       .rename(columns={"dr": "pid"}).reset_index(drop=True))
+    centre = dr.geometry.loc[divisions["pid"].str[1:]]
+    divisions["lon"], divisions["lat"] = centre.x.to_numpy(), centre.y.to_numpy()
+    return df, points, divisions
 
 
 # ---------------------------------------------------------------------------
@@ -624,6 +659,41 @@ def agreger_noeuds(df: pd.DataFrame, points: pd.DataFrame, noeuds: gpd.GeoDataFr
     return liste_noeuds, list(zip(rattache, poids))
 
 
+def agreger_divisions(points: pd.DataFrame, divisions: pd.DataFrame, rattache: list) -> tuple[dict, dict, dict]:
+    """Rattachement au niveau DR, pour comparer les deux granularités.
+
+    Chaque DR québécoise va au nœud municipal le plus proche de son point
+    représentatif ; une DR hors Québec, à la frontière la plus retenue par ses
+    SDR. Le routage, lui, reste au niveau SDR : on mesure seulement la part des
+    bouts québécois qui changeraient de nœud.
+    """
+    pts = points.assign(noeud=[r[0] for r in rattache], n3=[r[1] for r in rattache])
+    pts = pts[pts["dr"].notna() & (pts["n3"] > 0)]
+    par_dr = pts.groupby("dr").agg(n3=("n3", "sum"), nsdr=("pid", "size"))
+    principale = pts.sort_values("n3").groupby("dr")["nom"].last()        # SDR qui pèse le plus
+    frontiere = (pts.groupby(["dr", "noeud"])["n3"].sum().reset_index()
+                    .sort_values("n3").drop_duplicates("dr", keep="last").set_index("dr")["noeud"])
+
+    div = divisions.set_index("pid").loc[par_dr.index]
+    au_qc = div["prov"] == "CA-QC"
+    div["noeud"] = div["noeud"].where(au_qc, frontiere.reindex(div.index))
+    qc = pts[pts["prov"] == "CA-QC"]
+    change = qc["noeud"].to_numpy() != div["noeud"].reindex(qc["dr"]).to_numpy()
+    stats = {
+        "n_sdr_qc": int(len(qc)), "n_dr_qc": int(au_qc.sum()),
+        "noeuds_sdr": int(qc["noeud"].nunique()), "noeuds_dr": int(div.loc[au_qc, "noeud"].nunique()),
+        "part_change": round(float(qc["n3"][change].sum() / qc["n3"].sum()), 4),
+    }
+    couche = {
+        "code": div.index.str[1:].tolist(), "lon": div["lon"].round(4).tolist(), "lat": div["lat"].round(4).tolist(),
+        "prov": div["prov"].tolist(), "principale": principale.reindex(div.index).tolist(),
+        "nsdr": par_dr["nsdr"].astype(int).tolist(), "n3": par_dr["n3"].round().astype(int).tolist(),
+        "noeud": div["noeud"].tolist(),
+        "dist": [None if pd.isna(v) else round(float(v), 1) for v in div["dist_noeud_km"]],
+    }
+    return couche, stats, {pid: i for i, pid in enumerate(div.index)}
+
+
 def fond_de_carte() -> dict:
     """Natural Earth 50 m (provinces/États, océan, lacs), simplifié pour le web."""
     emprise = box(-175, 0, -20, 85)
@@ -703,7 +773,7 @@ def extraits_code() -> dict[str, str]:
         "statcan": inspect.getsource(verifier_statcan),
         "population": inspect.getsource(classer_population),
         "localisation": inspect.getsource(cle_lieu) + "\n\n" + inspect.getsource(localiser_points),
-        "rattachement": inspect.getsource(rattacher_noeuds),
+        "rattachement": inspect.getsource(rattacher_noeuds) + "\n\n" + inspect.getsource(agreger_divisions),
         "routage": inspect.getsource(router_camions) + "\n\n" + inspect.getsource(cumuler_par_arc),
         "postes": inspect.getsource(valider_postes),
         "chargement": inspect.getsource(charger_enr) + "\n\n" + inspect.getsource(groupe_marchandise),
@@ -718,6 +788,7 @@ def version_publique(donnees: dict) -> dict:
     publique = dict(donnees)
     publique["flux"] = {k: [] for k in donnees["flux"]}
     publique["points"] = {k: [] for k in donnees["points"]}
+    publique["divisions"] = {k: [] for k in donnees["divisions"]}
     publique["noeuds"] = [{**n, "n3": 0, "t3": 0, "n3_vides": 0, "n3_local": 0, "npts": 0} for n in donnees["noeuds"]]
     publique["meta"] = {**donnees["meta"], "publique": True}
     return publique
@@ -738,11 +809,12 @@ def main(publique: bool = False) -> None:
     """Exécute la chaîne complète et écrit la page (et sa version publique si demandé)."""
     print("[1/7] ENR")
     df = classer_population(charger_enr())
-    print("[2/7] localisation des CSD et des comtés")
-    df, points = localiser_points(df)
+    print("[2/7] localisation des SDR 2001 et des comtés")
+    df, points, divisions = localiser_points(df)
     print("[3/7] graphe et rattachement aux nœuds")
     G, arcs, noeuds = charger_graphe()
     points = rattacher_noeuds(points, noeuds)
+    divisions = rattacher_noeuds(divisions, noeuds)
     noms = dict(zip(noeuds["ID"], noeuds["NOM"]))
     print("[4/7] routage")
     df, routes = router_camions(df, points, G)
@@ -752,6 +824,7 @@ def main(publique: bool = False) -> None:
     postes, synthese_postes = valider_postes(df, traces)
     print("[6/7] agrégats d'affichage")
     liste_noeuds, rattache = agreger_noeuds(df, points, noeuds)
+    couche_dr, stats_dr, index_dr = agreger_divisions(points, divisions, rattache)
 
     garde = df[df["garde"]]
     bouts = pd.concat([garde[["o_pt", "n3"]].rename(columns={"o_pt": "pt"}),
@@ -775,6 +848,7 @@ def main(publique: bool = False) -> None:
         "n_localises_garde": int(garde["localise"].sum()),
         "n_points": int(len(points)),
         "qualite_bouts": qualite_bouts,
+        "niveau_dr": stats_dr,
         "n_local": int(df["local"].sum()), "n3_local": round(float(df.loc[df["local"], "n3"].sum())),
         "n_route": int(df["route"].sum()), "n3_route": round(float(df.loc[df["route"], "n3"].sum())),
         "n_paires_routees": int(routes["arcs"].map(len).gt(0).sum()),
@@ -796,7 +870,9 @@ def main(publique: bool = False) -> None:
             "qual": points["qual"].tolist(), "prov": points["prov"].tolist(), "nom": points["nom"].tolist(),
             "noeud": [r[0] for r in rattache], "n3": [r[1] for r in rattache],
             "dist": [None if pd.isna(v) else round(float(v), 1) for v in points["dist_noeud_km"]],
+            "dr": [index_dr.get(v) for v in points["dr"]],
         },
+        "divisions": couche_dr,
         "flux": agreger_flux(df),
         "postes": postes,
         "code": extraits_code(),

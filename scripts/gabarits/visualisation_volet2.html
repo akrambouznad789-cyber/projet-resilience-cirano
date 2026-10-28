@@ -249,7 +249,7 @@ const C = {
   or:   ["#f8e2a8", "#f0c35b", "#dc9600", "#a66d00", "#6b4600"],
   div:  ["#b8401c", "#e9845c", "#f4c3a8", "#c8c6bf", "#a9c8ef", "#4a8ddb", "#1c4f95"],
   cat:  ["#2a78d6", "#eb6834", "#1baf7a"], ecarte: "#a9a69c",
-  qual: { csd: "#1f5fae", cd: "#86b6ef", comte: "#1baf7a", etat: "#9fdcc3", prov: "#eb6834" },
+  qual: { sdr: "#1f5fae", dr: "#86b6ef", comte: "#1baf7a", etat: "#9fdcc3", prov: "#eb6834" },
   chemin: ["#e9845c", "#f4c3a8", "#a9c8ef", "#3f86d9"],
 };
 const CATS = [
@@ -258,7 +258,7 @@ const CATS = [
   ["transit", "Traversent le Québec sans y charger ni livrer"],
   ["ecarte", "Ne touchent pas le Québec : écartés"],
 ];
-const QUAL = [["csd", "CSD 2001 retrouvée en 2016"], ["cd", "Repli : division de recensement"], ["prov", "Repli : province"],
+const QUAL = [["sdr", "SDR 2001 exacte"], ["dr", "Repli : division de recensement (DR)"], ["prov", "Repli : province"],
               ["comte", "Comté américain"], ["etat", "État américain (comté absent)"]];
 
 // ---------- Formats ----------
@@ -279,6 +279,7 @@ function arrondi2(x) { if (!x) return x; const p = Math.pow(10, Math.floor(Math.
 
 // ---------- Données dérivées ----------
 const P = D.points, F = D.flux, PA = D.par_arc;
+const DV = D.divisions;                  // niveau DR : une ligne par division de recensement touchée
 const ARCS = D.arcs.features.map(f => f.properties);
 const posArc = new Map(PA.ids.map((id, i) => [id, i]));
 const parId = new Map(ARCS.map(p => [p.id, p]));
@@ -312,7 +313,7 @@ const S = {
   etape: 0, etapeA: 1, comparer: false, onglet: "lecture",
   groupes: new Set(GRP.map(g => g[0])), poids: "n3", methode: "m4",
   vue: { 1: "n", 2: "gardes", 3: "nobs", 4: "deux", 5: "camions" },
-  couleurPostes: "neutre",
+  couleurPostes: "neutre", niveau: "sdr",
   prix: {}, inconnu: "moyenne", facteur: 1, indice2017: "", indice2026: "",
   selection: null, selPoste: null,
 };
@@ -756,7 +757,7 @@ function construireCouches(map) {
   map.addSource("points", { type: "geojson", data: pointsGeojson() });
   map.addLayer({ id: "points", type: "circle", source: "points",
                  paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 1.8, 8, 4],
-                          "circle-color": ["match", ["get", "qual"], "csd", C.qual.csd, "cd", C.qual.cd, "comte", C.qual.comte,
+                          "circle-color": ["match", ["get", "qual"], "sdr", C.qual.sdr, "dr", C.qual.dr, "comte", C.qual.comte,
                                            "etat", C.qual.etat, C.qual.prov],
                           "circle-stroke-color": "#fff", "circle-stroke-width": 0.6 } });
 
@@ -775,33 +776,53 @@ function construireCouches(map) {
   map.addControl(new MOTEUR.NavigationControl({ showCompass: false }), "top-right");
   map.addControl(new MOTEUR.ScaleControl({ unit: "metric" }), "bottom-left");
   map.addControl(new MOTEUR.AttributionControl({ compact: true,
-    customAttribution: (MOTEUR === MoteurCanvas ? "Rendu simplifié sans accélération graphique · " : "") + "Natural Earth · StatCan CSD 2016 · US Census · ENR 2006-2007 (MTQ, Transports Canada)" }), "bottom-right");
+    customAttribution: (MOTEUR === MoteurCanvas ? "Rendu simplifié sans accélération graphique · " : "") + "Natural Earth · StatCan SDR 2001 · US Census · ENR 2006-2007 (MTQ, Transports Canada)" }), "bottom-right");
   ajouterEtiquettes(map);
 }
 
+// Au niveau DR, les SDR canadiennes cèdent la place à leur division ; les lieux américains restent
+const remplaceeParDr = i => S.niveau === "dr" && P.dr[i] != null;
 function rattacheGeojson() {
   const f = [];
-  for (let i = 0; i < P.lon.length; i++) {
-    const n = P.noeud[i] && noeudParId.get(P.noeud[i]);
-    if (!n || !P.n3[i]) continue;
-    f.push({ type: "Feature", properties: { ext: P.prov[i] !== "CA-QC" }, geometry: { type: "LineString", coordinates: [[P.lon[i], P.lat[i]], [n.lon, n.lat]] } });
-  }
+  const ligne = (lon, lat, id, prov) => {
+    const n = id && noeudParId.get(id);
+    if (n) f.push({ type: "Feature", properties: { ext: prov !== "CA-QC" }, geometry: { type: "LineString", coordinates: [[lon, lat], [n.lon, n.lat]] } });
+  };
+  for (let i = 0; i < P.lon.length; i++) if (P.n3[i] && !remplaceeParDr(i)) ligne(P.lon[i], P.lat[i], P.noeud[i], P.prov[i]);
+  if (S.niveau === "dr") for (let j = 0; j < DV.lon.length; j++) ligne(DV.lon[j], DV.lat[j], DV.noeud[j], DV.prov[j]);
   return { type: "FeatureCollection", features: f };
 }
 function pointsGeojson() {
   const f = [];
   for (let i = 0; i < P.lon.length; i++) {
-    if (!P.n3[i]) continue;
+    if (!P.n3[i] || remplaceeParDr(i)) continue;
     f.push({ type: "Feature", properties: { i, qual: P.qual[i], n3: P.n3[i] },
              geometry: { type: "Point", coordinates: [P.lon[i], P.lat[i]] } });
   }
+  if (S.niveau === "dr") for (let j = 0; j < DV.lon.length; j++)
+    f.push({ type: "Feature", properties: { d: j, qual: "dr", n3: DV.n3[j] },
+             geometry: { type: "Point", coordinates: [DV.lon[j], DV.lat[j]] } });
   return { type: "FeatureCollection", features: f };
 }
-const N3MAX = Math.max(1, ...NOEUDS.map(n => n.n3));
+// Niveau DR : les bouts québécois passent au nœud de leur division ; le reste ne bouge pas
+const N3_DR = new Map(NOEUDS.map(n => [n.id, n.n3]));
+for (let i = 0; i < P.lon.length; i++)
+  if (P.prov[i] === "CA-QC" && P.dr[i] != null && P.n3[i]) N3_DR.set(P.noeud[i], N3_DR.get(P.noeud[i]) - P.n3[i]);
+for (let j = 0; j < DV.lon.length; j++)
+  if (DV.prov[j] === "CA-QC") N3_DR.set(DV.noeud[j], N3_DR.get(DV.noeud[j]) + DV.n3[j]);
+const n3Noeud = n => S.niveau === "dr" ? Math.max(0, N3_DR.get(n.id)) : n.n3;
+const N3MAX = Math.max(1, ...NOEUDS.map(n => Math.max(n.n3, N3_DR.get(n.id))));   // même échelle aux deux niveaux
 function noeudsGeojson() {
   return { type: "FeatureCollection", features: NOEUDS.map(n => ({
-    type: "Feature", properties: { id: n.id, type: n.type, n3: n.n3, r: 2.5 + 30 * Math.sqrt(n.n3 / N3MAX) },
+    type: "Feature", properties: { id: n.id, type: n.type, n3: n3Noeud(n), r: 2.5 + 30 * Math.sqrt(n3Noeud(n) / N3MAX) },
     geometry: { type: "Point", coordinates: [n.lon, n.lat] } })) };
+}
+function majNiveau() {
+  pourChaqueCarte(m => {
+    m.getSource("points").setData(pointsGeojson());
+    m.getSource("rattache").setData(rattacheGeojson());
+    m.getSource("noeuds").setData(noeudsGeojson());
+  });
 }
 function postesGeojson() {
   const champ = S.vue[3] === "n3" ? "n3" : "nobs", max = Math.max(...POSTES.map(p => p[champ]));
@@ -1041,7 +1062,7 @@ function rendreLecture() {
   if (k === 1) {
     h += tete(`${fmt(M.n_total)} camions enquêtés`, "L'Enquête nationale en bordure de route 2006-2007, partout au Canada. Chaque ligne relie un lieu de ramassage à un lieu de livraison.");
     h += `<div class="tuiles">${tuile(fmt(M.n_total), "camions enquêtés, 1 fiche chacun")}${tuile(compact(M.n3_total), "trajets par an une fois pondérés (adjwgt3)")}
-      ${tuile(fmt(M.n_points), "lieux localisés (CSD, comtés)")}${tuile(pct(M.pct_vides_total), "des camions enquêtés roulent vides")}</div>`;
+      ${tuile(fmt(M.n_points), "lieux localisés (SDR, comtés)")}${tuile(pct(M.pct_vides_total), "des camions enquêtés roulent vides")}</div>`;
     if (!PUBLIQUE) {
       h += `<div class="bloc"><h3>Épaisseur des lignes</h3>${segment("vue1", [["n", "Trajets par an (pondéré)"], ["nobs", "Camions enquêtés (brut)"]], S.vue[1])}</div>`;
       h += puces();
@@ -1090,16 +1111,21 @@ function rendreLecture() {
     h += `<p class="note attention">Positions <b>approximatives</b> : la localité du poste, saisie à la main d'après le libellé de l'ENR, puis accrochée au tracé le plus proche. À valider.</p>`;
   }
   if (k === 4) {
-    const q = M.qualite_bouts, ordre = ["csd", "cd", "prov", "comte", "etat"];
-    h += tete("Ramassages et livraisons → nœuds", "L'ENR ne donne qu'un code de municipalité (CSD de 2001). Chaque lieu québécois va au nœud municipal le plus proche ; un lieu hors Québec, à une frontière.");
-    h += `<div class="tuiles">${tuile(pct(q.csd), "des bouts de trajet : CSD exacte")}${tuile(pct(q.cd), "repli sur la division de recensement")}
+    const q = M.qualite_bouts, ordre = ["sdr", "dr", "prov", "comte", "etat"], nd = M.niveau_dr;
+    h += tete("Ramassages et livraisons → nœuds", "L'ENR ne donne qu'un code de municipalité (SDR de 2001). Chaque lieu québécois va au nœud municipal le plus proche ; un lieu hors Québec, à une frontière.");
+    h += `<div class="tuiles">${tuile(pct(q.sdr), "des bouts de trajet : SDR 2001 exacte")}${tuile(pct(nd.part_change), "des bouts québécois changeraient de nœud au niveau DR")}
       ${tuile(fmt(M.n_local), "trajets locaux exclus (même nœud aux 2 bouts)")}${tuile(pct((q.comte || 0) + (q.etat || 0)), "aux États-Unis (comté ou État)")}</div>`;
-    if (!PUBLIQUE) h += `<div class="bloc"><h3>Afficher</h3>${segment("vue4", [["deux", "Lieux et nœuds"], ["lieux", "Lieux seulement"], ["noeuds", "Nœuds agrégés"]], S.vue[4])}</div>`;
+    if (!PUBLIQUE) h += `<div class="bloc"><h3>Niveau des lieux</h3>${segment("niveau", [["sdr", "SDR · municipalité"], ["dr", "DR · division"]], S.niveau)}
+      <h3>Afficher</h3>${segment("vue4", [["deux", "Lieux et nœuds"], ["lieux", "Lieux seulement"], ["noeuds", "Nœuds agrégés"]], S.vue[4])}</div>`;
+    h += `<div class="bloc"><h3>Deux granularités, au Québec</h3><table class="tab"><thead><tr><th></th><th>SDR</th><th>DR</th></tr></thead><tbody>
+      <tr><td style="text-align:left">Lieux où l'on charge ou livre</td><td>${fmt(nd.n_sdr_qc)}</td><td>${fmt(nd.n_dr_qc)}</td></tr>
+      <tr><td style="text-align:left">Nœuds municipaux atteints</td><td>${fmt(nd.noeuds_sdr)}</td><td>${fmt(nd.noeuds_dr)}</td></tr></tbody></table></div>`;
     h += `<div class="bloc"><h3>Précision de la localisation (bouts pondérés)</h3>
       <div class="barre-empilee" role="img" aria-label="Précision de la localisation">${ordre.map(o => `<div style="flex:${q[o] || 0};background:${C.qual[o]}" title="${esc(QUAL.find(x => x[0] === o)[1])} : ${pct(q[o])}"></div>`).join("")}</div>
       ${QUAL.map(([o, l]) => `<div class="leg"><svg viewBox="0 0 30 12" aria-hidden="true"><circle cx="15" cy="6" r="4.5" fill="${C.qual[o]}" stroke="#fff"/></svg><span>${esc(l)}</span><span class="n">${pct(q[o] || 0)}</span></div>`).join("")}</div>`;
-    if (!PUBLIQUE && S.vue[4] !== "lieux") h += `<div class="legende"><h3>Cercles bleus : bouts de trajet par nœud</h3><p class="sous">Aire proportionnelle aux ramassages + livraisons pondérés (par an). Max : ${compact(N3MAX)} au nœud le plus chargé.</p></div>`;
-    h += `<p class="note">Les fusions municipales de 2002 ont fait disparaître beaucoup de codes CSD de 2001 (Montréal, Québec, Lévis, Gatineau…). Ces lieux se replient sur leur division de recensement (ex. l'île de Montréal), ce qui suffit pour choisir un nœud.</p>`;
+    if (!PUBLIQUE && S.vue[4] !== "lieux") h += `<div class="legende"><h3>Cercles bleus : bouts de trajet par nœud</h3><p class="sous">Aire proportionnelle aux ramassages + livraisons pondérés (par an). Max : ${compact(N3MAX)} au nœud le plus chargé, même échelle en SDR et en DR.</p></div>`;
+    h += `<p class="note">L'ENR code ses lieux en SDR de 2001, avant les fusions municipales de 2002. La page lit les limites de 2001, la même édition : chaque code retrouve sa municipalité. Avec les limites de 2016 à 2024, seuls 36 % environ des codes québécois se retrouvaient.</p>`;
+    h += `<p class="note">Le niveau DR regroupe les SDR par division de recensement (en général une MRC) et rattache chaque division au nœud le plus proche de son centre. C'est une comparaison : le routage des étapes 5 à 8 reste au niveau SDR.</p>`;
     h += `<p class="note">Hors Québec, la frontière est choisie trajet par trajet : celle qui minimise <b>${M.detour.toLocaleString("fr-CA")} × vol d'oiseau + chemin dans le graphe</b>.${PUBLIQUE ? "" : " Les lignes grises montrent la frontière la plus souvent retenue pour chaque lieu."}</p>`;
   }
   if (k === 5) {
@@ -1201,7 +1227,7 @@ const CODE = {
   1: [["py", "charger_enr() · groupe_marchandise()", D.code.chargement]],
   2: [["py", "classer_population()", D.code.population]],
   3: [["py", "valider_postes()", D.code.postes]],
-  4: [["py", "cle_lieu() · localiser_points()", D.code.localisation], ["py", "rattacher_noeuds()", D.code.rattachement]],
+  4: [["py", "cle_lieu() · localiser_points()", D.code.localisation], ["py", "rattacher_noeuds() · agreger_divisions()", D.code.rattachement]],
   5: [["py", "router_camions() · cumuler_par_arc()", D.code.routage]],
   6: [["js", "valoriserArc() — dans cette page", valoriserArc.toString()], ["py", "Table de passage ENR → groupes de travail", D.code.table]],
   7: [["js", "actualiser() — dans cette page", actualiser.toString()], ["py", "verifier_statcan()", D.code.statcan]],
@@ -1212,7 +1238,7 @@ const RESUME = {
   1: "Jointure 1 pour 1 des quatre fichiers ENR, puis tonnes annuelles = kg du chargement ÷ 1 000 × trajets annualisés.",
   2: "Le filtre du 2026-10-20, appliqué tel quel : 37 603 camions.",
   3: "Chaque poste est accroché au tracé le plus proche ; on mesure ensuite si les chemins calculés y passent.",
-  4: "D'abord on trouve des coordonnées pour chaque code de l'ENR, ensuite on rattache chaque lieu à un nœud.",
+  4: "D'abord on trouve des coordonnées pour chaque code de l'ENR, ensuite on rattache chaque lieu à un nœud. Le niveau DR refait ce rattachement, pour comparaison.",
   5: "Un plus court chemin par paire de lieux, réutilisé par tous les camions de la paire, puis un cumul par arc et par groupe.",
   6: "Ce calcul tourne dans la page : il se refait à chaque modification d'un $/t.",
   7: "Le facteur multiplie tous les $/t. La fonction Python teste l'API StatCan à chaque génération de la page.",
@@ -1238,6 +1264,7 @@ function brancherLecture() {
     else if (cle === "poids") S.poids = v;
     else if (cle === "inconnu") S.inconnu = v;
     else if (cle === "couleurPostes") S.couleurPostes = v;
+    else if (cle === "niveau") { S.niveau = v; majNiveau(); }
     else S.vue[+cle.slice(3)] = v;
     toutRafraichir();
   }));
@@ -1307,11 +1334,15 @@ function contenuBulle(map, f, k) {
     const n = noeudParId.get(f.properties.id);
     const types = { municipalite: "municipalité", noeud_intermediaire: "nœud intermédiaire", frontiere_canada: "frontière (Canada)", frontiere_usa: "frontière (États-Unis)" };
     if (PUBLIQUE) return `<strong>${esc(n.nom)}</strong>${l("Type", esc(types[n.type] || n.type))}`;
-    return `<strong>${esc(n.nom)}</strong>${l("Type", esc(types[n.type] || n.type))}${l("Ramassages + livraisons/an", fmt(n.n3))}${l("dont vides", fmt(n.n3_vides))}${l("Lieux rattachés", fmt(n.npts))}${n.n3_local ? l("Trajets locaux exclus/an", fmt(n.n3_local)) : ""}`;
+    return `<strong>${esc(n.nom)}</strong>${l("Type", esc(types[n.type] || n.type))}${l("Ramassages + livraisons/an", fmt(k === 4 ? n3Noeud(n) : n.n3) + (k === 4 && S.niveau === "dr" ? " (DR)" : ""))}${l("dont vides", fmt(n.n3_vides))}${l("Lieux rattachés", fmt(n.npts))}${n.n3_local ? l("Trajets locaux exclus/an", fmt(n.n3_local)) : ""}`;
+  }
+  if (L === "points" && f.properties.d != null) {
+    const j = f.properties.d, n = DV.noeud[j] && noeudParId.get(DV.noeud[j]);
+    return `<strong>Division de recensement ${esc(DV.code[j])}</strong>${l("SDR qui pèse le plus", esc(DV.principale[j]))}${l("SDR regroupées", fmt(DV.nsdr[j]))}${l("Bouts de trajet/an", fmt(DV.n3[j]))}${n ? l("Nœud", esc(n.nom)) : ""}${DV.dist[j] != null ? l("Distance au nœud", DV.dist[j] + " km") : ""}`;
   }
   if (L === "points") {
     const i = f.properties.i, n = P.noeud[i] && noeudParId.get(P.noeud[i]);
-    return `<strong>${esc(P.nom[i])}</strong>${l("Localisation", esc(QUAL.find(q => q[0] === P.qual[i])[1]))}${l("Bouts de trajet/an", fmt(P.n3[i]))}${n ? l("Nœud", esc(n.nom)) : ""}${P.dist[i] != null ? l("Distance au nœud", P.dist[i] + " km") : ""}`;
+    return `<strong>${esc(P.nom[i])}</strong>${l("Localisation", esc(QUAL.find(q => q[0] === P.qual[i])[1]))}${P.dr[i] != null ? l("Division (DR)", esc(DV.code[P.dr[i]])) : ""}${l("Bouts de trajet/an", fmt(P.n3[i]))}${n ? l("Nœud", esc(n.nom)) : ""}${P.dist[i] != null ? l("Distance au nœud", P.dist[i] + " km") : ""}`;
   }
   if (L === "postes") {
     const p = POSTES.find(x => x.code === f.properties.code);

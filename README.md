@@ -68,7 +68,7 @@ Les mêmes pages se lisent aussi directement sur GitHub, dans [`docs/`](docs/don
 
 **[Ouvrir la carte interactive →](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet2/carte_interactive.html)** Elle compte 9 étapes, avec la même barre à gauche que le Volet 1, un mode de comparaison entre deux étapes, des prix modifiables et le code de chaque étape. Elle fonctionne dans tout navigateur récent, même sans accélération graphique.
 
-À ce stade, les étapes de données sont réelles : 37 603 camions retenus, 36 847 rejoués sur le réseau. Les prix par tonne et l'actualisation en dollars de 2026 sont encore provisoires ; les montants affichés ne doivent pas être cités. La méthode, les premiers constats et la suite sont décrits sur la page [Volet 2](docs/volet2.md).
+À ce stade, les étapes de données sont réelles : 37 603 camions retenus, 36 879 rejoués sur le réseau. Les prix par tonne et l'actualisation en dollars de 2026 sont encore provisoires ; les montants affichés ne doivent pas être cités. La méthode, les premiers constats et la suite sont décrits sur la page [Volet 2](docs/volet2.md).
 
 ## Outils, expliqués simplement
 
