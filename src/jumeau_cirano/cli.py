@@ -28,6 +28,14 @@ COMMANDES: dict[str, tuple[str, str, list[tuple[str, dict]]]] = {
     "scenarios": ("fermeture de chaque liaison et de chaque route : criticité et robustesse",
                   "jumeau_cirano.scenarios.commande:executer",
                   [("--objectif", {"help": "configs/objectifs/<nom>.yaml (défaut : celui de la config)"})]),
+    "exporter": ("paquet de service de l'API (outputs/jumeau/service/, confidentiel)",
+                 "jumeau_cirano.api.paquet:executer_export",
+                 [("--objectif", {"help": "configs/objectifs/<nom>.yaml (défaut : celui de la config)"})]),
+    "openapi": ("contrat d'intégration de l'API : docs/api/openapi.json",
+                "jumeau_cirano.api.paquet:executer_openapi", []),
+    "api": ("lance l'API sur le paquet JUMEAU_ARTEFACT",
+            "jumeau_cirano.api.paquet:executer_api",
+            [("--hote", {"default": "127.0.0.1"}), ("--port", {"default": "8000"})]),
 }
 
 

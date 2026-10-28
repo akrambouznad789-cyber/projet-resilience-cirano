@@ -1,0 +1,779 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Jumeau numérique du camionnage québécois (CIRANO)",
+    "description": "Affectation calée des camions sur le réseau routier et scénarios de fermeture. Les réponses ne contiennent que des résultats par route, par liaison ou globaux. Montants en $ provisoires.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/sante": {
+      "get": {
+        "summary": "Sante",
+        "operationId": "sante_sante_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sante"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/modele": {
+      "get": {
+        "summary": "Modele",
+        "operationId": "modele_modele_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Modele"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/affectation": {
+      "post": {
+        "summary": "Affectation",
+        "operationId": "affectation_affectation_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemandeAffectation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Affectation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/scenario": {
+      "post": {
+        "summary": "Scenario",
+        "operationId": "scenario_scenario_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemandeScenario"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Scenario"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/criticite": {
+      "get": {
+        "summary": "Criticite",
+        "operationId": "criticite_criticite_get",
+        "parameters": [
+          {
+            "name": "scenario",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(liaison|route)$",
+              "default": "liaison",
+              "title": "Scenario"
+            }
+          },
+          {
+            "name": "mesure",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "delta_heures_equivalentes",
+                "delta_heures_meilleur",
+                "delta_camions_heures",
+                "delta_camions_km",
+                "trajets_non_desservis",
+                "cout_perturbation",
+                "camions_sur_liaison"
+              ],
+              "type": "string",
+              "default": "delta_heures_equivalentes",
+              "title": "Mesure"
+            }
+          },
+          {
+            "name": "limite",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limite"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LigneCriticite"
+                  },
+                  "title": "Response Criticite Criticite Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Affectation": {
+        "properties": {
+          "theta": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Theta"
+          },
+          "metriques": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Metriques",
+            "description": "sur les sections mesurées en 2025 et l'enquête"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/FluxRoute"
+            },
+            "type": "array",
+            "title": "Routes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "theta",
+          "metriques",
+          "routes"
+        ],
+        "title": "Affectation"
+      },
+      "DemandeAffectation": {
+        "properties": {
+          "theta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Parametres"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "DemandeAffectation"
+      },
+      "DemandeScenario": {
+        "properties": {
+          "liaisons": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Liaisons",
+            "description": "ID_ARC des liaisons fermées (toutes leurs routes)"
+          },
+          "routes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Routes",
+            "description": "ID_ROUTE des routes fermées, en plus"
+          },
+          "theta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Parametres"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seuil_report": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Seuil Report",
+            "description": "reports plus petits (camions par jour) omis",
+            "default": 0.5
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "DemandeScenario"
+      },
+      "FluxRoute": {
+        "properties": {
+          "ID_ROUTE": {
+            "type": "string",
+            "title": "Id Route"
+          },
+          "ID_ARC": {
+            "type": "integer",
+            "title": "Id Arc"
+          },
+          "camions_jour": {
+            "type": "number",
+            "title": "Camions Jour",
+            "description": "camions par jour en 2025"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ID_ROUTE",
+          "ID_ARC",
+          "camions_jour"
+        ],
+        "title": "FluxRoute"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Impacts": {
+        "properties": {
+          "camions_sur_liaison": {
+            "type": "number",
+            "title": "Camions Sur Liaison",
+            "description": "camions par an qui empruntaient ce qui ferme"
+          },
+          "delta_heures_equivalentes": {
+            "type": "number",
+            "title": "Delta Heures Equivalentes",
+            "description": "heures équivalentes perdues par an (logsum) : classement"
+          },
+          "delta_heures_meilleur": {
+            "type": "number",
+            "title": "Delta Heures Meilleur",
+            "description": "par an, sur le meilleur itinéraire seulement"
+          },
+          "delta_camions_heures": {
+            "type": "number",
+            "title": "Delta Camions Heures",
+            "description": "variation des camions-heures par an (temps moyen, descriptif)"
+          },
+          "delta_camions_km": {
+            "type": "number",
+            "title": "Delta Camions Km"
+          },
+          "trajets_non_desservis": {
+            "type": "number",
+            "title": "Trajets Non Desservis",
+            "description": "trajets par an sans aucun chemin (coupure)"
+          },
+          "tonnes_sur_liaison": {
+            "type": "number",
+            "title": "Tonnes Sur Liaison"
+          },
+          "valeur_sur_liaison": {
+            "type": "number",
+            "title": "Valeur Sur Liaison",
+            "description": "$ par an, valeur par tonne PROVISOIRE"
+          },
+          "cout_perturbation": {
+            "type": "number",
+            "title": "Cout Perturbation",
+            "description": "$ par an, coût horaire PROVISOIRE"
+          }
+        },
+        "type": "object",
+        "required": [
+          "camions_sur_liaison",
+          "delta_heures_equivalentes",
+          "delta_heures_meilleur",
+          "delta_camions_heures",
+          "delta_camions_km",
+          "trajets_non_desservis",
+          "tonnes_sur_liaison",
+          "valeur_sur_liaison",
+          "cout_perturbation"
+        ],
+        "title": "Impacts"
+      },
+      "LigneCriticite": {
+        "properties": {
+          "scenario": {
+            "type": "string",
+            "title": "Scenario"
+          },
+          "ID_ARC": {
+            "type": "integer",
+            "title": "Id Arc"
+          },
+          "ID_ROUTE": {
+            "type": "string",
+            "title": "Id Route"
+          },
+          "VILLE_A": {
+            "type": "string",
+            "title": "Ville A"
+          },
+          "VILLE_B": {
+            "type": "string",
+            "title": "Ville B"
+          },
+          "rang": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rang"
+          },
+          "coupure": {
+            "type": "boolean",
+            "title": "Coupure"
+          },
+          "camions_sur_liaison": {
+            "type": "number",
+            "title": "Camions Sur Liaison"
+          },
+          "delta_heures_equivalentes": {
+            "type": "number",
+            "title": "Delta Heures Equivalentes"
+          },
+          "delta_heures_meilleur": {
+            "type": "number",
+            "title": "Delta Heures Meilleur"
+          },
+          "delta_camions_km": {
+            "type": "number",
+            "title": "Delta Camions Km"
+          },
+          "trajets_non_desservis": {
+            "type": "number",
+            "title": "Trajets Non Desservis"
+          },
+          "cout_perturbation": {
+            "type": "number",
+            "title": "Cout Perturbation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scenario",
+          "ID_ARC",
+          "ID_ROUTE",
+          "VILLE_A",
+          "VILLE_B",
+          "coupure",
+          "camions_sur_liaison",
+          "delta_heures_equivalentes",
+          "delta_heures_meilleur",
+          "delta_camions_km",
+          "trajets_non_desservis",
+          "cout_perturbation"
+        ],
+        "title": "LigneCriticite"
+      },
+      "Modele": {
+        "properties": {
+          "objectif": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Objectif"
+          },
+          "parametres": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Parametres"
+          },
+          "ic95": {
+            "additionalProperties": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Ic95"
+          },
+          "metriques": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Metriques"
+          },
+          "validation_croisee": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Validation Croisee"
+          },
+          "genere_le": {
+            "type": "string",
+            "title": "Genere Le"
+          }
+        },
+        "type": "object",
+        "required": [
+          "objectif",
+          "parametres",
+          "ic95",
+          "metriques",
+          "validation_croisee",
+          "genere_le"
+        ],
+        "title": "Modele"
+      },
+      "Parametres": {
+        "properties": {
+          "mu": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mu",
+            "description": "dispersion du logit (1/min)"
+          },
+          "beta_hors_autoroute": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beta Hors Autoroute",
+            "description": "minutes équivalentes par km hors autoroute"
+          },
+          "beta_estime": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beta Estime",
+            "description": "minutes par km de raccord ou d'accès estimé"
+          },
+          "croissance": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Croissance",
+            "description": "g : camions 2025 par trajet ENR 2006-2007"
+          },
+          "fond_10": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fond 10",
+            "description": "camions par jour absents de l'ENR, autoroutes"
+          },
+          "fond_20": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fond 20",
+            "description": "idem, nationales"
+          },
+          "fond_30": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fond 30",
+            "description": "idem, régionales"
+          },
+          "fond_40": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fond 40",
+            "description": "idem, collectrices"
+          },
+          "fond_autre": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fond Autre",
+            "description": "idem, autres classes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Parametres",
+        "description": "Paramètres à changer par rapport au modèle calé ; ceux qui manquent gardent leur valeur calée."
+      },
+      "Report": {
+        "properties": {
+          "ID_ROUTE": {
+            "type": "string",
+            "title": "Id Route"
+          },
+          "delta_camions_jour": {
+            "type": "number",
+            "title": "Delta Camions Jour"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ID_ROUTE",
+          "delta_camions_jour"
+        ],
+        "title": "Report"
+      },
+      "Sante": {
+        "properties": {
+          "statut": {
+            "type": "string",
+            "const": "ok",
+            "title": "Statut"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "objectif": {
+            "type": "string",
+            "title": "Objectif"
+          },
+          "routes": {
+            "type": "integer",
+            "title": "Routes"
+          },
+          "liaisons": {
+            "type": "integer",
+            "title": "Liaisons"
+          },
+          "itineraires": {
+            "type": "integer",
+            "title": "Itineraires"
+          },
+          "genere_le": {
+            "type": "string",
+            "title": "Genere Le"
+          }
+        },
+        "type": "object",
+        "required": [
+          "statut",
+          "version",
+          "objectif",
+          "routes",
+          "liaisons",
+          "itineraires",
+          "genere_le"
+        ],
+        "title": "Sante"
+      },
+      "Scenario": {
+        "properties": {
+          "fermees": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fermees"
+          },
+          "theta_modifie": {
+            "type": "boolean",
+            "title": "Theta Modifie"
+          },
+          "impacts": {
+            "$ref": "#/components/schemas/Impacts"
+          },
+          "reports": {
+            "items": {
+              "$ref": "#/components/schemas/Report"
+            },
+            "type": "array",
+            "title": "Reports",
+            "description": "du plus grand au plus petit en valeur absolue"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fermees",
+          "theta_modifie",
+          "impacts",
+          "reports"
+        ],
+        "title": "Scenario"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

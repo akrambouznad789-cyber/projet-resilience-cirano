@@ -184,3 +184,26 @@ Validation croisée (5 plis : blocs de 50 km × postes entiers, moyenne ± écar
 - Le moteur Canvas existe en trois copies (les Volets 1 et 2 gardent la leur). À unifier sur `js/moteur_canvas.js` lors d'une prochaine refonte de ces pages.
 - Vérifié en captures sans WebGL (Chrome headless, moteur Canvas forcé), en sombre et en clair, et sans débordement à la largeur minimale de Chrome (504 px). Pas vérifié : un vrai lecteur d'écran, un vrai téléphone.
 - Le classement recalculé dans la page avec d'autres réglages ne refait pas la robustesse : il n'est qu'indicatif.
+
+## Phase 6 · API, Docker, fiche du modèle (2026-10-28)
+
+**Fait**
+- `api/service.py` : le jumeau en service, indépendant de HTTP (l'application officielle peut l'importer). Il lit un **paquet** (artefact, calibration, liaisons, frontières, criticité) désigné par `JUMEAU_ARTEFACT`.
+- `api/app.py` (FastAPI) : `GET /sante`, `GET /modele`, `POST /affectation`, `POST /scenario` (liaisons ou routes fermées, θ partiel facultatif), `GET /criticite`. Schémas pydantic stricts (`api/schemas.py`) ; contrat exporté dans `docs/api/openapi.json` (`jumeau openapi`), et la CI échoue s'il n'est plus à jour.
+- `jumeau exporter` écrit le vrai paquet (`outputs/jumeau/service/`, 21 Mo, confidentiel). `api/synthetique.py` écrit un paquet de démonstration sur le réseau jouet, sans aucune donnée de l'ENR : il sert aux tests, à la CI et à l'équipe du jumeau officiel.
+- `Dockerfile` en deux étapes (python:3.12-slim, environnement verrouillé, extra `api` sans MLflow), utilisateur sans privilèges, `HEALTHCHECK`, paquet monté en lecture seule ; `.dockerignore` en liste blanche (seul le code entre dans l'image). Nouveau job CI : construire l'image, générer le paquet synthétique dans le conteneur, lancer l'API, interroger `/sante`, `/scenario` et `/criticite`.
+- Fiche du modèle `docs/jumeau.md`, section Volet 3 et résumé anglais du README, section Pipeline du `CLAUDE.md` réalignée sur les vrais scripts.
+
+**Deux défauts trouvés en chemin**
+- `pyarrow` n'arrivait que par MLflow (extra `suivi`) : une image sans MLflow n'aurait pas pu lire l'artefact Parquet. Ajouté aux dépendances principales.
+- `tenseurs.py` construisait une matrice des passages 0 × 0 (au lieu de P × 0) pour un réseau sans point frontière : n'importe quel autre réseau que le Québec aurait planté. Révélé par le paquet synthétique, corrigé.
+
+**Chiffres**
+- 37 tests, dont 7 sur l'API (paquet synthétique, `TestClient`).
+- Sur le vrai paquet, en local : `/scenario` répond en 0,29 s, avec les chiffres exacts du classement précalculé (liaison 1 : 25 592 heures équivalentes par an, 55 routes touchées).
+
+**Revue critique**
+- **Docker n'a pas été lancé localement** (absent de WSL) : la première vraie construction de l'image est celle de la CI. À vérifier dans l'onglet Actions après le push.
+- L'image embarque GeoPandas et Shapely, dont l'API n'a pas besoin (dépendances principales du paquet). Plus lourde que nécessaire ; à séparer en extras si sa taille gêne.
+- Aucune authentification ni limite de débit : c'est à la passerelle de l'application officielle de les fournir. Des requêtes différentielles répétées (θ, fermetures) pourraient en principe renseigner sur la demande : l'API ne doit tourner qu'à l'intérieur de l'infrastructure du CIRANO.
+- Le premier appel avec un nouveau θ reconstruit un contexte (environ 1 s) ; les 8 derniers sont gardés en cache, sans limite de mémoire plus fine.

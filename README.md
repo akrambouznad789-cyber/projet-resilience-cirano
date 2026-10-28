@@ -1,12 +1,14 @@
 # Résilience du réseau routier québécois
 
-**Combien de camions circulent sur chaque grande liaison routière du Québec, et quelle valeur de marchandises transportent-ils ?**
+**Combien de camions circulent sur chaque grande liaison routière du Québec, quelle valeur de marchandises transportent-ils, et que se passe-t-il quand une liaison ferme ?**
 
 Projet de recherche mené avec Polytechnique Montréal et le CIRANO, en collaboration avec Transports Canada et le ministère des Transports et de la Mobilité durable du Québec (MTMD).
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](requirements.txt)
 [![Volet 1 terminé](https://img.shields.io/badge/Volet%201-termin%C3%A9-2c8a66)](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet1/)
 [![Volet 2 en cours](https://img.shields.io/badge/Volet%202-en%20cours-c98500)](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet2/carte_interactive.html)
+[![Volet 3 jumeau](https://img.shields.io/badge/Volet%203-jumeau-6c4fc4)](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/jumeau/)
+[![CI](https://github.com/akrambouznad789-cyber/projet-resilience-cirano/actions/workflows/ci.yml/badge.svg)](https://github.com/akrambouznad789-cyber/projet-resilience-cirano/actions/workflows/ci.yml)
 
 <p align="center">
   <img src="figures/carte_reseau_resultats.png" width="760" alt="Carte du Québec : les 307 liaisons routières du projet, colorées selon le trafic journalier moyen">
@@ -18,14 +20,15 @@ Projet de recherche mené avec Polytechnique Montréal et le CIRANO, en collabor
 - **L'approche.** Le Québec est modélisé comme un réseau de 307 liaisons routières entre 207 nœuds (villes, carrefours et points frontière). Chaque liaison reçoit son trafic réel, puis la valeur des marchandises qui y circulent.
 - **Résultat du Volet 1.** 304 liaisons sur 307 (99 %) ont un trafic journalier, tiré de 7 823 tronçons de comptage du MTQ dont les années manquantes ont été comblées par apprentissage automatique.
 - **Volet 2, en cours.** Une [carte interactive](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet2/carte_interactive.html) montre, étape par étape, comment une enquête menée auprès de 114 734 camions devient un montant en dollars par liaison.
+- **Volet 3, le jumeau.** Un [modèle d'affectation des camions](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/jumeau/), calé sur les comptages de 2025 et sur l'enquête, ferme chaque liaison à tour de rôle et mesure où se reporte le trafic. Il est livré comme un produit d'apprentissage automatique : paquet Python, tests, intégration continue, API et conteneur.
 
-## Deux volets successifs
+## Trois volets successifs
 
 <p align="center">
   <img src="figures/pipeline_deux_volets.svg" width="900" alt="Schéma : le Volet 1 transforme les comptages routiers en trafic par liaison ; le Volet 2 transforme une enquête sur les camions en valeur par liaison, en réutilisant le nombre de camions par jour produit par le Volet 1">
 </p>
 
-Les deux volets sont distincts, mais le second s'appuie sur le premier. Le Volet 1 établit **combien** de camions passent chaque jour sur une liaison. Le Volet 2 estime **ce qu'ils transportent**, puis multiplie les deux.
+Les volets sont distincts, mais chacun s'appuie sur le précédent. Le Volet 1 établit **combien** de camions passent chaque jour sur une liaison. Le Volet 2 estime **ce qu'ils transportent**, puis multiplie les deux. Le Volet 3 (absent du schéma) cale un modèle de choix d'itinéraire sur ces deux sources pour simuler **ce qui arrive quand une liaison ferme**.
 
 ## Volet 1 — Le trafic sur chaque liaison
 
@@ -70,6 +73,31 @@ Les mêmes pages se lisent aussi directement sur GitHub, dans [`docs/`](docs/don
 
 À ce stade, les étapes de données sont réelles : 37 603 camions retenus, 36 879 rejoués sur le réseau. Les prix par tonne et l'actualisation en dollars de 2026 sont encore provisoires ; les montants affichés ne doivent pas être cités. La méthode, les premiers constats et la suite sont décrits sur la page [Volet 2](docs/volet2.md).
 
+## Volet 3 — Le jumeau : fermer une liaison, voir le report
+
+*Octobre 2026.* Les Volets 1 et 2 envoyaient chaque camion sur une seule route, la plus courte. Le jumeau cherche jusqu'à trois routes par liaison sur le réseau routier du MTMD, puis répartit les camions entre leurs itinéraires avec un modèle de choix calé par optimisation (PyTorch). On peut alors fermer une liaison et voir où vont les camions.
+
+<p align="center">
+  <a href="https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/jumeau/">
+    <img src="figures/volet3_jumeau.png" width="820" alt="Capture de la page du jumeau : la liaison Gatineau–Ontario-Sud fermée, les routes qui gagnent des camions en orange, et les impacts annuels dans le panneau de droite">
+  </a>
+</p>
+
+**[Ouvrir le jumeau →](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/jumeau/)** Cinq étapes, avec la même barre à gauche que les deux autres volets : le réseau à plusieurs routes, le modèle, sa calibration, une fermeture, le classement des liaisons critiques. La version locale ajoute des curseurs : la page refait le calcul en direct sur les 258 000 itinéraires (23 ms).
+
+| Résultat | Valeur |
+|---|---|
+| Routes, pour 307 liaisons | 459 (111 liaisons à deux ou trois routes) |
+| Cibles de calibration | 680 sections mesurées en 2025 et 37 235 camions de l'enquête |
+| R² en log sur des sections mises de côté | 0,53, contre 0,55 pour le routage du Volet 2 : **pas meilleur sur les débits** |
+| Vraisemblance de l'enquête mise de côté | 2,03 nat par camion, contre 2,18 : nettement meilleur sur le choix des routes |
+| Liaison la plus critique | Gatineau–Ontario-Sud : 2,05 M heures équivalentes par an de fermeture |
+| Stabilité du classement (bootstrap) | τ de Kendall 0,994 |
+
+Le modèle ne prédit pas mieux les débits que le routage simple ; son apport est de répartir les camions entre itinéraires, sans quoi aucun report ne se simule. Les hypothèses, les métriques et les limites sont dans la **[fiche du modèle](docs/jumeau.md)**, et chaque décision, chiffres à l'appui, dans le [journal du projet](docs/progress.md).
+
+**Côté ingénierie :** paquet `src/jumeau_cirano/` (configurations YAML validées, une responsabilité par module), 37 tests sur réseaux synthétiques dont la parité JavaScript / Python à 1e-6, intégration continue, suivi des essais dans MLflow, API FastAPI ([contrat OpenAPI](docs/api/openapi.json)) et image Docker testée par la CI. Les pages des trois volets partagent un thème sombre tiré d'une source unique de jetons de design.
+
 ## Outils, expliqués simplement
 
 | Outil | À quoi il sert dans ce projet |
@@ -79,16 +107,30 @@ Les mêmes pages se lisent aussi directement sur GitHub, dans [`docs/`](docs/don
 | **scikit-learn** (forêts aléatoires) | Estimer les comptages manquants : le modèle apprend sur les stations complètes, puis prédit les valeurs qui manquent ailleurs. Sa précision est mesurée sur des données mises de côté. |
 | **OSRM** | Le « GPS » du projet : il trace l'itinéraire routier réel entre deux villes. |
 | **NetworkX** | Calculer des chemins dans un réseau : par où passe chaque camion de l'enquête, de son départ à son arrivée. |
+| **PyTorch** | Caler le modèle du jumeau : ses paramètres sont ajustés par descente de gradient pour coller aux comptages et à l'enquête. |
+| **MLflow** | Garder la trace de chaque essai de calibration : paramètres, métriques, graphiques. |
+| **FastAPI, Docker** | Servir le jumeau à d'autres applications : une API documentée, dans un conteneur prêt à déployer. |
+| **pytest, GitHub Actions** | Tester chaque brique sur des réseaux dont on connaît la réponse, automatiquement à chaque modification. |
 | **QGIS** | Logiciel de cartographie, pour vérifier visuellement les résultats, liaison par liaison. |
 | **matplotlib** | Produire les cartes et graphiques de ce dépôt. |
 | **MapLibre, JavaScript** | Afficher la carte interactive dans le navigateur, avec un moteur de secours quand la carte graphique n'est pas disponible. |
-| **Git, GitHub Pages** | Garder l'historique de chaque modification et publier la carte interactive en ligne. |
+| **Git, GitHub Pages** | Garder l'historique de chaque modification et publier les pages des trois volets en ligne. |
 
-**Ce que le projet démontre :** le traitement de données géospatiales à l'échelle d'une province, le comblement de données manquantes par apprentissage automatique avec validation, la modélisation de réseau et le calcul d'itinéraires, la visualisation interactive, et une rigueur méthodologique où chaque hypothèse et chaque limite sont documentées.
+**Ce que le projet démontre :** le traitement de données géospatiales à l'échelle d'une province, le comblement de données manquantes par apprentissage automatique avec validation, la modélisation de réseau et le calcul d'itinéraires, un modèle paramétrique calé et validé honnêtement contre des bases de comparaison, son emballage comme un produit (tests, CI, API, conteneur), la visualisation interactive, et une rigueur méthodologique où chaque hypothèse et chaque limite sont documentées.
 
 ## Organisation du dépôt
 
 ```
+├── src/jumeau_cirano/                      Volet 3 · le jumeau (paquet Python)
+│   ├── reseau/                              graphe RTSS, routes alternatives, sections, itinéraires
+│   ├── donnees/                             demande ENR, observations
+│   ├── modele/                              affectation (PyTorch) et artefact
+│   ├── calibration/                         pertes, entraînement, validation croisée, bootstrap
+│   ├── scenarios/                           fermetures, criticité, robustesse
+│   ├── interface/                           données du moteur JavaScript de la page
+│   └── api/                                 service, API FastAPI, paquet de démonstration
+├── configs/                               Configurations YAML du jumeau
+├── tests/                                 Tests sur réseaux synthétiques (jamais l'ENR)
 ├── scripts/                               Un script par étape
 │   ├── completion_donnees_randomforest.py   Volet 1 · combler les comptages manquants
 │   ├── algo_jointure_routes_liens.py        Volet 1 · tracer les liaisons, rattacher les comptages
@@ -98,15 +140,19 @@ Les mêmes pages se lisent aussi directement sur GitHub, dans [`docs/`](docs/don
 │   ├── generer_figure_donnees.py            Figures des pages Données et Complétion
 │   ├── generer_figures_resultats.py         Figures des pages Méthodes et Résultats
 │   ├── style_figures.py                     Style commun des figures
-│   ├── generer_site_volet1.py               Volet 1 · page web (docs/volet1/)
+│   ├── visualisation_volet1.py              Volet 1 · page web (docs/volet1/)
 │   ├── visualisation_volet2.py              Volet 2 · carte interactive (docs/volet2/)
-│   └── gabarits/                            Gabarits HTML des deux pages web
-├── docs/                                  Une page d'explication par étape, et le site des deux volets
+│   ├── visualisation_jumeau.py              Volet 3 · page du jumeau (docs/jumeau/)
+│   ├── theme_pages.py                       Thème commun des pages (jetons de design)
+│   └── gabarits/                            Gabarits HTML, modules JavaScript, jetons du thème
+├── docs/                                  Une page par étape, la fiche du modèle, le contrat de l'API, le site des trois volets
 ├── figures/                               Cartes et graphiques
 ├── data/                                  Données d'entrée (MTQ) et résultats (GeoPackage)
 ├── qgis/                                  Projet QGIS livrable, chemins relatifs
 ├── portfolio/                             Portfolio cartographique (en anglais)
-└── requirements.txt                       Bibliothèques Python
+├── Dockerfile                             Image de l'API du jumeau
+├── pyproject.toml, uv.lock                Environnement du jumeau (uv, Python 3.12)
+└── requirements.txt                       Bibliothèques Python des Volets 1 et 2
 ```
 
 ## Reproduire
@@ -127,11 +173,20 @@ python scripts/comparaison_methodes_djma.py
 python scripts/nettoyage_projet_qgis.py
 python scripts/generer_figures_resultats.py
 python scripts/generer_figure_donnees.py
-python scripts/generer_site_volet1.py             # page web du Volet 1 (utilise gh, l'outil GitHub)
+python scripts/visualisation_volet1.py            # page web du Volet 1
 
 # Volet 2 : nécessite les microdonnées ENR, qui ne sont pas publiées
 ENR_DIR=/chemin/vers/les/fichiers/ENR python scripts/visualisation_volet2.py --publique
+
+# Volet 3 : environnement uv (Python 3.12) ; preparer, calibrer et scenarios nécessitent l'ENR
+uv sync --all-extras --group dev
+uv run pytest                                     # tests sur réseaux synthétiques
+uv run jumeau reseau && uv run jumeau preparer && uv run jumeau calibrer && uv run jumeau scenarios
+uv run python scripts/visualisation_jumeau.py --publique
+uv run jumeau exporter                            # paquet de service, puis : docker build -t jumeau-cirano .
 ```
+
+Sans accès à l'ENR, l'API se lance sur un réseau de démonstration : `uv run python -m jumeau_cirano.api.synthetique demo && JUMEAU_ARTEFACT=demo uv run jumeau api`.
 
 Le projet QGIS livrable (`qgis/reseau-routier-graphe.qgz`) utilise des chemins relatifs et s'ouvre directement après le clonage.
 
@@ -142,7 +197,7 @@ Le projet QGIS livrable (`qgis/reseau-routier-graphe.qgz`) utilise des chemins r
 - **Comptages routiers et réseau routier :** MTMD, [Données Québec](https://www.donneesquebec.ca/recherche/dataset/debit-de-circulation), licence CC BY 4.0.
 - **Fonds de carte :** Natural Earth (domaine public). **Limites municipales :** Statistique Canada. **Comtés américains :** US Census Bureau.
 - **Graphe des liaisons entre villes :** construit pour le projet CIRANO.
-- **Enquête nationale en bordure de route 2006-2007** (MTQ, Transports Canada) : microdonnées utilisées sous entente, jamais versées dans ce dépôt. La carte publique n'en montre que des résultats agrégés, par liaison et par poste d'enquête.
+- **Enquête nationale en bordure de route 2006-2007** (MTQ, Transports Canada) : microdonnées utilisées sous entente, jamais versées dans ce dépôt. La carte publique n'en montre que des résultats agrégés, par liaison et par poste d'enquête. Le jumeau publie ses paramètres, ses métriques et ses résultats par route et par liaison ; son artefact (itinéraires et demande par paire de lieux) reste hors du dépôt et hors de l'image Docker.
 
 ## Autres livrables
 
@@ -152,12 +207,14 @@ Le projet QGIS livrable (`qgis/reseau-routier-graphe.qgz`) utilise des chemins r
 <details>
 <summary><b>English summary</b></summary>
 
-This research project (Polytechnique Montréal and CIRANO, with Transport Canada and Quebec's Ministry of Transportation) models Quebec's inter-city road network as 307 links between 207 nodes, in two successive phases.
+This research project (Polytechnique Montréal and CIRANO, with Transport Canada and Quebec's Ministry of Transportation) models Quebec's inter-city road network as 307 links between 207 nodes, in three successive phases.
 
 - **Phase 1, completed:** each link receives its real traffic (annual average daily traffic and truck share) from 7,823 provincial count segments. Missing years are filled with machine learning (random forests, validated on held-out data). 304 of 307 links (99%) are covered.
 - **Phase 2, in progress:** a national roadside truck survey (114,734 trucks, 2006-2007) is replayed on the network to estimate what each truck carries, then the annual value of goods on each link. An [interactive map](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet2/carte_interactive.html) walks through the method step by step. Dollar values are still provisional.
 
-Tools: Python (GeoPandas, Shapely, scikit-learn, NetworkX), OSRM routing, QGIS, MapLibre and JavaScript, GitHub Pages.
+- **Phase 3, the digital twin:** up to three alternative routes per link are found on the provincial road network, and a path-size logit route-choice model is calibrated with PyTorch on 2025 truck counts and on the survey (composite likelihood with a learned misclassification rate, spatial cross-validation, bootstrap intervals). It does not beat simple routing on counts (log R² 0.53 vs 0.55) but clearly wins on the survey likelihood, and it is what makes rerouting simulations possible. Every link is closed in turn to rank critical links (stable ranking, Kendall τ 0.994). The [twin page](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/jumeau/) runs the same model in the browser; a FastAPI service in a Docker image, tested in CI, exposes it to the official CIRANO digital twin. See the [model card](docs/jumeau.md).
+
+Tools: Python (GeoPandas, Shapely, scikit-learn, NetworkX, PyTorch, MLflow, FastAPI), OSRM routing, QGIS, MapLibre and JavaScript, Docker, GitHub Actions, GitHub Pages.
 
 </details>
 

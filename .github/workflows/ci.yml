@@ -1,5 +1,7 @@
-# Intégration continue du jumeau : style (ruff) et tests (pytest) à chaque push.
-# Les tests tournent sur des réseaux synthétiques : aucune donnée de l'ENR n'est nécessaire.
+# Intégration continue du jumeau, à chaque push :
+#   tests  : style (ruff), tests (pytest, dont la parité JavaScript / Python) et contrat de l'API à jour
+#   docker : construit l'image de l'API et l'interroge sur le paquet synthétique
+# Tout tourne sur des réseaux synthétiques : aucune donnée de l'ENR n'est nécessaire.
 name: CI
 
 on:
@@ -25,3 +27,36 @@ jobs:
 
       - name: Tests
         run: uv run pytest
+
+      - name: Contrat de l'API à jour (docs/api/openapi.json)
+        run: |
+          uv run jumeau openapi
+          git diff --exit-code docs/api/openapi.json
+
+  docker:
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construire l'image
+        run: docker build -t jumeau-cirano .
+
+      - name: Paquet synthétique (réseau jouet, aucune donnée de l'ENR)
+        run: |
+          mkdir -p demo && chmod 777 demo
+          docker run --rm -v "$PWD/demo:/sortie" --entrypoint python jumeau-cirano -m jumeau_cirano.api.synthetique /sortie
+
+      - name: Lancer l'API et l'interroger
+        run: |
+          docker run -d --name api -p 8000:8000 -v "$PWD/demo:/artefact:ro" jumeau-cirano
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8000/sante && break; sleep 2; done
+          curl -sf http://127.0.0.1:8000/sante
+          curl -sf -X POST http://127.0.0.1:8000/scenario -H 'content-type: application/json' \
+               -d '{"routes": ["1-1"]}' | tee scenario.json
+          python3 -c "import json; r = json.load(open('scenario.json')); assert r['impacts']['delta_heures_equivalentes'] > 0"
+          curl -sf "http://127.0.0.1:8000/criticite?limite=2"
+
+      - name: Journal du conteneur en cas d'échec
+        if: failure()
+        run: docker logs api || true

@@ -129,7 +129,7 @@ def charger_artefact(dossier: Path) -> Artefact:
     f64 = lambda x: torch.as_tensor(np.array(x, dtype=float), dtype=torch.float64)  # noqa: E731
     noms_frontieres = sorted({n for n in pd.concat([chemins["entree"], chemins["sortie"]]) if n.startswith("F")})
     passages = pd.DataFrame({f: (chemins["entree"] == f).astype(float) + (chemins["sortie"] == f).astype(float)
-                             for f in noms_frontieres})
+                             for f in noms_frontieres}, index=chemins.index)   # P × 0 si aucun point frontière
     par_route = torch.stack([f64(routes["minutes"]), f64((routes["km"] - km_auto - km_estime).clip(lower=0)),
                              f64(km_estime)], dim=1)
     d = Donnees(

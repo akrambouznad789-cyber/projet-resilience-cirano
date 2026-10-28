@@ -1,0 +1,7 @@
+# Liste blanche : l'image ne reçoit que le code du paquet, jamais de données
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+src/**/__pycache__
