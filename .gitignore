@@ -22,3 +22,10 @@ archives_locales/
 # OS
 .DS_Store
 Thumbs.db
+
+# Jumeau numérique (environnement uv, essais MLflow, caches d'outils)
+.venv/
+mlruns/
+mlartifacts/
+.pytest_cache/
+.ruff_cache/

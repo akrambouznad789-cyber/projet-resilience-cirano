@@ -1,0 +1,27 @@
+# Intégration continue du jumeau : style (ruff) et tests (pytest) à chaque push.
+# Les tests tournent sur des réseaux synthétiques : aucune donnée de l'ENR n'est nécessaire.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Installer l'environnement (verrouillé)
+        run: uv sync --locked --all-extras --group dev
+
+      - name: Style
+        run: uv run ruff check src tests
+
+      - name: Tests
+        run: uv run pytest
