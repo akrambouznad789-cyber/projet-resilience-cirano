@@ -26,6 +26,7 @@ import shapely
 
 from jumeau_cirano.config import DIR_CONFIGS, ConfigReseau, charger, chemin_absolu
 from jumeau_cirano.donnees.liaisons import charger_liaisons, charger_noeuds, charger_traces_osrm
+from jumeau_cirano.donnees.observations import charger_sections
 from jumeau_cirano.reseau.alternatives import decrire_routes, noeuds_tiers_de, routes_alternatives
 from jumeau_cirano.reseau.controle import controler, synthese
 from jumeau_cirano.reseau.rtss import (
@@ -37,6 +38,7 @@ from jumeau_cirano.reseau.rtss import (
     noeud_acces,
     raccorder_traversees,
 )
+from jumeau_cirano.reseau.sections import djma_par_route, paires_section_lien, rattacher_sections
 
 
 def suffixer(chemin: Path, echantillon: bool) -> Path:
@@ -48,7 +50,7 @@ def executer(args: argparse.Namespace) -> None:
     """Construit le graphe RTSS, rattache les nœuds des liaisons et lance le point de contrôle."""
     cfg = charger(args.config or DIR_CONFIGS / "reseau.yaml", ConfigReseau)
     emprise = cfg.echantillon if args.echantillon else None
-    print(f"[1/5] RTSS{' — échantillon : ' + emprise.nom if emprise else ''}")
+    print(f"[1/6] RTSS{' — échantillon : ' + emprise.nom if emprise else ''}")
     lignes = charger_rtss(cfg, emprise)
     liens, noeuds = noder(lignes, cfg.graphe.tolerance_noeud_m, cfg.graphe.tolerance_jonction_m,
                           cfg.graphe.tolerance_croisement_m)
@@ -62,7 +64,7 @@ def executer(args: argparse.Namespace) -> None:
     print(f"      {len(lignes):,} lignes → {len(liens):,} liens, {len(noeuds):,} nœuds ; "
           f"composante principale : {km_garde:,.0f} km sur {km_total:,.0f}")
 
-    print("[2/5] connecteurs d'accès des nœuds des liaisons")
+    print("[2/6] connecteurs d'accès des nœuds des liaisons")
     nl = charger_noeuds(cfg)
     if emprise is not None:
         boite = shapely.box(emprise.lon_min, emprise.lat_min, emprise.lon_max, emprise.lat_max)
@@ -75,7 +77,7 @@ def executer(args: argparse.Namespace) -> None:
                   left_on="ID", right_index=True)
     loin = nl[nl["dist_km"] > cfg.graphe.rattachement_max_km]
 
-    print("[3/5] point de contrôle")
+    print("[3/6] point de contrôle")
     arcs = charger_liaisons(cfg)
     arcs = arcs[arcs["ID_A"].isin(nl["ID"]) & arcs["ID_B"].isin(nl["ID"])].copy()
     arcs["noeud_a"], arcs["noeud_b"] = arcs["ID_A"].map(noeud_acces), arcs["ID_B"].map(noeud_acces)
@@ -90,14 +92,34 @@ def executer(args: argparse.Namespace) -> None:
           f"({s['part_ok_interurbaines']:.0%}) — contrôle {'RÉUSSI' if s['passe'] else 'ÉCHOUÉ'} ; "
           f"urbaines {s['part_ok_urbaines']:.0%} ; accord de route avec OSRM {s['accord_route']:.0%}")
 
-    print("[4/5] routes alternatives")
+    print("[4/6] routes alternatives")
     debut = time.time()
     routes, routes_liens = calculer_routes(g, liens, resultat, nl, charger_traces_osrm(cfg), cfg)
     n_par = routes[routes["source"] == "rtss"].groupby("ID_ARC").size()
     print(f"      {len(routes)} routes pour {routes['ID_ARC'].nunique()} liaisons ({time.time() - debut:.0f} s) ; "
           f"routes par liaison RTSS : {n_par.value_counts().sort_index().to_dict()}")
 
-    print("[5/5] sorties")
+    print("[5/6] sections de comptage par route")
+    sections = charger_sections(cfg)
+    lr = liens[liens["id_lien"].isin(garde) & ~liens["raccord"]]           # un raccord ne porte aucun comptage
+    paires = paires_section_lien(sections, lr, cfg.sections.tampon_m)
+    longueur = sections.set_index("ide_sectn_trafc")["longueur_m"]
+    rs = rattacher_sections(paires, routes_liens, longueur, cfg.sections.recouvrement_min)
+    v1 = gpd.read_file(chemin_absolu(cfg.entrees.traces_osrm), layer="trajets_segments", ignore_geometry=True,
+                       columns=["ID_ARC", "ide_sectn_trafc"]).drop_duplicates()
+    v1 = v1[v1["ID_ARC"].isin(routes.loc[routes["source"] == "osrm", "ID_ARC"])]
+    rs = pd.concat([rs, pd.DataFrame({"ID_ROUTE": v1["ID_ARC"].astype(str) + "-1",
+                                      "ide_sectn_trafc": v1["ide_sectn_trafc"].astype(str), "part": 1.0})],
+                   ignore_index=True)
+    obs = rs.merge(sections[["ide_sectn_trafc", "observee"]], on="ide_sectn_trafc")
+    routes = routes.merge(djma_par_route(rs, sections), on="ID_ROUTE", how="left")
+    routes["n_observees"] = routes["ID_ROUTE"].map(obs.groupby("ID_ROUTE")["observee"].sum()).fillna(0).astype(int)
+    routes["n_sections"] = routes["n_sections"].fillna(0).astype(int)
+    print(f"      {rs['ide_sectn_trafc'].nunique():,} sections sur des routes, dont "
+          f"{obs.loc[obs['observee'], 'ide_sectn_trafc'].nunique():,} mesurées en 2025 ; "
+          f"{(routes['n_sections'] > 0).mean():.0%} des routes ont au moins une section")
+
+    print("[6/6] sorties")
     sortie = suffixer(chemin_absolu(cfg.sortie), bool(emprise))
     sortie.parent.mkdir(parents=True, exist_ok=True)
     liens[liens["id_lien"].isin(garde)].to_file(sortie, layer="liens_rtss", driver="GPKG")
@@ -109,6 +131,8 @@ def executer(args: argparse.Namespace) -> None:
     resultat.to_file(sortie, layer="controle_liaisons", driver="GPKG")
     routes.to_file(sortie, layer="routes", driver="GPKG")
     pyogrio.write_dataframe(routes_liens, sortie, layer="routes_liens", driver="GPKG")
+    pyogrio.write_dataframe(rs, sortie, layer="routes_sections", driver="GPKG")
+    sections.to_file(sortie, layer="sections", driver="GPKG")
     rapport = suffixer(chemin_absolu(cfg.rapport), bool(emprise))
     rapport.parent.mkdir(parents=True, exist_ok=True)
     rapport.write_text(ecrire_rapport(cfg, emprise is not None, len(lignes), liens, g, km_total, km_garde,

@@ -63,3 +63,15 @@ Le plan d'ensemble : réseau à plusieurs routes par liaison → modèle d'affec
 - Le temps d'une route dépend des vitesses supposées par classe ; le modèle calé (phase 2) apprendra la préférence réelle entre autoroute et route nationale, ce qui corrige en partie ce biais.
 - Les 55 liaisons sur OSRM n'ont qu'une route, avec un temps estimé à 70 km/h : le choix de route n'y est pas modélisé.
 - `reseau_multi_routes.gpkg` n'est pas commité : il se régénère en 30 s par `jumeau reseau`.
+
+## Phase 1d · Sections de comptage par route (2026-10-28)
+
+**Fait** — `donnees/observations.py` (mesuré contre complété), `reseau/sections.py` (rattachement par numéro de route + recouvrement ≥ 50 % à 30 m ; DJMA m1 à m4 par route) ; couches `routes_sections` et `sections`.
+
+**Chiffres (tout le Québec)** : 3 648 sections portées par au moins une route (Volet 1 : 2 648) ; **680 d'entre elles ont un DJMA et un % camions bruts de 2025** : ce sont les cibles de calibration (au Volet 1, seules 72 liaisons avaient une section m4 mesurée). 94 % des routes portent au moins une section ; 131 des 152 routes alternatives ont au moins une section mesurée, ce qui rend le choix de route apprenable. Camions m4 de la meilleure route contre le m4 du Volet 1 : rapport médian 1,03, corrélation 0,78 (en log), 75 liaisons sur 247 à plus de 50 % d'écart.
+
+**Revue critique**
+- Plan initial : jointure par chaînage RTSS exact. Fait autrement : numéro de route exact + recouvrement géométrique. Le chaînage se complique avec les codes de côté (G/D/C) et de sous-route ; le numéro de route suffit à empêcher qu'une autoroute « vole » les sections d'une route qu'elle croise, ce qui était le vrai risque.
+- Les 75 grands écarts avec le Volet 1 ne sont pas tranchés : sections différentes (filtres du Volet 1 contre numéro de route ici) et parfois route différente. Le modèle calé, qui part des sections mesurées et non du m4 par liaison, n'en dépend pas.
+- 387 sections n'ont pas de classe RTSS (code de sous-route introuvable) : poids 1 dans m3, comme au Volet 1.
+- La phase 1e (montrer les routes sur la carte du Volet 1) est reportée à la phase 5, qui refait l'interface ; c'est plus économique que de modifier deux fois le gabarit.
