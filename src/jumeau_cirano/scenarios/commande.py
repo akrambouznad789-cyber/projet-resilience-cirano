@@ -6,11 +6,13 @@ commande.py
 1. charge le modèle calé (calibration_<objectif>.json) et l'artefact
 2. ferme chaque liaison, puis chaque route d'une liaison qui en a plusieurs
 3. classe les liaisons par Δ heures équivalentes (coût composite du logit) ; les coupures (trajets non
-   desservis) sont signalées par la colonne `coupure`, car leur coût n'est pas dans ce Δ
+   desservis) sont signalées par la colonne `coupure`, car leur coût n'est pas dans ce Δ ; le Δ du meilleur
+   itinéraire (sans la valeur de la diversité) est comparé au logsum : τ de Kendall et rapport médian
 4. robustesse : rejoue les fermetures de liaisons avec des paramètres tirés du bootstrap ;
    τ de Kendall et recouvrement du top 20 avec le classement central
 Sorties : outputs/jumeau/criticite_<objectif>.csv ; docs/jumeau/criticite_<objectif>.csv (résultats par liaison,
-publiables selon la règle du Volet 2 : aucun flux entre lieux).
+publiables selon la règle du Volet 2 : aucun flux entre lieux) ; reports_<objectif>.csv aux deux endroits
+(Δ camions par jour sur chaque route, par scénario : un résultat par route, publiable lui aussi).
 """
 
 from __future__ import annotations
@@ -57,7 +59,8 @@ def executer(args: argparse.Namespace) -> None:
         return Contexte.creer(art, ModeleAffectation.depuis_valeurs(valeurs, art.frontieres), h, frontieres, paires)
 
     print("[2/3] fermetures (chaque liaison, puis chaque route)")
-    res = toutes_les_fermetures(contexte(calibration["parametres"]), cfg.cout_horaire_camion, cfg.valeur_par_tonne)
+    res, reports = toutes_les_fermetures(contexte(calibration["parametres"]), cfg.cout_horaire_camion,
+                                         cfg.valeur_par_tonne)
     res = res.merge(liaisons[["ID_ARC", "VILLE_A", "VILLE_B"]], on="ID_ARC")
     res["coupure"] = res["trajets_non_desservis"] > 0
     arcs = res[res["scenario"] == "liaison"].sort_values("delta_heures_equivalentes", ascending=False).copy()
@@ -66,6 +69,15 @@ def executer(args: argparse.Namespace) -> None:
     print(arcs.head(15)[["rang", "VILLE_A", "VILLE_B", "camions_sur_liaison", "delta_heures_equivalentes",
                          "trajets_non_desservis"]].round(0).to_string(index=False))
     print(f"      coupures : {int(arcs['coupure'].sum())} liaisons sur {len(arcs)}")
+    comparaison = {}
+    for nom, grp in res.groupby("scenario"):
+        ok = grp[grp["delta_heures_meilleur"] > 0]
+        comparaison[f"{nom}_kendall_tau_logsum_meilleur"] = float(
+            kendalltau(grp["delta_heures_equivalentes"], grp["delta_heures_meilleur"])[0])
+        comparaison[f"{nom}_rapport_median_logsum_meilleur"] = float(
+            (ok["delta_heures_equivalentes"] / ok["delta_heures_meilleur"]).median())
+        comparaison[f"{nom}_part_sans_detour"] = float((grp["delta_heures_meilleur"] <= 0).mean())
+    print("      logsum / meilleur itinéraire : " + " · ".join(f"{k} = {v:.3f}" for k, v in comparaison.items()))
 
     robustesse = {}
     tirages_f = dossier / f"bootstrap_{objectif.nom}.parquet"
@@ -90,5 +102,8 @@ def executer(args: argparse.Namespace) -> None:
     public = RACINE / "docs" / "jumeau" / f"criticite_{objectif.nom}.csv"
     public.parent.mkdir(parents=True, exist_ok=True)
     res.round(0).to_csv(public, index=False)
-    (dossier / f"robustesse_{objectif.nom}.json").write_text(json.dumps(robustesse, indent=2), encoding="utf-8")
+    for d in (dossier, public.parent):
+        reports.round(1).to_csv(d / f"reports_{objectif.nom}.csv", index=False)
+    (dossier / f"robustesse_{objectif.nom}.json").write_text(json.dumps(robustesse | comparaison, indent=2),
+                                                             encoding="utf-8")
     print(f"      → {sortie}\n      → {public}")

@@ -142,3 +142,20 @@ Validation croisée (5 plis : blocs de 50 km × postes entiers, moyenne ± écar
 - **Les coupures sont surtout des artefacts du graphe à 307 liaisons.** Entre Lévis et Rivière-du-Loup, l'A-20 et la R-132 appartiennent aux mêmes liaisons, et aucune autre liaison ne relie le Bas-Saint-Laurent (pas de R-204, pas de traversiers) : la fermeture de toute la liaison isole la région. En réalité, un détour existe ; il est long, mais il existe.
 - **Fermer une seule route :** le coût composite y vaut en médiane 11 fois le temps réellement perdu. Il compte la « valeur de la diversité » du logit (perdre une option sur deux à peu près équivalentes coûte ln 2/μ ≈ 9 min par camion, sans aucun détour) et les pénalités β (6,7 min par km estimé). Pour les fermetures de liaison du top 20, les deux mesures concordent (rapport de 0,89 à 1,19) : le classement principal n'en dépend pas, les chiffres par route oui.
 - Les $ sont provisoires (90 $/h, 3 000 $/t), à remplacer par le guide avantages-coûts du MTQ et les $/t du Volet 2. Une fermeture réelle dure des jours, pas un an : il faut diviser en conséquence.
+
+## Phase 4b · Meilleur itinéraire et report de trafic (2026-10-28)
+
+**Fait**
+- Troisième mesure dans chaque scénario : `delta_heures_meilleur`, le Δ du coût généralisé du meilleur itinéraire restant (pénalités β comprises, sans la valeur de la diversité du logit). Les paires détournées en tout-ou-rien gardent la même règle que pour le logsum.
+- `fermer_avec_flux` : camions par jour sur chaque route après report, détours compris. `jumeau scenarios` écrit `reports_équilibre.csv` (Δ par route et par scénario, |Δ| ≥ 0,5 camion/j), publiable comme la criticité : un résultat par route, aucun flux entre lieux.
+- 3 tests en formule fermée de plus (fermer l'option la moins bonne ne coûte que la diversité ; report intégral sur la route restante).
+
+**Chiffres**
+- Classement et robustesse inchangés : même top 15, τ de Kendall 0,994 (min. 0,980), top 20 retrouvé à 99,5 %.
+- Fermetures de liaison : τ entre logsum et meilleur itinéraire = 0,925 ; rapport médian logsum / meilleur = 1,04 ; 7,5 % des fermetures n'allongent le meilleur itinéraire d'aucune paire.
+- Fermetures d'une seule route : τ = 0,57 ; rapport médian 2,1 ; 47 % n'allongent le meilleur itinéraire d'aucune paire (la route fermée n'était le meilleur choix de personne).
+
+**Revue critique**
+- Pour les liaisons, les deux mesures concordent : le classement principal ne dépend pas de la valeur de la diversité.
+- Pour une seule route, le logsum double la perte du meilleur itinéraire, et une fois sur deux il ne compte que de la valeur d'option. Les chiffres par route se lisent avec le meilleur itinéraire, le logsum reste l'ordre de classement.
+- Le « 11 fois » du point de contrôle précédent comparait le logsum au temps de parcours seul. Contre le coût généralisé du meilleur itinéraire (pénalités β comprises), le rapport tombe à 2,1 : l'essentiel de l'écart venait des pénalités, pas de la diversité.

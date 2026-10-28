@@ -11,7 +11,7 @@ import pytest
 import torch
 
 from jumeau_cirano.reseau.chemins import graphe_des_routes
-from jumeau_cirano.scenarios.resilience import Contexte, fermer
+from jumeau_cirano.scenarios.resilience import Contexte, fermer, fermer_avec_flux, toutes_les_fermetures
 from test_modele import CHEMINS, MINUTES, donnees, modele
 
 ROUTES = pd.DataFrame({"ID_ROUTE": ["1-1", "1-2", "2-1", "2-2"], "ID_ARC": [1, 1, 2, 2],
@@ -44,6 +44,17 @@ def test_fermer_l_autoroute_reporte_sur_la_nationale():
     assert r["cout_perturbation"] == pytest.approx(90 * r["delta_heures_equivalentes"])
     assert r["camions_sur_liaison"] == pytest.approx(365 * p0)
     assert r["tonnes_sur_liaison"] == pytest.approx(3650 * p0) and r["trajets_non_desservis"] == 0
+    assert r["delta_heures_meilleur"] == pytest.approx(365 * (65 - 60) / 60)   # meilleur : 60 → 65
+
+
+def test_fermer_l_option_la_moins_bonne_ne_coute_que_la_diversite():
+    """Fermer la nationale (coût 65) laisse l'autoroute (60), déjà la meilleure : aucun détour,
+    mais le logsum monte quand même (valeur de la diversité du logit)."""
+    ctx = contexte((365.0, 0.0, 0.0))
+    r = fermer(ctx, {"1-2"}, cout_horaire=90.0, valeur_tonne=1.0)
+    assert r["delta_heures_meilleur"] == pytest.approx(0.0)
+    c_ref = -math.log(math.exp(-0.1 * 60) + math.exp(-0.1 * 65)) / 0.1
+    assert r["delta_heures_equivalentes"] == pytest.approx(365 * (60 - c_ref) / 60) and c_ref < 60
 
 
 def test_coupure_totale_demande_non_desservie():
@@ -62,6 +73,7 @@ def test_un_seul_itineraire_restant_puis_coupure():
     r = fermer(ctx, {"1-1", "2-1"}, cout_horaire=90.0, valeur_tonne=1.0)
     c_ref = -math.log(sum(math.exp(-0.1 * c) for c in (90, 60 + 40, 65 + 30, 65 + 40))) / 0.1
     assert r["delta_heures_equivalentes"] == pytest.approx(365 * (65 + 40 - c_ref) / 60)
+    assert r["delta_heures_meilleur"] == pytest.approx(365 * (65 + 40 - 90) / 60)   # meilleur : r0 + r2
 
 
 def test_fermer_rien_ne_change_rien():
@@ -69,3 +81,15 @@ def test_fermer_rien_ne_change_rien():
     r = fermer(ctx, set(), cout_horaire=90.0, valeur_tonne=1.0)
     assert np.isclose(r["delta_camions_heures"], 0) and np.isclose(r["delta_camions_km"], 0)
     assert torch.allclose(ctx.p_ref, ctx.modele.probabilites(ctx.art.donnees).detach())
+
+
+def test_report_de_trafic_sur_la_route_restante():
+    """1 trajet/jour A–B : fermer l'autoroute envoie tout le trafic sur la nationale."""
+    ctx = contexte((365.0, 0.0, 0.0))
+    _, flux = fermer_avec_flux(ctx, {"1-1"}, cout_horaire=90.0, valeur_tonne=1.0)
+    assert flux == pytest.approx([0.0, 1.0, 0.0, 0.0])
+    assert ctx.flux_ref.sum() == pytest.approx(1.0)
+    impacts, reports = toutes_les_fermetures(ctx, cout_horaire=90.0, valeur_tonne=1.0, seuil_report=1e-9)
+    assert len(impacts) == 2 + 4                         # 2 liaisons + 4 routes (chaque liaison en a deux)
+    r = reports.query("scenario == 'route' and ID_ROUTE == '1-1'").set_index("route")["delta_camions_jour"]
+    assert r["1-2"] == pytest.approx(1 - float(ctx.p_ref[1])) and r["1-1"] == pytest.approx(-float(ctx.p_ref[0]))
