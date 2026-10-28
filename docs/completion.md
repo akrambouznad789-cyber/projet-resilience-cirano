@@ -30,6 +30,19 @@ R² = 0,306, RMSE = 6,1 points. Avec le seul DJMA comme prédicteur, le modèle 
 
 Ce signal se voit en séparant les prédictions par type de route, le "subset" le plus structurant du modèle : R² = 0,44 sur les routes nationales et 0,38 sur les autoroutes, mais seulement 0,11 sur les collectrices et −0,03 sur les segments hors classification (« Autre ») — moins bon que la moyenne. Le résultat reste donc imparfait et inégal selon le type d'axe, mais le RandomForest enrichi est un estimateur nettement plus convaincant que le modèle DJMA-seul pour ces 910 segments qui, sans lui, n'auraient aucune valeur du tout.
 
+**Validation par blocs spatiaux (ajoutée le 28 octobre 2026).** La validation ci-dessus mélange les segments au hasard. Or le modèle reçoit la position de chaque segment, et deux segments voisins se ressemblent : un segment de test a presque toujours un voisin dans l'entraînement, ce qui flatte le score. En gardant exactement les mêmes données et le même modèle, mais en mettant de côté des carrés entiers de 50 km (`scripts/validation_spatiale_randomforest.py`), le R² descend à **0,187** (au lieu de 0,306) :
+
+| Type de route | Segments mélangés (publié) | Blocs spatiaux de 50 km |
+|---|---|---|
+| Nationale | 0,44 | 0,33 |
+| Régionale | 0,20 | 0,12 |
+| Autoroute | 0,38 | 0,07 |
+| Collectrice | 0,11 | 0,05 |
+| Autre | −0,03 | 0,00 |
+| **Tous** | **0,306** | **0,187** |
+
+Le second chiffre est la mesure honnête de ce que le modèle sait faire dans une zone sans segment voisin connu : sur les autoroutes, il retrouvait surtout ses voisins. Les % de camions complétés par le RandomForest restent donc des estimations fragiles ; c'est l'une des raisons pour lesquelles le modèle d'affectation du Volet 3 ne se cale que sur des valeurs **mesurées**.
+
 ### 3. KNN géographique + IDW
 
 En dernier recours, pour les segments sans aucune mesure d'aucune année, complétion par pondération inverse à la distance (IDW, poids = 1/distance²) sur les 5 stations voisines les plus proches, avec priorité aux voisins de même direction (`index_agreg`, nord/ouest).

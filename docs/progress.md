@@ -75,3 +75,11 @@ Le plan d'ensemble : réseau à plusieurs routes par liaison → modèle d'affec
 - Les 75 grands écarts avec le Volet 1 ne sont pas tranchés : sections différentes (filtres du Volet 1 contre numéro de route ici) et parfois route différente. Le modèle calé, qui part des sections mesurées et non du m4 par liaison, n'en dépend pas.
 - 387 sections n'ont pas de classe RTSS (code de sous-route introuvable) : poids 1 dans m3, comme au Volet 1.
 - La phase 1e (montrer les routes sur la carte du Volet 1) est reportée à la phase 5, qui refait l'interface ; c'est plus économique que de modifier deux fois le gabarit.
+
+## Phase 1f · Validation spatiale du RandomForest (2026-10-28)
+
+**Fait** — `scripts/validation_spatiale_randomforest.py` (nouveau script ; les scripts existants ne bougent pas) : mêmes données, variables et modèle que la validation publiée, seul le découpage change (GroupKFold sur des carrés de 50 km, 149 blocs).
+
+**Chiffres** : R² 0,306 (segments mélangés, publié, reproduit à l'identique) → **0,187** (blocs spatiaux). Autoroutes 0,38 → 0,07 ; nationales 0,44 → 0,33. `docs/completion.md` montre désormais les deux, avec l'explication.
+
+**Revue critique** : la validation mélangée laissait fuir l'information des segments voisins (la position est une variable du modèle). C'est exactement le type d'erreur qu'un relecteur ML repère ; elle est maintenant écrite et chiffrée. Conséquence directe pour la suite : le modèle d'affectation ne se calera que sur les 680 sections mesurées, jamais sur des valeurs complétées.
