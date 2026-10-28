@@ -6,22 +6,27 @@ commande.py
 1. graphe RTSS (rtss.py) → composante principale
 2. rattachement des nœuds du graphe des liaisons au graphe RTSS
 3. point de contrôle contre les tracés OSRM (controle.py)
-4. sorties : GeoPackage (liens_rtss, noeuds_rtss, controle_liaisons) + rapport Markdown
+4. routes alternatives par liaison (alternatives.py) ; route OSRM unique là où le RTSS ne suffit pas
+5. sorties : GeoPackage (liens_rtss, noeuds_rtss, acces, controle_liaisons, routes, routes_liens)
+   + rapport Markdown
 """
 
 from __future__ import annotations
 
 import argparse
+import time
 from datetime import date
 from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import pyogrio
 import shapely
 
 from jumeau_cirano.config import DIR_CONFIGS, ConfigReseau, charger, chemin_absolu
 from jumeau_cirano.donnees.liaisons import charger_liaisons, charger_noeuds, charger_traces_osrm
+from jumeau_cirano.reseau.alternatives import decrire_routes, noeuds_tiers_de, routes_alternatives
 from jumeau_cirano.reseau.controle import controler, synthese
 from jumeau_cirano.reseau.rtss import (
     ajouter_acces,
@@ -43,7 +48,7 @@ def executer(args: argparse.Namespace) -> None:
     """Construit le graphe RTSS, rattache les nœuds des liaisons et lance le point de contrôle."""
     cfg = charger(args.config or DIR_CONFIGS / "reseau.yaml", ConfigReseau)
     emprise = cfg.echantillon if args.echantillon else None
-    print(f"[1/4] RTSS{' — échantillon : ' + emprise.nom if emprise else ''}")
+    print(f"[1/5] RTSS{' — échantillon : ' + emprise.nom if emprise else ''}")
     lignes = charger_rtss(cfg, emprise)
     liens, noeuds = noder(lignes, cfg.graphe.tolerance_noeud_m, cfg.graphe.tolerance_jonction_m,
                           cfg.graphe.tolerance_croisement_m)
@@ -57,7 +62,7 @@ def executer(args: argparse.Namespace) -> None:
     print(f"      {len(lignes):,} lignes → {len(liens):,} liens, {len(noeuds):,} nœuds ; "
           f"composante principale : {km_garde:,.0f} km sur {km_total:,.0f}")
 
-    print("[2/4] connecteurs d'accès des nœuds des liaisons")
+    print("[2/5] connecteurs d'accès des nœuds des liaisons")
     nl = charger_noeuds(cfg)
     if emprise is not None:
         boite = shapely.box(emprise.lon_min, emprise.lat_min, emprise.lon_max, emprise.lat_max)
@@ -70,12 +75,12 @@ def executer(args: argparse.Namespace) -> None:
                   left_on="ID", right_index=True)
     loin = nl[nl["dist_km"] > cfg.graphe.rattachement_max_km]
 
-    print("[3/4] point de contrôle")
+    print("[3/5] point de contrôle")
     arcs = charger_liaisons(cfg)
     arcs = arcs[arcs["ID_A"].isin(nl["ID"]) & arcs["ID_B"].isin(nl["ID"])].copy()
     arcs["noeud_a"], arcs["noeud_b"] = arcs["ID_A"].map(noeud_acces), arcs["ID_B"].map(noeud_acces)
     resultat = controler(g, liens, arcs, charger_traces_osrm(cfg), cfg.controle)
-    resultat = resultat.merge(arcs[["ID_ARC", "VILLE_A", "VILLE_B"]], on="ID_ARC")
+    resultat = resultat.merge(arcs[["ID_ARC", "ID_A", "ID_B", "VILLE_A", "VILLE_B"]], on="ID_ARC")
     # Décision par liaison : routes alternatives sur le RTSS si le réseau y est sans détour,
     # sinon la route OSRM actuelle reste l'unique route (Baie-James, traversier, hors Québec…)
     sur_rtss = (resultat["topologie"] == "ok") & (resultat["statut"] != "hors_quebec")
@@ -85,7 +90,14 @@ def executer(args: argparse.Namespace) -> None:
           f"({s['part_ok_interurbaines']:.0%}) — contrôle {'RÉUSSI' if s['passe'] else 'ÉCHOUÉ'} ; "
           f"urbaines {s['part_ok_urbaines']:.0%} ; accord de route avec OSRM {s['accord_route']:.0%}")
 
-    print("[4/4] sorties")
+    print("[4/5] routes alternatives")
+    debut = time.time()
+    routes, routes_liens = calculer_routes(g, liens, resultat, nl, charger_traces_osrm(cfg), cfg)
+    n_par = routes[routes["source"] == "rtss"].groupby("ID_ARC").size()
+    print(f"      {len(routes)} routes pour {routes['ID_ARC'].nunique()} liaisons ({time.time() - debut:.0f} s) ; "
+          f"routes par liaison RTSS : {n_par.value_counts().sort_index().to_dict()}")
+
+    print("[5/5] sorties")
     sortie = suffixer(chemin_absolu(cfg.sortie), bool(emprise))
     sortie.parent.mkdir(parents=True, exist_ok=True)
     liens[liens["id_lien"].isin(garde)].to_file(sortie, layer="liens_rtss", driver="GPKG")
@@ -95,16 +107,60 @@ def executer(args: argparse.Namespace) -> None:
                                       for r in acces.itertuples()], crs=cfg.crs
                      ).to_file(sortie, layer="acces", driver="GPKG")
     resultat.to_file(sortie, layer="controle_liaisons", driver="GPKG")
+    routes.to_file(sortie, layer="routes", driver="GPKG")
+    pyogrio.write_dataframe(routes_liens, sortie, layer="routes_liens", driver="GPKG")
     rapport = suffixer(chemin_absolu(cfg.rapport), bool(emprise))
     rapport.parent.mkdir(parents=True, exist_ok=True)
     rapport.write_text(ecrire_rapport(cfg, emprise is not None, len(lignes), liens, g, km_total, km_garde,
-                                      nl, loin, resultat, s), encoding="utf-8")
+                                      nl, loin, resultat, s, routes), encoding="utf-8")
     print(f"      → {sortie}\n      → {rapport}")
+
+
+def calculer_routes(g, liens: gpd.GeoDataFrame, resultat: pd.DataFrame, nl: gpd.GeoDataFrame,
+                    traces: gpd.GeoSeries, cfg: ConfigReseau) -> tuple[gpd.GeoDataFrame, pd.DataFrame]:
+    """Routes de chaque liaison : alternatives RTSS (routage = rtss) ou tracé OSRM unique (routage = osrm).
+
+    La recherche se fait dans une fenêtre du graphe autour des deux villes (marge = la moitié de leur
+    distance, 20 km au moins) : même résultat en pratique, beaucoup plus rapide. Les minutes d'une
+    route OSRM sont estimées à 70 km/h (hypothèse, à remplacer par la durée OSRM si on la conserve).
+    """
+    geom_lien = liens.set_index("id_lien").geometry
+    points = nl.set_index("ID").geometry
+    ids = np.array(list(g.nodes), dtype=object)        # entiers (RTSS) et chaînes (accès) mêlés
+    xy = np.array([(g.nodes[n]["x"], g.nodes[n]["y"]) for n in ids])
+    lignes, incidences = [], []
+    for r in resultat.itertuples():
+        a, b = points[r.ID_A], points[r.ID_B]
+        trouvees = []
+        if r.routage == "rtss":
+            marge = max(20000.0, 0.5 * a.distance(b))
+            dans = ((xy[:, 0] >= min(a.x, b.x) - marge) & (xy[:, 0] <= max(a.x, b.x) + marge)
+                    & (xy[:, 1] >= min(a.y, b.y) - marge) & (xy[:, 1] <= max(a.y, b.y) + marge))
+            fenetre = g.subgraph(ids[dans].tolist())
+            trouvees = routes_alternatives(fenetre, geom_lien, noeud_acces(r.ID_A), noeud_acces(r.ID_B),
+                                           cfg.alternatives, cfg.controle.tampon_recouvrement_m,
+                                           noeuds_tiers_de(points, r.ID_A, r.ID_B))
+        if trouvees:
+            for rang, rt in enumerate(trouvees, start=1):
+                id_route = f"{r.ID_ARC}-{rang}"
+                lignes.append({"ID_ROUTE": id_route, "ID_ARC": r.ID_ARC, "rang": rang, "source": "rtss",
+                               "km": rt["km"], "minutes": rt["minutes"],
+                               "minutes_relatives": rt["minutes"] / trouvees[0]["minutes"],
+                               **decrire_routes(rt["aretes"], g), "geometry": rt["geometry"]})
+                incidences += [{"ID_ROUTE": id_route, "id_lien": int(k)} for _, _, k in rt["aretes"]
+                               if not isinstance(k, str)]
+        elif r.ID_ARC in traces.index:
+            km = traces[r.ID_ARC].length / 1000
+            lignes.append({"ID_ROUTE": f"{r.ID_ARC}-1", "ID_ARC": r.ID_ARC, "rang": 1, "source": "osrm",
+                           "km": km, "minutes": km / 70 * 60, "minutes_relatives": 1.0,
+                           "km_autoroute": np.nan, "km_estime": np.nan, "routes": "",
+                           "geometry": traces[r.ID_ARC]})
+    return gpd.GeoDataFrame(lignes, geometry="geometry", crs=liens.crs), pd.DataFrame(incidences)
 
 
 def ecrire_rapport(cfg: ConfigReseau, echantillon: bool, n_lignes: int, liens: gpd.GeoDataFrame, g,
                    km_total: float, km_garde: float, nl: pd.DataFrame, loin: pd.DataFrame,
-                   resultat: pd.DataFrame, s: dict) -> str:
+                   resultat: pd.DataFrame, s: dict, routes: gpd.GeoDataFrame) -> str:
     """Rapport Markdown du point de contrôle (lisible dans VS Code ou sur GitHub)."""
     p = cfg.controle
     pct = lambda x: f"{x:.0%}"  # noqa: E731
@@ -159,6 +215,23 @@ def ecrire_rapport(cfg: ConfigReseau, echantillon: bool, n_lignes: int, liens: g
         "Québec, rangs et rues municipales.",
         "",
     ]
+    rt = routes[routes["source"] == "rtss"]
+    n_par = rt.groupby("ID_ARC").size()
+    lignes += ["## Routes alternatives", "",
+               f"- {len(routes)} routes en tout ; {len(n_par)} liaisons sur le RTSS, dont "
+               f"{(n_par >= 2).sum()} avec au moins une alternative "
+               f"(répartition : {n_par.value_counts().sort_index().to_dict()} routes par liaison).",
+               f"- Alternatives : {rt.loc[rt['rang'] > 1, 'minutes_relatives'].median():.2f} × le temps de la "
+               "meilleure route en médiane.", ""]
+    exemples = rt[rt["rang"] > 1].merge(resultat[["ID_ARC", "VILLE_A", "VILLE_B"]], on="ID_ARC")
+    exemples = exemples.sort_values("km", ascending=False).drop_duplicates("ID_ARC").head(12)
+    if len(exemples):
+        lignes += ["| Liaison | Routes (meilleure → alternative) |", "|---|---|"]
+        for e in exemples.itertuples():
+            meilleure = rt[(rt["ID_ARC"] == e.ID_ARC) & (rt["rang"] == 1)].iloc[0]
+            lignes.append(f"| {e.VILLE_A} – {e.VILLE_B} | {meilleure['routes'] or '–'} ({meilleure['km']:.0f} km) → "
+                          f"{e.routes or '–'} ({e.km:.0f} km, ×{e.minutes_relatives:.2f}) |")
+        lignes.append("")
     if len(loin):
         lignes += ["## Nœuds loin du réseau RTSS", "",
                    "| Nœud | Type | Distance (km) |", "|---|---|---|"]

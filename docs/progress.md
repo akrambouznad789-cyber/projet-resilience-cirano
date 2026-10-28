@@ -51,3 +51,15 @@ Le plan d'ensemble : réseau à plusieurs routes par liaison → modèle d'affec
 - Les raccords et les connecteurs d'accès sont des hypothèses (détour 1,3, 40 km/h). Ils sont signalés dans les couches (`raccord`, classe `AC`) et ne portent aucun comptage ; le modèle calé pourra pénaliser leur usage.
 - Les statuts « F » et « R » (102 km) restent exclus faute de définition sûre ; à confirmer avec le dictionnaire RTSS du MTQ.
 - Changer de critère après avoir vu les résultats est un risque de complaisance : c'est pourquoi les seuils n'ont pas bougé, l'échec est écrit, et les chiffres du critère initial restent ici.
+
+## Phase 1c · Routes alternatives par liaison (2026-10-28)
+
+**Fait** — `reseau/alternatives.py` (méthode des pénalités), intégré à `jumeau reseau` ; couches `routes` (une ligne par route : km, minutes, km d'autoroute, km estimés, numéros de route) et `routes_liens` (incidence route → liens RTSS) ; 3 tests sur un réseau synthétique.
+
+**Chiffres (tout le Québec, 29 s)** : 459 routes pour 307 liaisons. Sur les 252 liaisons routées sur le RTSS : 141 n'ont qu'une route, 70 en ont deux, 41 en ont trois ; une alternative prend en médiane 1,18 × le temps de la meilleure route. Exemples conformes au terrain : Trois-Rivières–Donnacona (A-40 ou R-138), Lavaltrie–Louiseville (R-138 ou A-40), Nicolet–Drummondville (R-255 ou A-55).
+
+**Revue critique**
+- Les règles (×1,3 au plus, 60 % de recouvrement au plus, pas à moins de 2 km d'une autre ville) sont des choix de modélisation, pas des faits ; elles sont dans `configs/reseau.yaml`.
+- Le temps d'une route dépend des vitesses supposées par classe ; le modèle calé (phase 2) apprendra la préférence réelle entre autoroute et route nationale, ce qui corrige en partie ce biais.
+- Les 55 liaisons sur OSRM n'ont qu'une route, avec un temps estimé à 70 km/h : le choix de route n'y est pas modélisé.
+- `reseau_multi_routes.gpkg` n'est pas commité : il se régénère en 30 s par `jumeau reseau`.
