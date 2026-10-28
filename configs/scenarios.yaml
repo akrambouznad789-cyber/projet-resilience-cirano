@@ -1,0 +1,7 @@
+# Scénarios de résilience : fermer une liaison (ou une seule de ses routes) et mesurer l'effet.
+modele: configs/modele.yaml
+objectif: configs/objectifs/equilibre.yaml   # quel modèle calé utiliser
+# Valeurs économiques PROVISOIRES (à remplacer par celles du Volet 2 et du guide avantages-coûts du MTQ)
+valeur_par_tonne: 3000.0       # $ par tonne transportée (CFAF 2017, ordre de grandeur, Volet 2)
+cout_horaire_camion: 90.0      # $ par heure de camion (valeur du temps + coût d'exploitation, hypothèse)
+robustesse_tirages: 10         # tirages du bootstrap rejoués pour tester la stabilité du classement

@@ -165,3 +165,11 @@ class Objectif(Schema):
     nom: str
     poids_comptages: float
     poids_enquete: float
+
+
+class ConfigScenarios(Schema):
+    modele: str
+    objectif: str
+    valeur_par_tonne: float
+    cout_horaire_camion: float
+    robustesse_tirages: int

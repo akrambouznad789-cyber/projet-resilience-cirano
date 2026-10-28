@@ -25,6 +25,9 @@ COMMANDES: dict[str, tuple[str, str, list[tuple[str, dict]]]] = {
                  "jumeau_cirano.calibration.commande:executer",
                  [("--objectif", {"help": "configs/objectifs/<nom>.yaml (défaut : celui de la config)"}),
                   ("--rapide", {"action": "store_true", "help": "calibration finale seulement"})]),
+    "scenarios": ("fermeture de chaque liaison et de chaque route : criticité et robustesse",
+                  "jumeau_cirano.scenarios.commande:executer",
+                  [("--objectif", {"help": "configs/objectifs/<nom>.yaml (défaut : celui de la config)"})]),
 }
 
 

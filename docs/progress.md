@@ -121,3 +121,24 @@ Validation croisée (5 plis : blocs de 50 km × postes entiers, moyenne ± écar
 - g = 0,60 n'est pas une croissance du camionnage depuis 2006 : g et le fond local par classe sont confondus (le fond absorbe 3 760 camions/j sur autoroute). Ne pas l'interpréter seul.
 - Non identifiés, tenus par le rappel : `fond_autre` (aucune section mesurée de cette classe) et la différence F2 − F3 (|β| < 0,003 min, sans effet).
 - Les intervalles ne couvrent que l'incertitude d'échantillonnage, pas celle de la structure du modèle (ensembles de chemins, vitesses, localisation des postes).
+
+## Phase 4 · Résilience (2026-10-28)
+
+**Fait** — `scenarios/resilience.py` et `jumeau scenarios` (17 min), `configs/scenarios.yaml` ; 6 tests en formule fermée. Chaque liaison est fermée (toutes ses routes, 307 scénarios), puis chaque route d'une liaison qui en a plusieurs (263). Les camions se reportent selon le logit calé sur les itinéraires restants ; une paire privée de tous ses itinéraires est détournée par le plus court chemin du réseau dégradé (tout-ou-rien) ; sans chemin, ses trajets ne sont pas desservis. Sorties : `outputs/jumeau/criticite_équilibre.csv` (local) et `docs/jumeau/criticite_équilibre.csv` (public : résultats par liaison et par route, aucun flux entre lieux, comme au Volet 2).
+
+**Ce que le point de contrôle a révélé**
+1. Premier essai classé sur le Δ du temps moyen : 39 fermetures de liaison sur 307, et 157 fermetures de route sur 263, *réduisaient* les camions-heures. C'est un artefact du logit : une partie des camions prend un itinéraire plus lent, et le supprimer fait baisser la moyenne. Remplacé par le coût composite du logit (logsum, Williams 1977), qui ne peut que monter quand une option disparaît : 0 Δ négatif ensuite. Le temps moyen reste dans le tableau, à titre descriptif.
+2. Les coupures (27 liaisons) étaient classées en bas de liste, car leurs trajets non desservis n'entrent dans aucun Δ d'heures. Elles sont maintenant signalées par la colonne `coupure`.
+
+**Chiffres (objectif équilibre ; par an de fermeture, en 2025)**
+- Liaisons les plus critiques : Gatineau–Ontario (2,05 M heures équivalentes), Saint-Zotique–Ontario par l'A-20 (2,03 M), Cabano–Nouveau-Brunswick (1,87 M), Rivière-du-Loup–Cabano (1,86 M, coupure partielle), puis l'A-20 au sud de Québec et entre Drummondville et Saint-Apollinaire, et l'A-20 et l'A-30 sur la Rive-Sud de Montréal.
+- Par camion touché, en heures équivalentes : médiane 0,54 h ; 9e décile 2,0 h.
+- Coût de perturbation provisoire (90 $/h) : 184 M$ par an de fermeture pour la première liaison, 1,4 G$ cumulés pour les dix premières, chacune fermée seule.
+- Coupures : Lévis–Montmagny, Montmagny–La Pocatière, Saint-Pascal–La Pocatière et Saint-Pascal–Rivière-du-Loup laissent chacune 0,7 à 0,8 M de trajets non desservis par an.
+- **Robustesse** (10 tirages du bootstrap rejoués sur les 307 liaisons) : τ de Kendall moyen 0,994 (minimum 0,980) ; recouvrement du top 20 : 99,5 %.
+
+**Revue critique**
+- La robustesse ne couvre que l'incertitude d'échantillonnage des paramètres, très étroite ici. Elle ne dit rien de la structure du modèle (ensembles de chemins, vitesses, demande de 2006-2007 mise à l'échelle par un g confondu avec le fond local). Un classement stable n'est pas un classement exact.
+- **Les coupures sont surtout des artefacts du graphe à 307 liaisons.** Entre Lévis et Rivière-du-Loup, l'A-20 et la R-132 appartiennent aux mêmes liaisons, et aucune autre liaison ne relie le Bas-Saint-Laurent (pas de R-204, pas de traversiers) : la fermeture de toute la liaison isole la région. En réalité, un détour existe ; il est long, mais il existe.
+- **Fermer une seule route :** le coût composite y vaut en médiane 11 fois le temps réellement perdu. Il compte la « valeur de la diversité » du logit (perdre une option sur deux à peu près équivalentes coûte ln 2/μ ≈ 9 min par camion, sans aucun détour) et les pénalités β (6,7 min par km estimé). Pour les fermetures de liaison du top 20, les deux mesures concordent (rapport de 0,89 à 1,19) : le classement principal n'en dépend pas, les chiffres par route oui.
+- Les $ sont provisoires (90 $/h, 3 000 $/t), à remplacer par le guide avantages-coûts du MTQ et les $/t du Volet 2. Une fermeture réelle dure des jours, pas un an : il faut diviser en conséquence.
