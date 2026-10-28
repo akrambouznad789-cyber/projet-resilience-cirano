@@ -7,7 +7,8 @@ MÉTHODES
 --------
   m1 : Moyenne simple des DJMA des segments sous-jacents
   m2 : Moyenne pondérée par longueur de segment (depuis la géométrie de trajets_segments)
-  m3 : Moyenne pondérée par type d'axe routier (hiérarchie MTQ)
+  m3 : Moyenne pondérée par type d'axe routier (hiérarchie MTQ) ; la classe de
+       chaque section vient du RTSS, par son code de sous-route (jointure exacte)
   m4 : 80e percentile par rang (nearest-rank) — valeur réelle du segment
        classé à la position round(PERCENTILE_M4 × n), pas d'interpolation
 
@@ -32,7 +33,16 @@ COMPLÉTION GÉOGRAPHIQUE (arcs statut == "aucun_djma", cf. completer_echecs_geo
 ------------------------------------------------------------------------------------------
   djma_complete           : True si le DJMA a été emprunté au plus proche voisin
   djma_arc_source          : ID_ARC de l'arc donneur
-  djma_distance_source_km : distance géométrie-à-géométrie au donneur (km)
+  djma_distance_source_km : distance moyenne du tracé de l'arc au tracé du donneur (km)
+
+CORRECTIFS DU 2026-10-28
+------------------------
+  - m3 appariait les valeurs des sections avec la liste des sous-routes RTSS de
+    l'arc (deux listes de longueurs différentes) : la classe de chaque section
+    est désormais lue dans le RTSS par son code de sous-route.
+  - La complétion comparait les lignes droites A–B, qui se touchent aux nœuds :
+    distance toujours nulle. Elle compare désormais les tracés OSRM, par la
+    distance moyenne (pas le minimum, nul lui aussi entre arcs voisins).
 """
 
 import warnings
@@ -52,6 +62,10 @@ RACINE       = Path(__file__).resolve().parent.parent
 INPUT_FILE   = RACINE / "data" / "processed" / "graphe_routier.gpkg"
 LAYER_ARCS   = "arcs_enrichis"
 LAYER_SEGS   = "trajets_segments"
+LAYER_TRACES = "trace_osrm"
+
+FICHIER_SECTIONS = RACINE / "data" / "raw" / "DebitCirculation.gpkg"
+FICHIER_RTSS     = RACINE / "data" / "raw" / "ReseauRoutier_RTSS.gpkg"
 
 OUTPUT_FILE  = RACINE / "data" / "processed" / "graphe_routier_djma.gpkg"
 OUTPUT_LAYER = "arcs_enrichis_djma"
@@ -127,25 +141,40 @@ def parser_paires_djma_cam(
     return paires
 
 
+def classes_sections() -> dict[str, str]:
+    """Classe routière RTSS de chaque section de comptage, par jointure exacte.
+
+    La section porte le code RTSS de sa sous-route de début (`00073-03-205-32A0`)
+    et de fin ; le RTSS porte la classe de chaque sous-route (`num_rts`, mêmes
+    14 caractères sans tirets). Repli sur le code de fin ; sans correspondance,
+    la section garde le poids par défaut.
+    """
+    sections = gpd.read_file(FICHIER_SECTIONS, ignore_geometry=True,
+                             columns=["ide_sectn_trafc", "rtss_debut", "rtss_fin"])
+    rtss = gpd.read_file(FICHIER_RTSS, ignore_geometry=True, columns=["num_rts", "des_clasf_"])
+    classe = rtss.drop_duplicates("num_rts").set_index("num_rts")["des_clasf_"]
+    debut = sections["rtss_debut"].str.replace("-", "", regex=False).map(classe)
+    fin = sections["rtss_fin"].str.replace("-", "", regex=False).map(classe)
+    return dict(zip(sections["ide_sectn_trafc"].astype(str), debut.fillna(fin)))
+
+
 def parser_paires_type(
     chaine_val: str | None,
-    chaine_type: str | None,
+    types: list[str | None],
     separateur: str = "|",
 ) -> tuple[list[float], list[int]]:
-    """Parse en parallèle ids_segs_djma_val et ids_segs_rtss_type → (valeurs, poids)."""
+    """Parse ids_segs_djma_val avec la classe de chaque section (même ordre) → (valeurs, poids)."""
     if not chaine_val or pd.isna(chaine_val):
         return [], []
-    tokens_val  = str(chaine_val).split(separateur)
-    tokens_type = str(chaine_type).split(separateur) if (chaine_type and not pd.isna(chaine_type)) \
-                  else [""] * len(tokens_val)
+    tokens_val = str(chaine_val).split(separateur)
     vals, poids = [], []
-    for tv, tt in zip(tokens_val, tokens_type):
+    for tv, tt in zip(tokens_val, types):
         tv = tv.strip()
         if not tv or tv.upper() == "NA":
             continue
         try:
             vals.append(float(tv.split("@")[0]))
-            poids.append(POIDS_TYPE.get(tt.strip(), POIDS_DEFAUT))
+            poids.append(POIDS_TYPE.get(tt, POIDS_DEFAUT) if isinstance(tt, str) else POIDS_DEFAUT)
         except ValueError:
             continue
     return vals, poids
@@ -222,13 +251,15 @@ def appliquer_m2(arcs: gpd.GeoDataFrame, segs: gpd.GeoDataFrame) -> gpd.GeoDataF
 # M3 — Pondération par type d'axe
 # ============================================================
 
-def calculer_m3(row: pd.Series) -> tuple:
-    vals, poids = parser_paires_type(row.get("ids_segs_djma_val"), row.get("ids_segs_rtss_type"))
+def calculer_m3(row: pd.Series, classes: dict[str, str]) -> tuple:
+    ids = str(row.get("ids_segs_djma_id") or "").split("|")
+    types = [classes.get(i.strip()) for i in ids]
+    vals, poids = parser_paires_type(row.get("ids_segs_djma_val"), types)
     if not vals:
         return None, None, None, 0
     total_p = sum(poids)
     djma_m3 = round(float(np.average(vals, weights=poids))) if total_p > 0 else round(float(np.mean(vals)))
-    vals_cam, poids_cam = parser_paires_type(row.get("ids_segs_djma_val_cam"), row.get("ids_segs_rtss_type"))
+    vals_cam, poids_cam = parser_paires_type(row.get("ids_segs_djma_val_cam"), types)
     if vals_cam:
         total_pc   = sum(poids_cam)
         pct_cam_m3 = round(float(np.average(vals_cam, weights=poids_cam)), 1) if total_pc > 0 \
@@ -239,8 +270,8 @@ def calculer_m3(row: pd.Series) -> tuple:
     return djma_m3, pct_cam_m3, djma_cam_m3, len(vals)
 
 
-def appliquer_m3(arcs: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    res = arcs.apply(calculer_m3, axis=1, result_type="expand")
+def appliquer_m3(arcs: gpd.GeoDataFrame, classes: dict[str, str]) -> gpd.GeoDataFrame:
+    res = arcs.apply(calculer_m3, axis=1, result_type="expand", classes=classes)
     res.columns = ["djma_m3", "pct_cam_m3", "djma_cam_m3", "n_segs_m3"]
     arcs = arcs.copy()
     arcs["djma_m3"]     = res["djma_m3"].astype("Int64")
@@ -290,14 +321,21 @@ COLS_A_EMPRUNTER = [
 ]
 
 
-def completer_echecs_geographique(arcs: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+def distance_moyenne_traces(trace, autre, n_points: int = 21) -> float:
+    """Distance moyenne (m) de points régulièrement espacés sur `trace` jusqu'à `autre`."""
+    points = [trace.interpolate(t, normalized=True) for t in np.linspace(0, 1, n_points)]
+    return float(np.mean([autre.distance(p) for p in points]))
+
+
+def completer_echecs_geographique(arcs: gpd.GeoDataFrame, traces: gpd.GeoSeries) -> gpd.GeoDataFrame:
     """Emprunte le DJMA (m1-m4) de l'arc valide le plus proche pour les arcs en
     échec 'aucun_djma' (aucune station MTQ à proximité du tracé, donc aucun
     segment propre pour calculer m1-m4).
 
-    Un seul plus proche voisin, distance géométrie à géométrie (tracé à tracé,
-    pas centroïde — même logique que les filtres de routage dans
-    algo_jointure_routes_liens.py) parmi les arcs statut == 'ok'. Ce n'est pas
+    Un seul plus proche voisin parmi les arcs statut == 'ok', au sens de la
+    distance moyenne entre tracés OSRM (`traces`, indexé par ID_ARC). La
+    distance minimale ne convient pas : deux arcs voisins se touchent au nœud
+    commun, elle vaut 0 pour tous les voisins. Ce n'est pas
     une moyenne pondérée comme le KNN+IDW temporel de
     completion_donnees_randomforest.py (qui comble les trous d'une série d'une
     station qui *existe déjà*) : ici aucune mesure n'existe pour cet arc, donc
@@ -316,7 +354,8 @@ def completer_echecs_geographique(arcs: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     a_completer = arcs[arcs["statut"] == "aucun_djma"]
 
     for idx, arc in a_completer.iterrows():
-        distances    = valides.geometry.distance(arc.geometry)
+        trace        = traces[arc["ID_ARC"]]
+        distances    = valides["ID_ARC"].map(lambda i: distance_moyenne_traces(trace, traces[i]))
         idx_proche   = distances.idxmin()
         plus_proche  = valides.loc[idx_proche]
 
@@ -371,14 +410,17 @@ def main() -> None:
     arcs = appliquer_m2(arcs, segs)
 
     print("[3/5] Calcul m3 (pondération type d'axe)...")
-    arcs = appliquer_m3(arcs)
+    classes = classes_sections()
+    print(f"  classe RTSS retrouvée pour {sum(isinstance(c, str) for c in classes.values())}/{len(classes)} sections")
+    arcs = appliquer_m3(arcs, classes)
 
     print("[3/6] Calcul m4 (80e percentile, nearest-rank)...")
     arcs = appliquer_m4(arcs)
 
     print("\n[4/6] Complétion géographique des échecs (statut == aucun_djma)...")
     n_avant = arcs["statut"].eq("aucun_djma").sum()
-    arcs = completer_echecs_geographique(arcs)
+    traces = gpd.read_file(INPUT_FILE, layer=LAYER_TRACES).drop_duplicates("ID_ARC").set_index("ID_ARC").geometry
+    arcs = completer_echecs_geographique(arcs, traces)
     n_completes = arcs["djma_complete"].sum()
     print(f"  {n_completes}/{n_avant} arcs complétés par emprunt au plus proche voisin")
     if n_completes:

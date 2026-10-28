@@ -11,11 +11,13 @@ Pour chaque arc, le DJMA agrégé est calculé de 4 façons à partir de ses seg
 | Méthode | Logique | Médiane (véh./jour) | Minimum | Maximum |
 |---|---|---|---|---|
 | **m1** | Moyenne simple des segments | 11 947 | 488 | 182 999 |
-| **m2** | Pondérée par longueur de segment | 14 216 | 486 | 179 149 |
-| **m3** | Pondérée par type d'axe routier (hiérarchie MTQ) | 12 152 | 482 | 182 999 |
+| **m2** | Pondérée par longueur de segment | 14 318 | 486 | 179 145 |
+| **m3** | Pondérée par type d'axe routier (hiérarchie MTQ) | 12 183 | 529 | 182 999 |
 | **m4** | 80e percentile par rang (nearest-rank) : valeur réelle du segment classé à la position `round(0,8 × n)`, sans interpolation ni moyenne | 15 351 | 530 | 185 912 |
 
 m4 donne systématiquement les valeurs les plus élevées : c'est la conséquence directe de sa conception (80e percentile, pour représenter des conditions de circulation chargées), là où m1-m3 visent une tendance centrale.
+
+> **Correctifs du 28 octobre 2026.** Une relecture du code a trouvé deux erreurs, corrigées depuis. (1) m3 lisait la classe routière dans la liste des sous-routes RTSS de l'arc au lieu de celle de chaque segment ; la classe vient maintenant du RTSS, par le code de sous-route du segment (95 % des segments retrouvés). (2) Le script de routage ajoutait ses lignes à chaque exécution au lieu de les remplacer : m2 mêlait des valeurs de trois exécutions successives. Effet sur les 285 arcs mesurés : médiane de m2 14 216 → 14 318, de m3 12 152 → 12 183 ; m1 et m4 ne changent pas. La complétion des 19 arcs sans segment compare aussi désormais les vrais tracés (voir [Résultats](resultats.md)).
 
 ```python
 def calculer_m1(segments):
@@ -46,17 +48,17 @@ Plutôt qu'une simple comparaison statistique, cette carte projette l'écart rel
 
 | Arc | Écart relatif | Segments mobilisés |
 |---|---|---|
-| Laurier-Station – Saint-Apollinaire | 156 % | 8 |
-| L'Ancienne-Lorette – Nœud Lac-St-Jean | 147 % | 108 |
-| Donnacona – Saint-Augustin-de-Desmaures | 142 % | 12 |
+| Laurier-Station – Saint-Apollinaire | 149 % | 8 |
+| L'Ancienne-Lorette – Nœud Lac-St-Jean | 139 % | 108 |
+| Donnacona – Pont-Rouge | 126 % | 9 |
 
 Pour le premier et le troisième, le faible nombre de segments suffit à l'expliquer : un seul segment extrême pèse beaucoup plus sur m4 (percentile) que sur m1-m3 (moyennes). Le deuxième est plus révélateur : avec 108 segments, c'est l'un des arcs les mieux documentés du réseau, et l'écart y reste très élevé. La divergence ne tient donc pas qu'au manque de données ; elle vient probablement aussi de profils de circulation hétérogènes (trafic local mêlé à du transit à très fort débit) qu'une moyenne et un percentile élevé traduisent différemment — hypothèse non vérifiée à ce stade.
 
 ![Boîtes à moustaches — écarts relatifs à m4](../figures/boites_ecarts_methodes.png)
 
-La carte montre *où* ça diverge ; ce graphique montre *de combien*, en distribution, sur les mêmes 285 arcs (les 19 arcs complétés géographiquement en sont exclus — voir plus bas). m4 sert de référence commune aux trois boîtes puisque c'est la méthode qui s'écarte le plus des trois autres. Les trois médianes sont proches (+18 % à +20 %) : m4 dépasse typiquement m1-m3 d'environ un cinquième, cohérent avec son rôle de capter un 80e percentile plutôt qu'une tendance centrale. Les distributions sont étalées vers le haut (quelques arcs dépassent +100 %, un extrême à +465 % pour m2) mais rarement négatives au-delà de −40/−75 % : m4 est presque toujours ≥ aux moyennes, jamais dramatiquement en-dessous.
+La carte montre *où* ça diverge ; ce graphique montre *de combien*, en distribution, sur les mêmes 285 arcs (les 19 arcs complétés géographiquement en sont exclus — voir plus bas). m4 sert de référence commune aux trois boîtes puisque c'est la méthode qui s'écarte le plus des trois autres. Les trois médianes sont proches (+17 % à +20 %) : m4 dépasse typiquement m1-m3 d'environ un cinquième, cohérent avec son rôle de capter un 80e percentile plutôt qu'une tendance centrale. Les distributions sont étalées vers le haut (quelques arcs dépassent +100 %, un extrême à +465 % pour m2) mais rarement négatives au-delà de −40/−75 % : m4 est presque toujours ≥ aux moyennes, jamais dramatiquement en-dessous.
 
-m1, m2 et m3 sont fortement corrélées entre elles (Pearson ≥ 0,979) car elles moyennent la même population de segments différemment. m4 reste bien corrélée (Pearson ≈ 0,97-0,98) tout en s'en écartant légèrement : c'est voulu, elle vise à capturer les pointes de trafic (80e percentile réel) plutôt que la tendance centrale. 134 des 285 arcs mesurés directement (47 %) montrent un écart relatif > 30 % entre méthodes — un signal que le choix de méthode d'agrégation a un impact réel et doit être fait explicitement selon l'usage.
+m1, m2 et m3 sont fortement corrélées entre elles (Pearson ≥ 0,979) car elles moyennent la même population de segments différemment. m4 reste bien corrélée (Pearson ≈ 0,97-0,98) tout en s'en écartant légèrement : c'est voulu, elle vise à capturer les pointes de trafic (80e percentile réel) plutôt que la tendance centrale. 132 des 285 arcs mesurés directement (46 %) montrent un écart relatif > 30 % entre méthodes — un signal que le choix de méthode d'agrégation a un impact réel et doit être fait explicitement selon l'usage.
 
 ### Quelle méthode pour quel usage ?
 
@@ -72,11 +74,12 @@ Le dépôt livre les quatre valeurs par arc sans en imposer une : le choix se fa
 19 des 307 arcs (statut `aucun_djma` — aucun segment MTQ retenu après les filtres du [Routage](routage.md#arcs-sans-segment-retenu)) n'ont aucun segment propre : m1-m4 y sont indéfinis par construction, faute de mesure à agréger. Plutôt que de laisser ces arcs vides, `completer_echecs_geographique()` leur emprunte le DJMA (m1-m4) de l'arc valide le plus proche géométriquement.
 
 ```python
-def completer_echecs_geographique(arcs):
+def completer_echecs_geographique(arcs, traces):
     """Emprunte le DJMA de l'arc valide (statut == 'ok') le plus proche."""
     valides = arcs[arcs.statut == "ok"]
     for arc in arcs[arcs.statut == "aucun_djma"]:
-        distances   = valides.geometry.distance(arc.geometry)  # tracé à tracé
+        # distance MOYENNE de 21 points du tracé de l'arc au tracé de chaque candidat
+        distances   = [distance_moyenne(traces[arc], traces[v]) for v in valides]
         plus_proche = valides[argmin(distances)]
         arc.djma_m1, arc.djma_m2, arc.djma_m3, arc.djma_m4 = (
             plus_proche.djma_m1, plus_proche.djma_m2, plus_proche.djma_m3, plus_proche.djma_m4
@@ -85,7 +88,9 @@ def completer_echecs_geographique(arcs):
         # n_segs_m{N} reste à 0 : toujours aucun segment MTQ propre à cet arc
 ```
 
-Un seul plus proche voisin — pas de moyenne pondérée façon KNN+IDW (cf. [Complétion](completion.md)) : il n'existe ici aucune mesure partielle à compléter, seulement une meilleure estimation à emprunter. La distance au donneur est **0 km dans les 19 cas** : le plus proche voisin géométrique d'un arc est presque toujours un arc qui lui est directement connecté dans le graphe (même ville de départ ou d'arrivée), pas un arc choisi par proximité de coordonnées au sens large. Ex. Noeud_Baie_James–Radisson (aucune mesure) emprunte à Wemindji–Noeud_Baie_James, le corridor adjacent qui partage son nœud "Noeud_Baie_James" ; Montréal–Westmount emprunte à Montréal–Saint-Lambert.
+Un seul plus proche voisin — pas de moyenne pondérée façon KNN+IDW (cf. [Complétion](completion.md)) : il n'existe ici aucune mesure partielle à compléter, seulement une meilleure estimation à emprunter. La proximité se mesure entre les **tracés routiers** (OSRM), par la distance moyenne de points répartis le long du tracé de l'arc jusqu'au tracé du candidat : médiane 2,0 km, maximum 39,4 km sur les 19 cas. Ex. Noeud_Baie_James–Radisson emprunte à Wemindji–Noeud_Baie_James, le corridor qui le prolonge.
+
+Jusqu'au 28 octobre 2026, la comparaison portait par erreur sur les lignes droites entre villes, qui se touchent toutes au nœud commun : la distance valait 0 km pour tous les voisins et le donneur était, de fait, le premier arc connecté venu. Le nouveau critère a changé le donneur de 14 arcs sur 19. Il a sa propre limite : il peut retenir une route parallèle plutôt que le prolongement de la même route. Ainsi, Stanstead–Vermont emprunte à Cowansville–Vermont, dont le segment retenu par m4 affiche 0 % de camions, une valeur à vérifier. Le Volet 3 rattachera les segments par leur code RTSS exact, ce qui devrait rendre la plupart de ces emprunts inutiles.
 
 Chaque valeur empruntée reste traçable — `djma_complete = True`, `djma_arc_source` (ID de l'arc donneur) et `djma_distance_source_km` sont conservés dans `graphe_routier_djma.gpkg` — pour ne jamais confondre une mesure réelle avec une estimation empruntée en aval (cartes, statistiques). Les 3 arcs `hors_quebec` (tracé sortant du territoire) ne sont pas concernés : leur géométrie elle-même est hors du réseau QC comparé, la proximité y est moins interprétable.
 

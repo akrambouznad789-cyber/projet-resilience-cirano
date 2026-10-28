@@ -520,9 +520,11 @@ def main():
     cols_arcs = ["ID_ARC"] + [c for c in gdf_arcs.columns if c not in ("ID_ARC", "geometry")] + ["geometry"]
     gdf_arcs  = gdf_arcs[cols_arcs]
 
+    # mode "w" (défaut) : chaque couche est remplacée, les autres couches du fichier restent.
+    # Un ancien mode="a" empilait les lignes à chaque exécution (couches triplées, m2 faussé).
     gdf_arcs.to_file( OUTPUT_FILE, layer="arcs_enrichis",   driver="GPKG")
-    gdf_segs.to_file( OUTPUT_FILE, layer="trajets_segments", driver="GPKG", mode="a")
-    gdf_trace.to_file(OUTPUT_FILE, layer="trace_osrm",       driver="GPKG", mode="a")
+    gdf_segs.to_file( OUTPUT_FILE, layer="trajets_segments", driver="GPKG")
+    gdf_trace.to_file(OUTPUT_FILE, layer="trace_osrm",       driver="GPKG")
 
     # ── RÉSUMÉ ──────────────────────────────────────────────────
     print()
