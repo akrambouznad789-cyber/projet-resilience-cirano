@@ -159,3 +159,28 @@ Validation croisée (5 plis : blocs de 50 km × postes entiers, moyenne ± écar
 - Pour les liaisons, les deux mesures concordent : le classement principal ne dépend pas de la valeur de la diversité.
 - Pour une seule route, le logsum double la perte du meilleur itinéraire, et une fois sur deux il ne compte que de la valeur d'option. Les chiffres par route se lisent avec le meilleur itinéraire, le logsum reste l'ordre de classement.
 - Le « 11 fois » du point de contrôle précédent comparait le logsum au temps de parcours seul. Contre le coût généralisé du meilleur itinéraire (pénalités β comprises), le rapport tombe à 2,1 : l'essentiel de l'écart venait des pénalités, pas de la diversité.
+
+## Phase 5 · Interface sombre et page du Volet 3 (2026-10-28)
+
+**Fait**
+- **Thème, source unique** : `scripts/gabarits/theme/jetons.json` (format DTCG, importable tel quel par Style Dictionary) → `scripts/theme_pages.py` → `theme.css` et `palette.js` pour l'application officielle, et injection dans chaque page. Sombre par défaut (inspiré de Dracula : fond #191a21, surfaces #21222c / #282a36, accent #bd93f9), clair conservé (bouton « Thème clair », ou `?theme=clair`).
+- **Polices OFL auto-hébergées** dans `data/reference/fonts/`, intégrées en base64 (pages autonomes, même hors ligne) : Hammersmith One (titres, étapes, boutons), Atkinson Hyperlegible (texte et chiffres), Atkinson Hyperlegible Mono (tableaux, code).
+- **Volets 1 et 2** : couleurs codées en dur → jetons, barre d'étapes à 3 volets, pages régénérées.
+- **Page du Volet 3** : `scripts/visualisation_jumeau.py` + `scripts/gabarits/jumeau.html`, 5 étapes (plusieurs routes, modèle et réglages, calibration, fermer une liaison, liaisons critiques), onglet « Méthode » avec le code réellement exécuté.
+  - Locale (`outputs/jumeau/index.html`, 11,3 Mo) : curseurs μ, β, g, fond local (mode expert), préréglages des trois objectifs, recalcul en direct, fermeture calculée dans la page, reclassement des 307 liaisons avec les réglages courants.
+  - Publique (`docs/jumeau/index.html`, 2,2 Mo) : résultats précalculés seulement, aucun itinéraire tiré de l'ENR.
+- **JavaScript portable**, sans DOM : `js/modele.js` (= `affectation.py`), `js/scenario.js` (= `resilience.py`), `js/moteur_canvas.js` (rendu sans WebGL). Les données du moteur viennent de `src/jumeau_cirano/interface/moteur.py` (45 000 séquences de routes uniques pour 258 000 itinéraires, tableaux en base64).
+- Préréglages : calages rapides « comptages » (μ 0,060, β hors autoroute +4,4, β estimé −2,2) et « enquête » (μ 0,099, β −0,28, ε 0,27).
+
+**Chiffres**
+- Parité JS / Python (`tests/test_parite_js.py`, réseau synthétique avec accès, tailles de chemin et un détour tout-ou-rien) : écart < 1e-6 sur les probabilités, les flux, les sections, le logsum et les 9 impacts de 6 fermetures.
+- Sur les données réelles, dans la page : R² log 0,560 (PyTorch : 0,560) ; fermeture de Gatineau–Ontario-Sud 2,05 M h équivalentes, 184 M$ (identique au calcul Python) ; affectation complète en 23 ms, une fermeture en 0,46 s.
+- Couleurs validées avec le validateur du skill dataviz, contre la terre sombre #22232d : catégorielle à 3 teintes, toutes paires (ΔE daltonisme 9,4 ; vision normale 20,9 ; ≥ 3:1) ; rampes ordinales bleue et or (bas de gamme 2,35:1 et 2,5:1). Textes ≥ 4,5:1 (texte discret 5,4:1 sur les cartes), bordures des contrôles ≥ 3:1.
+
+**Revue critique**
+- Écart voulu au plan : les chiffres ne sont pas en Hammersmith One. Son « 1 » se confond avec un « I » (« 19 » se lisait « I9 ») ; ils passent en Atkinson Hyperlegible, conçue pour ça.
+- Terre et eau sombres ne diffèrent que de 1,1:1 en luminance : la teinte (eau plus bleue) les sépare. C'est un fond, pas une donnée, mais les côtes restent discrètes.
+- 7 routes courtes, faites de raccords estimés absents du RTSS, n'ont pas de tracé : elles sont dessinées en ligne droite et l'infobulle le dit.
+- Le moteur Canvas existe en trois copies (les Volets 1 et 2 gardent la leur). À unifier sur `js/moteur_canvas.js` lors d'une prochaine refonte de ces pages.
+- Vérifié en captures sans WebGL (Chrome headless, moteur Canvas forcé), en sombre et en clair, et sans débordement à la largeur minimale de Chrome (504 px). Pas vérifié : un vrai lecteur d'écran, un vrai téléphone.
+- Le classement recalculé dans la page avec d'autres réglages ne refait pas la robustesse : il n'est qu'indicatif.

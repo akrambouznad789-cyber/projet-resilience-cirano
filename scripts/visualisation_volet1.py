@@ -39,6 +39,7 @@ import numpy as np
 import pandas as pd
 
 from generer_site_volet1 import ETAPES_V1, nettoyer_markdown, reecrire, rendre_gfm
+from theme_pages import injecter
 from visualisation_volet2 import fond_de_carte, geojson, reparer_nom
 
 RACINE   = Path(__file__).resolve().parent.parent
@@ -240,7 +241,7 @@ def exporter(donnees: dict, cible: Path, url_v2: str, publique: bool) -> None:
     """Injecte les données dans le gabarit HTML (page autonome)."""
     charge = {**donnees, "meta": {**donnees["meta"], "url_v2": url_v2, "publique": publique}}
     texte = json.dumps(charge, ensure_ascii=False, separators=(",", ":"), allow_nan=False).replace("</", "<\\/")
-    html = GABARIT.read_text(encoding="utf-8").replace("/*__DONNEES__*/null", texte, 1)
+    html = injecter(GABARIT.read_text(encoding="utf-8")).replace("/*__DONNEES__*/null", texte, 1)
     cible.parent.mkdir(parents=True, exist_ok=True)
     cible.write_text(html, encoding="utf-8")
     print(f"→ {cible.relative_to(RACINE)} ({cible.stat().st_size / 1e6:.1f} Mo)")

@@ -1,0 +1,41 @@
+{
+  "genere_le": "2026-10-28",
+  "objectif": {
+    "nom": "comptages",
+    "poids_comptages": 1.0,
+    "poids_enquete": 0.0
+  },
+  "parametres": {
+    "mu": 0.05971578248502214,
+    "beta_hors_autoroute": 4.447482035489765,
+    "beta_estime": -2.223004202187829,
+    "croissance": 0.7298595354871533,
+    "erreur_postes": 0.05000000000000001,
+    "fond_10": 3250.9419210051365,
+    "fond_20": 494.411468436267,
+    "fond_30": 402.3945510887885,
+    "fond_40": 104.07374120108767,
+    "fond_autre": 30.02513900776326,
+    "beta_frontiere_F1": -3.859933177289674e-09,
+    "beta_frontiere_F10": -0.03370624160444044,
+    "beta_frontiere_F11": -0.054242578648900135,
+    "beta_frontiere_F2": 3.4789028998638137e-07,
+    "beta_frontiere_F3": -3.4789028998902237e-07,
+    "beta_frontiere_F7": 0.015549976560837793,
+    "beta_frontiere_F9": 0.0722389439935779
+  },
+  "ic95": {},
+  "metriques_finales": {
+    "r2_log": 0.6013519451059517,
+    "erreur_mediane": 0.4225102752567008,
+    "part_30": 0.36911764705882355,
+    "nll_enquete": 3.8612086862608765,
+    "poste_retrouve": 0.49321933962264153
+  },
+  "validation_croisee": null,
+  "observations": {
+    "sections_mesurees": 680,
+    "camions_enquetes": 37235,
+    "itineraires": 257952
+  }
+}

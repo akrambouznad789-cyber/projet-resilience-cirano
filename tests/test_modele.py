@@ -30,16 +30,17 @@ POSTES_ROUTE = {1: "S1", 3: "S3"}
 FOND = {"10": 100.0, "20": 50.0, "30": 1.0, "40": 1.0, "autre": 1.0}
 
 
-def donnees(n3: tuple[float, float, float] = (365e3, 365e3, 365e3)) -> Donnees:
-    lignes = np.repeat(np.arange(len(CHEMINS)), [len(r) for _, r in CHEMINS])
-    colonnes = np.concatenate([r for _, r in CHEMINS])
-    cr = creux(lignes, colonnes, np.ones(len(lignes)), (len(CHEMINS), 4))
+def donnees(n3: tuple[float, float, float] = (365e3, 365e3, 365e3),
+            chemins: list[tuple[int, list[int]]] = CHEMINS) -> Donnees:
+    lignes = np.repeat(np.arange(len(chemins)), [len(r) for _, r in chemins])
+    colonnes = np.concatenate([r for _, r in chemins])
+    cr = creux(lignes, colonnes, np.ones(len(lignes)), (len(chemins), 4))
     par_route = torch.tensor(np.stack([MINUTES, KM_HORS, np.zeros(4)], axis=1))
     return Donnees(chemin_route=cr, composantes=torch.sparse.mm(cr, par_route),
-                   paire=torch.tensor([p for p, _ in CHEMINS]), n3=torch.tensor(n3, dtype=torch.float64),
-                   ln_ps=torch.zeros(len(CHEMINS), dtype=torch.float64),
-                   minutes_acces=torch.zeros(len(CHEMINS), dtype=torch.float64),
-                   frontieres=torch.zeros((len(CHEMINS), 1), dtype=torch.float64),
+                   paire=torch.tensor([p for p, _ in chemins]), n3=torch.tensor(n3, dtype=torch.float64),
+                   ln_ps=torch.zeros(len(chemins), dtype=torch.float64),
+                   minutes_acces=torch.zeros(len(chemins), dtype=torch.float64),
+                   frontieres=torch.zeros((len(chemins), 1), dtype=torch.float64),
                    minutes=torch.tensor(MINUTES), km_hors_auto=torch.tensor(KM_HORS),
                    km_estime=torch.zeros(4, dtype=torch.float64),
                    route_section=creux(np.arange(4), np.arange(4), np.ones(4), (4, 4)),

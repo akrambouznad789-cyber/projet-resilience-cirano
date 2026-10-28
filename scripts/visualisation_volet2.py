@@ -64,6 +64,8 @@ import numpy as np
 import pandas as pd
 from shapely.geometry import LineString, box, mapping
 
+from theme_pages import injecter
+
 RACINE      = Path(__file__).resolve().parent.parent
 DIR_ENR     = Path(os.environ.get(
     "ENR_DIR",
@@ -796,7 +798,7 @@ def version_publique(donnees: dict) -> dict:
 
 def exporter(donnees: dict, cible: Path) -> None:
     """Injecte les données dans le gabarit HTML (page autonome)."""
-    gabarit = GABARIT.read_text(encoding="utf-8")
+    gabarit = injecter(GABARIT.read_text(encoding="utf-8"))
     charge = json.dumps(donnees, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
     charge = charge.replace("</", "<\\/")
     html = gabarit.replace("/*__DONNEES__*/null", charge, 1)

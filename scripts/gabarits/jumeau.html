@@ -1,0 +1,942 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Volet 3 · Le jumeau</title>
+<!-- Gabarit de scripts/visualisation_jumeau.py : thème, moteur Canvas, modele.js, scenario.js et données
+     sont injectés aux marqueurs. Version locale (outputs/) : itinéraires dérivés de l'ENR, ne pas publier. -->
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>/*__THEME_JS__*/</script>
+<style>
+/*__THEME_CSS__*/
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
+p{margin:0}
+button{font:inherit;color:inherit}
+input,select{color:var(--ink);background:var(--card)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono)}
+
+/* ---------- Grille de l'application ---------- */
+.app{display:grid;height:100vh;grid-template-columns:230px minmax(0,1fr) 410px;grid-template-rows:56px minmax(0,1fr);grid-template-areas:"barre barre barre" "etapes scene panneau"}
+.barre{grid-area:barre;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 16px;border-bottom:1px solid var(--rule);background:var(--card)}
+.barre .eyebrow{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block;line-height:1.2}
+.barre h1{font-size:1.2rem;font-weight:800;line-height:1.15}
+.barre-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.provisoire{font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--usd-ink);border:1px dashed var(--usd);border-radius:4px;padding:2px 7px;white-space:nowrap}
+.btn{border:1px solid var(--rule);background:var(--card);border-radius:999px;padding:6px 14px;font-weight:700;font-size:.82rem;cursor:pointer;color:var(--ink);text-decoration:none;white-space:nowrap}
+a.btn:hover{background:var(--panel)}
+.btn[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+
+/* ---------- Étapes ---------- */
+.etapes{grid-area:etapes;overflow-y:auto;border-right:1px solid var(--rule);background:var(--panel);padding:8px 10px 12px;display:flex;flex-direction:column;gap:2px}
+/* Barre commune aux deux volets (même format que docs/volet1/) */
+.groupe-etapes{margin:12px 8px 4px;font-family:var(--mono);font-size:.64rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);line-height:1.3}
+.groupe-etapes span{font-weight:700}
+.groupe-etapes.v1 span{color:var(--v1)} .groupe-etapes.v2 span{color:var(--v2)} .groupe-etapes.v3 span{color:var(--v3)}
+.etape{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:center;text-align:left;border:0;background:transparent;border-radius:8px;padding:6px 8px;cursor:pointer;color:var(--ink2);text-decoration:none}
+.etape:hover{background:var(--hover)}
+.etape b{width:28px;height:28px;border-radius:7px;border:1.5px solid var(--muted);display:flex;align-items:center;justify-content:center;font-family:var(--num);font-size:.95rem;color:var(--ink2);background:var(--card)}
+.etape span{font-size:.84rem;line-height:1.25}
+.etape small{display:block;font-family:var(--mono);font-size:.62rem;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
+.etape.v1 b{border-color:var(--v1-soft);color:var(--v1)} .etape.v2 b{border-color:var(--v2-soft);color:var(--v2)} .etape.v3 b{border-color:var(--v3-soft);color:var(--v3)}
+.etape[aria-current="step"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px var(--shadow)}
+.etape[aria-current="step"] b{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.etapes-pied{margin-top:auto;padding:10px 8px 2px;font-size:.72rem;color:var(--muted);line-height:1.4}
+.etapes-pied kbd{font-family:var(--mono);font-size:.68rem;border:1px solid var(--rule);border-radius:3px;padding:0 4px;background:var(--card)}
+
+/* ---------- Carte ---------- */
+.scene{grid-area:scene;position:relative;min-width:0;min-height:0;overflow:hidden;background:var(--water)}
+.carte{position:absolute;inset:0;overflow:hidden}
+.infobulle{position:absolute;z-index:6;pointer-events:none;background:var(--card);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:9px 11px;box-shadow:0 6px 18px var(--shadow);max-width:290px;font-size:.8rem;line-height:1.4}
+.infobulle strong{display:block;font-family:var(--display);font-size:.9rem;line-height:1.2;margin-bottom:3px}
+.infobulle .l{display:flex;justify-content:space-between;gap:14px}
+.infobulle .l span:first-child{color:var(--muted)}
+.infobulle .l span:last-child{font-variant-numeric:tabular-nums;text-align:right}
+.infobulle .note{color:var(--muted);font-size:.74rem;margin-top:4px}
+.etiq-ville{pointer-events:none}
+.etiq-ville span{display:block;margin-left:7px;font-family:var(--body);font-size:11px;font-weight:700;color:var(--ink2);text-shadow:0 0 3px var(--land),0 0 3px var(--land),0 0 2px var(--land);white-space:nowrap}
+.etiq-ville.fr span{font-weight:400;font-style:italic;color:var(--muted)}
+.chargement{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.8rem;color:var(--ink2);z-index:5;pointer-events:none}
+.chargement .probleme{pointer-events:auto;max-width:460px;margin:16px;background:var(--card);border:1px solid var(--rule);border-radius:var(--r);padding:18px 20px;box-shadow:0 6px 18px var(--shadow);font-family:var(--body);font-size:.88rem;color:var(--ink);display:flex;flex-direction:column;gap:10px}
+.probleme h2{font-size:1.1rem}
+.probleme ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;color:var(--ink2)}
+.probleme code{font-family:var(--mono);font-size:.8rem;background:var(--panel);padding:1px 5px;border-radius:4px;user-select:all}
+.probleme .sous{font-size:.78rem;color:var(--muted)}
+.maplibregl-ctrl-attrib{font-size:10px}
+.mc-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+.mc-coin{position:absolute;z-index:3;display:flex;flex-direction:column;gap:6px;margin:10px;align-items:flex-start}
+.mc-top-right{top:0;right:0;align-items:flex-end} .mc-bottom-left{bottom:0;left:0} .mc-bottom-right{bottom:0;right:0;align-items:flex-end}
+.mc-nav{display:flex;flex-direction:column;background:var(--ctrl-bg);border-radius:4px;box-shadow:0 0 0 1px var(--ctrl-rule);overflow:hidden}
+.mc-nav button{width:29px;height:29px;border:0;background:var(--ctrl-bg);font-size:17px;line-height:1;cursor:pointer;color:var(--ctrl-ink)}
+.mc-nav button+button{border-top:1px solid var(--ctrl-rule)}
+.mc-nav button:hover{background:var(--hover)}
+.mc-echelle{border:2px solid var(--ctrl-ink);border-top:0;background:color-mix(in srgb,var(--ctrl-bg) 80%,transparent);font-size:10px;padding:0 5px;color:var(--ctrl-ink)}
+.mc-attrib{background:color-mix(in srgb,var(--ctrl-bg) 88%,transparent);font-size:10px;padding:2px 6px;border-radius:3px;color:var(--ctrl-ink);max-width:70vw}
+.bandeau{position:absolute;left:50%;bottom:44px;transform:translateX(-50%);z-index:4;max-width:min(520px,calc(100% - 32px));background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--usd);border-radius:8px;padding:9px 13px;font-size:.8rem;color:var(--ink);box-shadow:0 4px 14px var(--shadow)}
+
+/* ---------- Panneau ---------- */
+.panneau{grid-area:panneau;border-left:1px solid var(--rule);background:var(--card);display:flex;flex-direction:column;min-height:0}
+.onglets{display:flex;gap:2px;padding:10px 16px 0;border-bottom:1px solid var(--rule)}
+.onglets button{border:0;background:transparent;padding:8px 12px;font-weight:700;font-size:.82rem;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px}
+.onglets button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.defile{overflow-y:auto;padding:16px 16px 28px;display:flex;flex-direction:column;gap:16px;min-height:0;flex:1}
+.tete .eyebrow{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tete h2{font-size:1.45rem;font-weight:800;line-height:1.1;margin:4px 0 8px}
+.tete p{color:var(--ink2)}
+.tuiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tuile{background:var(--panel);border-radius:8px;padding:9px 11px;min-width:0}
+.tuile b{display:block;font-family:var(--num);font-size:1.25rem;font-weight:800;line-height:1.15}
+.tuile span{font-size:.75rem;color:var(--ink2);line-height:1.3;display:block}
+.tuile.usd b{color:var(--usd-ink)}
+.bloc{display:flex;flex-direction:column;gap:8px}
+.bloc h3{font-size:.86rem;font-weight:700;font-family:var(--body)}
+.bloc .sous{font-size:.75rem;color:var(--muted)}
+.segment{display:inline-flex;flex-wrap:wrap;border:1px solid var(--rule);border-radius:999px;padding:3px;background:var(--panel);gap:2px;align-self:flex-start}
+.segment button{border:0;background:transparent;border-radius:999px;padding:5px 11px;font-size:.78rem;font-weight:700;color:var(--ink2);cursor:pointer}
+.segment button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px var(--shadow)}
+.legende{border:1px solid var(--rule);border-radius:var(--r);padding:11px 13px;display:flex;flex-direction:column;gap:6px;background:var(--card)}
+.legende h3{font-size:.84rem;font-family:var(--body);font-weight:700}
+.legende .sous{font-size:.74rem;color:var(--muted);margin-top:-3px}
+.leg{display:grid;grid-template-columns:30px 1fr auto;gap:9px;align-items:center;font-size:.79rem}
+.leg svg{width:30px;height:12px;display:block}
+.leg .n{color:var(--muted);font-family:var(--mono);font-size:.7rem}
+.note{border-left:3px solid var(--rule);padding:4px 0 4px 11px;font-size:.79rem;color:var(--ink2)}
+.note.attention{border-left-color:var(--usd);background:var(--usd-soft);padding:8px 11px;border-radius:0 6px 6px 0;color:var(--ink)}
+.note b{color:var(--ink)}
+.barre-empilee{display:flex;height:26px;border-radius:6px;overflow:hidden;gap:2px}
+.barre-empilee div{min-width:2px}
+.liste-barres{display:flex;flex-direction:column;gap:5px}
+.lb{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) auto;gap:8px;align-items:center;font-size:.77rem}
+.lb .nom{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+.lb .piste{height:9px;background:var(--panel);border-radius:3px;overflow:hidden}
+.lb .piste i{display:block;height:100%;border-radius:0 3px 3px 0}
+.lb .val{font-family:var(--mono);font-size:.7rem;color:var(--ink2);text-align:right;white-space:nowrap}
+table.tab{border-collapse:collapse;width:100%;font-size:.76rem}
+.tab th,.tab td{padding:5px 4px;border-bottom:1px solid var(--rule);text-align:right;font-variant-numeric:tabular-nums;vertical-align:middle}
+.tab th{font-family:var(--mono);font-size:.63rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.tab th:first-child,.tab td:first-child{text-align:left}
+.tab tr.cliquable{cursor:pointer}
+.tab tr.cliquable:hover td{background:var(--panel)}
+.tab input{width:76px;font:inherit;font-family:var(--mono);font-size:.74rem;text-align:right;border:1px solid var(--rule-strong);border-radius:5px;padding:3px 5px;background:var(--card)}
+.tab input:focus{border-color:var(--usd);outline:none;box-shadow:0 0 0 2px var(--usd-soft)}
+.tab .mini{display:inline-block;height:7px;border-radius:2px;background:var(--s1);vertical-align:middle;margin-right:6px}
+.param{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:.8rem}
+.param input{width:96px;font:inherit;font-family:var(--mono);font-size:.8rem;text-align:right;border:1px solid var(--rule-strong);border-radius:6px;padding:4px 6px}
+.selection{border:1px solid var(--ink);border-radius:var(--r);padding:12px 13px;display:flex;flex-direction:column;gap:8px}
+.selection h3{font-family:var(--display);font-size:1rem}
+.selection .ferme{border:0;background:none;color:var(--muted);cursor:pointer;font-size:.75rem;text-decoration:underline;padding:0;align-self:flex-start}
+.kv{display:grid;grid-template-columns:1fr auto;gap:2px 12px;font-size:.78rem}
+.kv span:nth-child(odd){color:var(--muted)}
+.kv span:nth-child(even){text-align:right;font-variant-numeric:tabular-nums}
+
+/* ---------- Logique (code) ---------- */
+.code-tete{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.code-tete .fichier{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+pre.code{margin:0;background:var(--code-bg);color:var(--code-ink);border:1px solid var(--rule);border-radius:8px;padding:12px 13px;font-family:var(--mono);font-size:.72rem;line-height:1.55;overflow-x:auto;white-space:pre;tab-size:4}
+pre.code .c{color:var(--code-c);font-style:italic}
+pre.code .s{color:var(--code-s)}
+pre.code .k{color:var(--code-k)}
+.copie{border:1px solid var(--rule);background:var(--card);border-radius:6px;padding:3px 9px;font-size:.72rem;cursor:pointer}
+
+/* ---------- Petits écrans ---------- */
+@media (min-width:1101px){ body{overflow:hidden} }
+@media (max-width:1100px){
+  .app{height:auto;min-height:100vh;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto 62vh auto;grid-template-areas:"barre" "etapes" "scene" "panneau"}
+  .barre{padding:10px 16px;flex-wrap:wrap}
+  .etapes{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--rule);padding:8px 16px}
+  .etape{grid-template-columns:24px auto;flex:0 0 auto}
+  .etape b{width:24px;height:24px}
+  .etape small,.etapes-pied{display:none}
+  .groupe-etapes{flex:0 0 auto;margin:0 6px;align-self:center}
+  .panneau{border-left:0;border-top:1px solid var(--rule)}
+  .defile{overflow:visible}
+}
+@media (max-width:560px){
+  .barre h1{font-size:1.05rem}
+  .tuiles{grid-template-columns:1fr 1fr}
+}
+
+/* ---------- Propre au Volet 3 ---------- */
+.defile>*{flex-shrink:0}
+.direct{display:flex;flex-direction:column;gap:8px}
+.tuile span.badge{display:inline-block;margin-top:3px}
+.modifie{font-family:var(--mono);font-size:.66rem;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:2px}
+.curseurs{display:flex;flex-direction:column;gap:12px}
+.curseur{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:baseline}
+.curseur label{font-size:.82rem;font-weight:700;color:var(--ink)}
+.curseur .val{font-family:var(--mono);font-size:.78rem;color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+.curseur input[type=range]{grid-column:1 / -1;width:100%;accent-color:var(--accent);margin:4px 0 0;height:22px}
+.curseur .sous{grid-column:1 / -1;font-size:.72rem;color:var(--muted)}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn.petit{padding:4px 11px;font-size:.76rem}
+.btn:disabled{opacity:.5;cursor:default}
+.choix{display:flex;flex-direction:column;gap:4px;font-size:.8rem}
+.choix select{font:inherit;border:1px solid var(--rule-strong);border-radius:6px;padding:5px 7px;max-width:100%}
+.badge{display:inline-block;font-family:var(--mono);font-size:.64rem;letter-spacing:.05em;text-transform:uppercase;border:1px solid currentColor;border-radius:4px;padding:0 5px;vertical-align:1px;white-space:nowrap}
+.badge.coupure{color:var(--s2)}
+.badge.fermee{color:var(--accent)}
+.nuage{width:100%;height:auto;display:block;background:var(--panel);border-radius:8px}
+.nuage text{font-family:var(--mono);font-size:10px;fill:var(--muted)}
+.nuage .axe{stroke:var(--rule-strong);stroke-width:1}
+.nuage .grille{stroke:var(--rule);stroke-width:1}
+.nuage .diag{stroke:var(--ink2);stroke-width:1;stroke-dasharray:4 3}
+.nuage .bande{fill:var(--hover)}
+.progression{height:6px;border-radius:3px;background:var(--panel);overflow:hidden}
+.progression i{display:block;height:100%;width:0;background:var(--accent)}
+.rangs{display:flex;flex-direction:column;gap:4px}
+.rg{display:grid;grid-template-columns:28px minmax(0,1.3fr) minmax(0,1fr) auto;gap:8px;align-items:center;font-size:.77rem;border:0;background:none;text-align:left;padding:3px 4px;border-radius:6px;cursor:pointer;color:var(--ink)}
+.rg:hover{background:var(--hover)}
+.rg[aria-pressed="true"]{background:var(--accent-soft)}
+.rg .r{font-family:var(--num);color:var(--muted);text-align:right}
+.rg .nom{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rg .piste{height:9px;background:var(--panel);border-radius:3px;overflow:hidden}
+.rg .piste i{display:block;height:100%;border-radius:0 3px 3px 0}
+.rg .val{font-family:var(--mono);font-size:.7rem;color:var(--ink2);text-align:right;white-space:nowrap}
+.formule{font-family:var(--mono);font-size:.74rem;line-height:1.6;background:var(--panel);border-radius:8px;padding:10px 12px;color:var(--ink);overflow-x:auto;white-space:pre}
+.tab td.neg{color:var(--cam-ink)} .tab td.pos{color:var(--s2)}
+.tab tr.meilleur td{font-weight:700}
+details.plus summary{cursor:pointer;font-size:.8rem;font-weight:700;color:var(--ink2)}
+details.plus[open] summary{margin-bottom:8px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="barre">
+    <div>
+      <span class="eyebrow">CIRANO · Volet 3 · jumeau numérique · mis à jour le <span id="date-gen"></span><span id="mention-publique"></span></span>
+      <h1>Le jumeau : fermer une liaison, voir le report</h1>
+    </div>
+    <div class="barre-actions">
+      <span class="provisoire" title="Coût horaire d'un camion et valeur par tonne : hypothèses à remplacer">$ provisoires</span>
+      <button type="button" class="btn" id="btn-theme" onclick="basculerTheme()"></button>
+      <a class="btn" href="https://github.com/akrambouznad789-cyber/projet-resilience-cirano">Code sur GitHub</a>
+    </div>
+  </header>
+
+  <nav class="etapes" id="etapes" aria-label="Étapes des trois volets"></nav>
+
+  <main class="scene" id="scene">
+    <div id="carte" class="carte" role="region" aria-label="Carte de l'étape courante"></div>
+    <div class="bandeau" id="bandeau" hidden><b>Version publique.</b> Les itinéraires entre lieux tirés de l'ENR ne sont pas publiés : la page montre les résultats du modèle calé, par route et par liaison. Les curseurs et le recalcul en direct sont dans la version locale.</div>
+    <div class="infobulle" id="infobulle" hidden></div>
+    <div class="chargement" id="chargement">Chargement de la carte…</div>
+  </main>
+
+  <aside class="panneau" aria-label="Lecture et méthode de l'étape">
+    <div class="onglets" role="tablist">
+      <button type="button" role="tab" id="tab-lecture" aria-selected="true" aria-controls="lecture">Lecture</button>
+      <button type="button" role="tab" id="tab-methode" aria-selected="false" aria-controls="methode">Méthode (code)</button>
+    </div>
+    <div class="defile" id="lecture" role="tabpanel" aria-labelledby="tab-lecture"></div>
+    <div class="defile" id="methode" role="tabpanel" aria-labelledby="tab-methode" hidden></div>
+  </aside>
+</div>
+
+<script id="donnees" type="application/json">/*__DONNEES__*/null</script>
+<script>
+/*__MOTEUR_CANVAS__*/
+</script>
+<script>
+/*__MODELE_JS__*/
+</script>
+<script>
+/*__SCENARIO_JS__*/
+</script>
+<script>
+"use strict";
+const D = JSON.parse(document.getElementById("donnees").textContent);
+const M = D.meta;
+const PUBLIQUE = !!M.publique;      // version publiée : résultats précalculés, aucun itinéraire tiré de l'ENR
+const C = PALETTE;                  // couleurs des données : scripts/gabarits/theme/jetons.json
+const REDUIT = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// ---------- Formats ----------
+const nf = new Intl.NumberFormat("fr-CA");
+const fmt = v => (v == null || !isFinite(v)) ? "–" : nf.format(Math.round(v));
+const dec = (v, d = 2) => (v == null || !isFinite(v)) ? "–" : v.toLocaleString("fr-CA", { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = (v, d = 1) => (v == null || !isFinite(v)) ? "–" : (v * 100).toLocaleString("fr-CA", { maximumFractionDigits: d }) + " %";
+function compact(v, unite = "") {
+  if (v == null || !isFinite(v)) return "–";
+  const a = Math.abs(v), f = (x, d) => x.toLocaleString("fr-CA", { maximumFractionDigits: d });
+  const s = v < 0 ? "−" : "";
+  if (a >= 1e9) return s + f(a / 1e9, 2) + " G" + (unite ? " " + unite : "");
+  if (a >= 1e6) return s + f(a / 1e6, 2) + " M" + (unite ? " " + unite : "");
+  if (a >= 1e4) return s + f(a / 1e3, 0) + " k" + (unite ? " " + unite : "");
+  return s + nf.format(Math.round(a)) + (unite ? " " + unite : "");
+}
+const plus = (v, unite = "") => (v > 0.5 ? "+" : "") + compact(v, unite);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function arrondi2(x) { if (!x) return x; const p = Math.pow(10, Math.floor(Math.log10(Math.abs(x))) - 1); return Math.round(x / p) * p; }
+
+// ---------- Données ----------
+const ROUTES = [];                                            // ROUTES[i] : i = indice dans les tableaux du modèle
+D.routes.features.forEach(f => { ROUTES[f.properties.i] = f.properties; });
+const NR = ROUTES.length;
+const iRoute = new Map(ROUTES.map(r => [r.ID_ROUTE, r.i]));
+const LIAISONS = D.liaisons.ID_ARC.map((id, k) => ({ id, a: D.liaisons.VILLE_A[k], b: D.liaisons.VILLE_B[k] }));
+const liaison = new Map(LIAISONS.map(l => [l.id, l]));
+const routesDe = new Map();
+ROUTES.forEach(r => { if (!routesDe.has(r.arc)) routesDe.set(r.arc, []); routesDe.get(r.arc).push(r.i); });
+const joli = n => String(n ?? "").replace(/^Noeud_/, "nœud ").replace(/_/g, " ");     // « Noeud_Quebec_Sud » → « nœud Quebec Sud »
+const nomArc = id => { const l = liaison.get(id); return l ? `${joli(l.a)} – ${joli(l.b)}` : `liaison ${id}`; };
+const SC = D.scenarios, ROB = SC.robustesse;
+const CRIT = SC.lignes.map(l => Object.fromEntries(SC.colonnes.map((c, k) => [c, l[k]])));
+const CRIT_ARC = new Map(CRIT.filter(c => c.scenario === "liaison").map(c => [c.ID_ARC, c]));
+const CRIT_ROUTE = new Map(CRIT.filter(c => c.scenario === "route").map(c => [c.ID_ROUTE, c]));
+const CAL = D.cale, SEC = CAL.sections, NSEC = SEC.obs.length;
+const NOEUDS = D.noeuds;
+const MESURES = { delta_heures_equivalentes: "Logsum (classement)", delta_heures_meilleur: "Meilleur itinéraire" };
+
+// ---------- Moteur du modèle (version locale) ----------
+const MOD = PUBLIQUE ? null : ModeleJumeau.preparer(D.moteur);
+const THETA0 = D.theta_cale;
+const copie = th => JSON.parse(JSON.stringify(th));
+const CURSEURS = [
+  // clé, libellé, unité, échelle (log : la position du curseur est log10 de la valeur), min, max, pas, aide
+  ["mu", "μ · sensibilité au coût", "1/min", "log", -2.5, -0.5, 0.01, "grand : presque tous les camions prennent l'itinéraire le moins coûteux"],
+  ["beta_hors_autoroute", "β · hors autoroute", "min/km", "lin", -2, 6, 0.05, "minutes équivalentes par km hors autoroute (> 0 : préférence pour l'autoroute)"],
+  ["beta_estime", "β · km estimés", "min/km", "lin", -5, 15, 0.1, "pénalité des raccords et accès absents du RTSS"],
+  ["croissance", "g · croissance 2006 → 2025", "camions par trajet ENR", "lin", 0.2, 2, 0.01, "confondu avec le fond local : ne pas l'interpréter seul"],
+];
+const CLASSES_RTSS = { "10": "autoroutes", "20": "nationales", "30": "régionales", "40": "collectrices", "autre": "autres" };
+
+// ---------- État ----------
+const S = { etape: 1, onglet: "lecture", theta: copie(THETA0), preset: "équilibre", expert: false,
+            arc: null, route: null, mode: "liaison", mesure: "delta_heures_equivalentes", classement: null, enCours: false };
+let CALC = null, REF = null;
+const CACHE = new Map();
+try {
+  const h = new URLSearchParams(location.hash.slice(1));
+  const e = +h.get("etape"); if (e >= 1 && e <= 5) S.etape = e;
+  const a = +h.get("arc"); if (liaison.has(a)) S.arc = a;
+} catch (e) {}
+const premier = [...CRIT_ARC.values()].sort((x, y) => x.rang - y.rang)[0];
+if (S.arc == null && premier) S.arc = premier.ID_ARC;
+
+const modifie = () => JSON.stringify(S.theta) !== JSON.stringify(THETA0);
+function nouveauTheta() { CALC = null; REF = null; CACHE.clear(); S.classement = null; }
+
+// Affectation pour θ : flux par route, camions prédits sur les sections mesurées, métriques
+function resultats() {
+  if (PUBLIQUE) return { flux: CAL.flux, pred: SEC.pred, metriques: CAL.metriques, ms: null };
+  if (!CALC) {
+    const t0 = performance.now(), a = ModeleJumeau.affecter(MOD, S.theta);
+    CALC = { flux: a.flux, pred: Array.from(MOD.observees, s => a.sections[s]), metriques: a.metriques, ms: performance.now() - t0 };
+  }
+  return CALC;
+}
+const reference = () => REF || (REF = ScenarioJumeau.reference(MOD, S.theta));
+const parRoute = () => S.mode === "route" && S.route != null && (routesDe.get(S.arc) || []).length > 1 && ROUTES[S.route].arc === S.arc;
+const fermees = () => parRoute() ? new Set([S.route]) : new Set(routesDe.get(S.arc) || []);
+const cleScenario = () => parRoute() ? "R" + ROUTES[S.route].ID_ROUTE : "L" + S.arc;
+
+// Fermeture courante : calculée dans la page (locale) ou lue dans les résultats précalculés (publique)
+function scenario() {
+  if (S.arc == null) return null;
+  const cle = cleScenario();
+  if (CACHE.has(cle)) return CACHE.get(cle);
+  let res;
+  if (PUBLIQUE) {
+    const ligne = parRoute() ? CRIT_ROUTE.get(ROUTES[S.route].ID_ROUTE) : CRIT_ARC.get(S.arc);
+    const delta = new Float64Array(NR), rep = SC.reports[cle];
+    if (rep) rep[0].forEach((id, k) => { delta[iRoute.get(id)] = rep[1][k]; });
+    res = { ...ligne, delta, ms: null };
+  } else {
+    const t0 = performance.now(), ref = reference();
+    const r = ScenarioJumeau.fermer(MOD, ref, fermees(), M.cout_horaire, M.valeur_tonne);
+    res = { ...r, delta: r.flux.map((f, k) => f - ref.flux[k]), ms: performance.now() - t0 };
+  }
+  CACHE.set(cle, res);
+  return res;
+}
+
+// ---------- Classes ----------
+function quantiles(vals, n) {
+  const v = vals.filter(x => x > 0 && isFinite(x)).sort((a, b) => a - b);
+  return Array.from({ length: n - 1 }, (_, k) => arrondi2(v[Math.min(v.length - 1, Math.floor((k + 1) * v.length / n))]));
+}
+const classe = (x, bornes) => { let k = 0; while (k < bornes.length && x >= bornes[k]) k++; return k; };
+const BORNES_FLUX = quantiles(CAL.flux, 5);
+const BORNES_DELTA = [5, 50, 500];                       // camions par jour, de part et d'autre de zéro
+const BORNES_RATIO = [0.5, 1 / 1.3, 1.3, 2];             // prédit / mesuré
+const COUL_RATIO = [C.div[6], C.div[5], C.muet, C.div[1], C.div[0]];
+const LIB_RATIO = ["sous-estimé de moitié ou plus", "sous-estimé de 23 à 50 %", "à ±30 % de la mesure", "surestimé de 30 % à ×2", "surestimé de ×2 ou plus"];
+const couleurDelta = d => { const a = Math.abs(d), k = classe(a, BORNES_DELTA); return k === 0 ? null : d > 0 ? C.div[3 - k] : C.div[3 + k]; };
+function critiques() {
+  if (S.classement) return S.classement;
+  return new Map([...CRIT_ARC.values()].map(c => [c.ID_ARC, c]));
+}
+const valeurCrit = arc => (critiques().get(arc) || {})[S.mesure];
+const bornesCrit = () => quantiles([...critiques().values()].map(c => c[S.mesure]), 5);
+function rangs() {
+  return [...critiques().values()].filter(c => isFinite(c[S.mesure])).sort((a, b) => b[S.mesure] - a[S.mesure]);
+}
+
+// ---------- Étapes ----------
+const ETAPES = [
+  { court: "Plusieurs routes", sur: `${fmt(M.n_routes)} routes, ${fmt(M.n_liaisons)} liaisons`, vue: "QC" },
+  { court: "Le modèle", sur: PUBLIQUE ? "paramètres calés" : "curseurs dans la page", vue: "SUD", page: !PUBLIQUE },
+  { court: "Calibration", sur: "comptages et enquête", vue: "SUD" },
+  { court: "Fermer une liaison", sur: PUBLIQUE ? "report du trafic" : "calcul dans la page", vue: "SUD", page: !PUBLIQUE },
+  { court: "Liaisons critiques", sur: "classement", vue: "QC" },
+];
+const VUES = { QC: [[-80.2, 44.6], [-56.8, 53.9]], SUD: [[-79.8, 44.85], [-64.5, 49.6]] };
+const ETAPES_V1 = [["Données", "trois couches de départ"], ["Complétion", "combler les trous"], ["Routage", "tracer les liaisons"],
+                   ["Méthodes DJMA", "4 façons de résumer"], ["Résultats", "304 liaisons sur 307"]];
+const ETAPES_V2 = [["Réseau du volet 1", "point de départ"], ["ENR brute", "114 734 camions"], ["Filtre Québec", "37 603 retenus"],
+  ["Postes d'enquête", "où on les arrête"], ["Rattachement aux nœuds", "lieux → nœuds"], ["Routage sur le graphe", "chemin par camion"],
+  ["$ par tonne", "calcul dans la page"], ["Actualisation $ 2026", "calcul dans la page"], ["Valeur par arc", "calcul dans la page"]];
+const URL_V1 = PUBLIQUE ? "../volet1/" : "../volet1/index.html";
+const URL_V2 = PUBLIQUE ? "../volet2/carte_interactive.html" : "../volet2/visualisation_volet2.html";
+
+// ---------- Carte ----------
+let MOTEUR = (window.maplibregl && webglDisponible()) ? window.maplibregl : MoteurCanvas;
+const BASE_STYLE = { version: 8, sources: {}, layers: [{ id: "fond", type: "background", paint: { "background-color": C.terre } }] };
+const etat = (k, d) => ["coalesce", ["feature-state", k], d];
+const largeur = (k, d) => ["interpolate", ["linear"], ["zoom"], 4, ["*", 0.8, etat(k, d)], 8, ["*", 1.7, etat(k, d)]];
+const VILLES = ["Montréal", "Québec", "Gatineau", "Sherbrooke", "Trois-Rivières", "Saguenay", "Rimouski", "Rouyn-Noranda",
+                "Val-d'Or", "Sept-Îles", "Baie-Comeau", "Gaspé", "Drummondville", "Saint-Georges", "Chibougamau", "Rivière-du-Loup"];
+
+function creerCarte(conteneur) {
+  return new MOTEUR.Map({
+    container: conteneur, style: BASE_STYLE, bounds: VUES[ETAPES[S.etape - 1].vue], fitBoundsOptions: { padding: 24 },
+    attributionControl: false, dragRotate: false, pitchWithRotate: false, keyboard: false, maxBounds: [[-175, 5], [-20, 80]],
+  });
+}
+function construireCouches(map) {
+  map.addSource("ocean", { type: "geojson", data: D.fond.ocean });
+  map.addSource("lacs", { type: "geojson", data: D.fond.lacs });
+  map.addSource("admin", { type: "geojson", data: D.fond.admin });
+  map.addLayer({ id: "ocean", type: "fill", source: "ocean", paint: { "fill-color": C.eau } });
+  map.addLayer({ id: "lacs", type: "fill", source: "lacs", paint: { "fill-color": C.eau } });
+  map.addLayer({ id: "admin", type: "line", source: "admin", paint: { "line-color": C.bord, "line-width": 0.8 } });
+  map.addLayer({ id: "admin-qc", type: "line", source: "admin", filter: ["==", ["get", "qc"], true], paint: { "line-color": C.qc, "line-width": 1.4 } });
+
+  map.addSource("routes", { type: "geojson", data: D.routes, promoteId: "i" });
+  const rond = { "line-cap": "round", "line-join": "round" };
+  map.addLayer({ id: "routes-halo", type: "line", source: "routes", layout: rond,
+                 paint: { "line-color": etat("hc", C.selection), "line-width": largeur("hw", 0), "line-opacity": 0.9 } });
+  map.addLayer({ id: "routes", type: "line", source: "routes", layout: rond,
+                 paint: { "line-color": etat("c", C.reseau), "line-width": largeur("w", 1), "line-opacity": etat("o", 1) } });
+  map.addLayer({ id: "routes-hit", type: "line", source: "routes", paint: { "line-color": "#000", "line-opacity": 0, "line-width": 12 } });
+
+  map.addSource("noeuds", { type: "geojson", data: { type: "FeatureCollection", features: NOEUDS.filter(n => n.type === "municipalite")
+    .map(n => ({ type: "Feature", properties: { id: n.id }, geometry: { type: "Point", coordinates: [n.lon, n.lat] } })) } });
+  map.addLayer({ id: "noeuds", type: "circle", source: "noeuds",
+                 paint: { "circle-radius": 2, "circle-color": C.noeud, "circle-stroke-color": C.contour, "circle-stroke-width": 1 } });
+
+  map.addSource("sections", { type: "geojson", promoteId: "k", data: { type: "FeatureCollection",
+    features: SEC.obs.map((_, k) => ({ type: "Feature", properties: { k }, geometry: { type: "Point", coordinates: [SEC.lon[k], SEC.lat[k]] } })) } });
+  map.addLayer({ id: "sections", type: "circle", source: "sections", layout: { visibility: "none" },
+                 paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 2.8, 8, 5.5], "circle-color": etat("c", C.muet),
+                          "circle-stroke-color": C.contour, "circle-stroke-width": 1 } });
+
+  map.addControl(new MOTEUR.NavigationControl({ showCompass: false }), "top-right");
+  map.addControl(new MOTEUR.ScaleControl({ unit: "metric" }), "bottom-left");
+  map.addControl(new MOTEUR.AttributionControl({ compact: true,
+    customAttribution: (MOTEUR === MoteurCanvas ? "Rendu simplifié sans accélération graphique · " : "") +
+      "Natural Earth · MTMD (RTSS, débits de circulation 2025) · ENR 2006-2007 (MTQ, Transports Canada) · modèle calé du Volet 3" }), "bottom-right");
+  NOEUDS.forEach(n => {
+    const ville = VILLES.includes(n.nom), fr = n.type.startsWith("frontiere");
+    if (!ville && !fr) return;
+    const el = document.createElement("div");
+    el.className = "etiq-ville" + (fr ? " fr" : "");
+    el.appendChild(document.createElement("span")).textContent = n.nom;
+    new MOTEUR.Marker({ element: el, anchor: "left" }).setLngLat([n.lon, n.lat]).addTo(map);
+  });
+}
+
+// État de chaque route pour l'étape courante : couleur c, largeur w, opacité o, halo (hc, hw)
+function etatsRoutes() {
+  const k = S.etape, sel = r => S.arc != null && r.arc === S.arc;
+  if (k === 1) return ROUTES.map(r => ({ c: r.multi ? C.cat[r.rang - 1] : C.reseau, w: r.multi ? (r.rang === 1 ? 1.7 : 1.3) : 1.1, o: 1,
+                                         hc: C.selection, hw: sel(r) ? 7 : 0 }));
+  if (k === 2) {
+    const f = resultats().flux;
+    return ROUTES.map(r => { const c = classe(f[r.i], BORNES_FLUX); return { c: C.bleu[c], w: 0.7 + 0.9 * c, o: 1, hc: C.selection, hw: sel(r) ? 6 + 0.9 * c : 0 }; });
+  }
+  if (k === 3) return ROUTES.map(() => ({ c: C.reseau, w: 1, o: 0.7, hc: C.selection, hw: 0 }));
+  if (k === 4) {
+    const sc = scenario(), ferme = fermees();
+    return ROUTES.map(r => {
+      if (ferme.has(r.i)) return { c: C.vide, w: 2.2, o: 1, hc: C.selection, hw: 8 };
+      const d = sc ? sc.delta[r.i] : 0, coul = couleurDelta(d);
+      return coul ? { c: coul, w: 1.2 + classe(Math.abs(d), BORNES_DELTA), o: 1, hc: C.selection, hw: 0 }
+                  : { c: C.reseau, w: 1, o: 0.55, hc: C.selection, hw: 0 };
+    });
+  }
+  const bornes = bornesCrit(), crit = critiques();
+  return ROUTES.map(r => {
+    const v = valeurCrit(r.arc), c = classe(v, bornes), w = 0.9 + 0.8 * c, coupure = (crit.get(r.arc) || {}).coupure;
+    return { c: C.or[c], w, o: 1, hc: sel(r) ? C.selection : C.encre, hw: sel(r) ? w + 6 : coupure ? w + 3 : 0 };
+  });
+}
+function classesSections() {
+  const p = resultats().pred;
+  return SEC.obs.map((o, k) => classe(p[k] / Math.max(o, 1), BORNES_RATIO));
+}
+function appliquerEtape(map) {
+  etatsRoutes().forEach((e, i) => map.setFeatureState({ source: "routes", id: i }, e));
+  map.setLayoutProperty("sections", "visibility", S.etape === 3 ? "visible" : "none");
+  map.setLayoutProperty("noeuds", "visibility", S.etape === 3 ? "none" : "visible");
+  if (S.etape === 3) classesSections().forEach((c, k) => map.setFeatureState({ source: "sections", id: k }, { c: COUL_RATIO[c] }));
+}
+
+// ---------- Briques du panneau ----------
+const tuile = (val, lib, cls = "") => `<div class="tuile ${cls}"><b class="num">${val}</b><span>${lib}</span></div>`;
+const segment = (cle, options, actif) => `<div class="segment" role="group">${options.map(([v, l]) =>
+  `<button type="button" data-seg="${cle}" data-v="${esc(v)}" aria-pressed="${String(v) === String(actif)}">${esc(l)}</button>`).join("")}</div>`;
+const trait = (couleur, l = 3) => `<svg viewBox="0 0 30 12" aria-hidden="true"><line x1="2" y1="6" x2="28" y2="6" stroke="${couleur}" stroke-width="${l}" stroke-linecap="round"/></svg>`;
+const rond = couleur => `<svg viewBox="0 0 30 12" aria-hidden="true"><circle cx="15" cy="6" r="4.5" fill="${couleur}" stroke="${C.contour}" stroke-width="1"/></svg>`;
+const ligneLeg = (forme, lib, n = "") => `<div class="leg">${forme}<span>${lib}</span><span class="n">${n}</span></div>`;
+const legende = (titre, sous, lignes) => `<div class="legende"><h3>${titre}</h3>${sous ? `<p class="sous">${sous}</p>` : ""}${lignes.join("")}</div>`;
+const note = (texte, cls = "") => `<p class="note ${cls}">${texte}</p>`;
+const bloc = (titre, contenu, sous = "") => `<div class="bloc"><h3>${titre}</h3>${sous ? `<p class="sous">${sous}</p>` : ""}${contenu}</div>`;
+const tete = (titre, texte) => `<div class="tete"><span class="eyebrow">Volet 3 · étape ${S.etape} sur 5</span><h2>${titre}${!PUBLIQUE && modifie() ? '<span class="modifie">θ modifié</span>' : ""}</h2><p>${texte}</p></div>`;
+function compterClasses(vals, bornes, n) { const c = new Array(n).fill(0); vals.forEach(v => c[classe(v, bornes)]++); return c; }
+function libBornes(bornes, unite, k) {
+  if (k === 0) return `moins de ${fmt(bornes[0])} ${unite}`;
+  if (k === bornes.length) return `${fmt(bornes[k - 1])} ${unite} et plus`;
+  return `${fmt(bornes[k - 1])} à ${fmt(bornes[k])} ${unite}`;
+}
+function listeBarres(lignes, couleur, max) {
+  return `<div class="liste-barres">${lignes.map(l => `<div class="lb"><span class="nom" title="${esc(l.nom)}">${esc(l.nom)}</span>
+    <span class="piste"><i style="width:${Math.max(2, 100 * Math.abs(l.v) / (max || 1))}%;background:${l.c || couleur}"></i></span>
+    <span class="val">${l.lib}</span></div>`).join("")}</div>`;
+}
+const nomRoute = i => { const r = ROUTES[i]; return `${nomArc(r.arc)} · ${r.nums || "route " + r.ID_ROUTE}`; };
+
+function tableRoutesLiaison(arc) {
+  const f = resultats().flux, ids = (routesDe.get(arc) || []).slice().sort((a, b) => ROUTES[a].rang - ROUTES[b].rang);
+  return `<table class="tab"><thead><tr><th>Rang</th><th>Routes</th><th>km</th><th>min</th><th>Camions/j</th></tr></thead><tbody>
+    ${ids.map(i => { const r = ROUTES[i]; return `<tr><td>${r.rang}</td><td style="text-align:left">${esc(r.nums || r.src)}</td><td>${dec(r.km, 1)}</td><td>${dec(r.min, 0)}</td><td>${fmt(f[i])}</td></tr>`; }).join("")}
+  </tbody></table>`;
+}
+function blocSelection(contenu) {
+  if (S.arc == null) return "";
+  return `<div class="selection"><h3>${esc(nomArc(S.arc))}</h3>${contenu}<button type="button" class="ferme" data-action="deselect">Retirer la sélection</button></div>`;
+}
+
+// ---------- Étape 2 : réglages (version locale) ----------
+function valeurCurseur([cle, , , echelle]) { const v = S.theta[cle]; return echelle === "log" ? Math.log10(v) : v; }
+function formatTheta(cle, v) { return cle === "mu" ? dec(v, 3) : cle === "croissance" ? dec(v, 2) : dec(v, 2); }
+function curseursHtml() {
+  const ic = CAL.ic95, pre = D.prereglages || {};
+  const boutons = Object.entries(pre).map(([k, p]) => [k, p.libelle]);
+  const fond = S.expert ? D.meta.classes.map((c, j) => {
+    const ici = ic["fond_" + c];
+    return `<div class="curseur"><label for="c-fond-${j}">Fond local · ${CLASSES_RTSS[c] || c}</label><span class="val" id="v-fond-${j}">${fmt(S.theta.fond[j])} cam./j</span>
+      <input type="range" id="c-fond-${j}" data-fond="${j}" min="0" max="4" step="0.01" value="${Math.log10(Math.max(1, S.theta.fond[j]))}" aria-describedby="a-fond-${j}">
+      <p class="sous" id="a-fond-${j}">camions par jour absents de l'ENR (trafic local)${ici ? ` · IC 95 % calé : ${fmt(ici[0])} à ${fmt(ici[1])}` : ""}</p></div>`;
+  }).join("") : "";
+  return `<div class="bloc"><h3>Réglages du modèle</h3>
+    ${boutons.length > 1 ? `<div><p class="sous" style="margin-bottom:6px">Préréglages : le modèle calé sur chaque objectif</p>${segment("preset", boutons, S.preset)}</div>` : ""}
+    <div class="curseurs">${CURSEURS.map(c => {
+      const [cle, lib, unite, echelle, mn, mx, pas, aide] = c, ici = ic[cle];
+      return `<div class="curseur"><label for="c-${cle}">${lib}</label><span class="val" id="v-${cle}">${formatTheta(cle, S.theta[cle])} ${unite}</span>
+        <input type="range" id="c-${cle}" data-cle="${cle}" min="${mn}" max="${mx}" step="${pas}" value="${valeurCurseur(c)}" aria-describedby="a-${cle}">
+        <p class="sous" id="a-${cle}">${aide}${ici ? ` · IC 95 % calé : ${formatTheta(cle, ici[0])} à ${formatTheta(cle, ici[1])}` : ""}</p></div>`;
+    }).join("")}${fond}</div>
+    <div class="actions">
+      <button type="button" class="btn petit" data-action="cale" ${modifie() ? "" : "disabled"}>Revenir au calé</button>
+      <button type="button" class="btn petit" data-action="expert" aria-pressed="${S.expert}">Mode expert : fond local</button>
+    </div></div>`;
+}
+function tuilesDirectes() {
+  const r = resultats(), m = r.metriques || {}, f = r.flux;
+  let ckm = 0; for (let i = 0; i < NR; i++) ckm += f[i] * ROUTES[i].km;
+  return `<div class="tuiles">${tuile(dec(m.r2_log, 3), "R² en log, sections mesurées (calé : " + dec(CAL.metriques.r2_log, 3) + ")")}
+    ${tuile(pct(m.erreur_mediane, 0), "erreur médiane par section")}
+    ${tuile(pct(m.part_30, 0), "sections à ±30 % de la mesure")}
+    ${tuile(compact(ckm), "camions-km par jour sur les routes du modèle")}</div>
+    ${r.ms != null ? `<p class="sous" style="font-size:.72rem;color:var(--muted)">Recalculé dans la page en ${fmt(r.ms)} ms (${fmt(M.n_itineraires)} itinéraires, ${fmt(M.n_paires)} paires de lieux).</p>` : ""}`;
+}
+function tableParametres() {
+  const p = CAL.parametres, ic = CAL.ic95;
+  const lignes = [["mu", "μ", "1/min", 3], ["beta_hors_autoroute", "β hors autoroute", "min/km", 2], ["beta_estime", "β km estimés", "min/km", 2],
+                  ["croissance", "g", "cam./trajet", 2], ["erreur_postes", "ε (postes mal notés)", "", 2],
+                  ...M.classes.map(c => ["fond_" + c, "fond " + (CLASSES_RTSS[c] || c), "cam./j", 0])];
+  return `<table class="tab"><thead><tr><th>Paramètre</th><th>Calé</th><th>IC 95 %</th><th>Unité</th></tr></thead><tbody>
+    ${lignes.map(([k, l, u, d]) => `<tr><td>${l}</td><td>${dec(p[k], d)}</td><td>${ic[k] ? dec(ic[k][0], d) + " ; " + dec(ic[k][1], d) : "–"}</td><td>${u}</td></tr>`).join("")}
+  </tbody></table>`;
+}
+
+// ---------- Étape 3 : nuage observé / prédit ----------
+function nuage() {
+  const p = resultats().pred, cl = classesSections(), L = 360, H = 300, g = 44;
+  const lo = 10 ** Math.floor(Math.log10(Math.max(1, Math.min(...SEC.obs, ...p)))), hi = Math.max(...SEC.obs, ...p) * 1.2;
+  const x = v => g + (Math.log10(Math.max(v, lo)) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)) * (L - g - 8);
+  const y = v => H - g - (Math.log10(Math.max(v, lo)) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)) * (H - g - 8);
+  const ticks = [1, 10, 100, 1000, 10000, 100000].filter(t => t >= lo && t <= hi);
+  const bande = [lo, hi].map(v => [x(v), y(v * 1.3)]).concat([hi, lo].map(v => [x(v), y(v / 1.3)]));
+  return `<svg class="nuage" viewBox="0 0 ${L} ${H}" role="img" aria-label="Camions par jour : mesurés (horizontal) contre prédits (vertical), échelles logarithmiques">
+    <polygon class="bande" points="${bande.map(q => q.join(",")).join(" ")}"/>
+    ${ticks.map(t => `<line class="grille" x1="${x(t)}" y1="8" x2="${x(t)}" y2="${H - g}"/><line class="grille" x1="${g}" y1="${y(t)}" x2="${L - 8}" y2="${y(t)}"/>
+      <text x="${x(t)}" y="${H - g + 13}" text-anchor="middle">${fmt(t)}</text><text x="${g - 4}" y="${y(t) + 3}" text-anchor="end">${fmt(t)}</text>`).join("")}
+    <line class="diag" x1="${x(lo)}" y1="${y(lo)}" x2="${x(hi)}" y2="${y(hi)}"/>
+    ${SEC.obs.map((o, k) => `<circle cx="${x(o).toFixed(1)}" cy="${y(p[k]).toFixed(1)}" r="2.6" fill="${COUL_RATIO[cl[k]]}" stroke="${C.contour}" stroke-width=".6"><title>Section ${esc(SEC.id[k])} (${esc(SEC.route[k])}) : mesuré ${fmt(o)}, prédit ${fmt(p[k])} camions/j</title></circle>`).join("")}
+    <text x="${L - 8}" y="${H - 6}" text-anchor="end">mesuré (camions/j)</text>
+    <text x="10" y="14">prédit</text>
+  </svg>`;
+}
+function tableValidation() {
+  const V = CAL.validation, cols = [["r2_log", "R² log", 1, 3], ["erreur_mediane", "Err. méd.", -1, 2], ["part_30", "±30 %", 1, 2],
+                                    ["nll_enquete", "NLL enq.", -1, 2], ["poste_retrouve", "Poste", 1, 2]];
+  const noms = Object.keys(V), meilleur = {};
+  cols.forEach(([k, , s]) => { meilleur[k] = noms.reduce((a, b) => (s * V[b][k].moyenne > s * V[a][k].moyenne ? b : a)); });
+  return `<table class="tab"><thead><tr><th></th>${cols.map(c => `<th>${c[1]}</th>`).join("")}</tr></thead><tbody>
+    ${noms.map(n => `<tr><td>${esc(n)}</td>${cols.map(([k, , , d]) => `<td style="${meilleur[k] === n ? "font-weight:700;color:var(--ink)" : ""}">${dec(V[n][k].moyenne, d)}<br><span style="color:var(--muted);font-size:.66rem">± ${dec(V[n][k].ecart_type, d)}</span></td>`).join("")}</tr>`).join("")}
+  </tbody></table>`;
+}
+
+// ---------- Rendu du panneau « Lecture » ----------
+function rendreLecture() {
+  const z = document.getElementById("lecture"), k = S.etape;
+  let h = "";
+  if (k === 1) {
+    const n = [0, 0, 0, 0];
+    ROUTES.forEach(r => { n[r.multi ? r.rang - 1 : 3]++; });
+    h += tete("Plusieurs routes par liaison", "Le Volet 1 traçait une seule route par liaison. Le jumeau en cherche jusqu'à trois sur le réseau routier du MTMD (RTSS) : sans route de rechange, aucun camion ne peut se reporter quand une route ferme.");
+    h += `<div class="tuiles">${tuile(fmt(M.n_routes), "routes au total")}${tuile(fmt(M.n_liaisons), "liaisons du graphe du Volet 1")}
+      ${tuile(fmt(M.n_liaisons_multi), "liaisons à deux ou trois routes")}${tuile(fmt(M.n_sections_mesurees), `sections de comptage mesurées en 2025, sur ${fmt(M.n_sections)} portées par une route`)}</div>`;
+    h += legende("Couleur des routes", "Clique une route : la liaison est entourée et ses routes listées.", [
+      ligneLeg(trait(C.cat[0]), "Route principale (la plus rapide)", fmt(n[0])), ligneLeg(trait(C.cat[1]), "2ᵉ route", fmt(n[1])),
+      ligneLeg(trait(C.cat[2]), "3ᵉ route", fmt(n[2])), ligneLeg(trait(C.reseau), "Liaison à une seule route", fmt(n[3]))]);
+    h += blocSelection(tableRoutesLiaison(S.arc));
+    h += note("<b>Comment on trouve les routes de rechange.</b> Plus court chemin en minutes, puis on pénalise les liens déjà pris (× 1,5) et on recommence. Une route est gardée si elle prend au plus 1,3 fois le temps de la meilleure et reprend au plus 60 % d'une route déjà gardée.");
+    h += note("Les liaisons qui sortent du Québec gardent la route OSRM du Volet 1 (le RTSS s'arrête à la frontière). Le graphe RTSS a été vérifié contre OSRM : voir le journal du projet pour les écarts.");
+  } else if (k === 2) {
+    h += tete("Le modèle et ses réglages", "Un logit à taille de chemin : chaque camion choisit parmi les itinéraires de sa paire de lieux, d'autant plus souvent qu'ils sont peu coûteux. Les paramètres sont calés à la fois sur les comptages de 2025 et sur l'enquête routière de 2006-2007.");
+    h += `<div class="formule">coût  = minutes + β_ha · km hors autoroute
+        + β_e · km estimés + β_frontière
+P(p)  ∝ exp(−μ · coût_p) · taille_p
+flux  = g · trajets ENR · P(p) / 365
+camions(section) = Σ flux des routes + fond local</div>`;
+    if (!PUBLIQUE) {
+      h += curseursHtml();
+      h += `<div class="direct" id="direct" aria-live="polite">${tuilesDirectes()}</div>`;
+    } else {
+      h += bloc("Paramètres calés (objectif « équilibre »)", tableParametres(), "Intervalles à 95 % par bootstrap (20 tirages) : incertitude d'échantillonnage seulement.");
+      h += `<div class="tuiles">${tuile(dec(CAL.metriques.r2_log, 3), "R² en log sur les sections mesurées")}${tuile(pct(CAL.metriques.part_30, 0), "sections à ±30 % de la mesure")}</div>`;
+      h += note("Dans la version locale, des curseurs règlent ces paramètres et la page refait le calcul en direct sur les 258 000 itinéraires.");
+    }
+    h += legende("Camions par jour sur chaque route", PUBLIQUE ? "Modèle calé, 2025." : "Selon les réglages ci-dessus ; mêmes classes quel que soit le réglage.",
+      [0, 1, 2, 3, 4].map(c => ligneLeg(trait(C.bleu[c], 1.2 + c * 0.9), libBornes(BORNES_FLUX, "camions/j", c))));
+    h += blocSelection(tableRoutesLiaison(S.arc));
+    h += note("<b>ε ≈ 0,27</b> : plus d'un quart des postes notés dans l'enquête seraient mal notés ou mal localisés. Sans ce terme, l'enquête seule poussait μ vers zéro. <b>g</b> et le fond local sont confondus : ne pas lire g comme une croissance du camionnage.");
+  } else if (k === 3) {
+    const r = resultats(), cl = classesSections(), n = [0, 0, 0, 0, 0];
+    cl.forEach(c => n[c]++);
+    h += tete("Calibration", `Chaque point est une des ${fmt(NSEC)} sections de comptage mesurées en 2025. Sa couleur dit si le modèle prédit trop ou trop peu de camions.`);
+    h += `<div class="tuiles" aria-live="polite">${tuile(dec(r.metriques.r2_log, 3), "R² en log")}${tuile(pct(r.metriques.erreur_mediane, 0), "erreur médiane")}
+      ${tuile(pct(r.metriques.part_30, 0), "à ±30 % de la mesure")}${tuile(dec(CAL.metriques.nll_enquete, 3), "NLL de l'enquête par camion (calé)")}</div>`;
+    h += bloc("Mesuré contre prédit", nuage(), "Échelles logarithmiques. Diagonale : prédiction parfaite ; bande : ±30 %.");
+    h += legende("Rapport prédit / mesuré", "", LIB_RATIO.map((l, c) => ligneLeg(rond(COUL_RATIO[c]), l, fmt(n[c]))));
+    h += bloc("Validation croisée (données mises de côté)", tableValidation(), "5 plis : blocs de sections de 50 km et postes d'enquête entiers. En gras, le meilleur de chaque colonne. Err. méd. et NLL : plus bas = mieux.");
+    h += note("<b>Ce que disent ces chiffres.</b> Le modèle calé ne bat pas le routage du Volet 2 (B0) sur les comptages (R² log 0,53 contre 0,55, moins d'un écart type). Il gagne sur l'enquête (−0,15 nat par camion). Son vrai apport : une répartition calée entre itinéraires, sans laquelle on ne peut pas simuler de report.", "attention");
+  } else if (k === 4) {
+    h += rendreFermeture();
+  } else {
+    h += rendreCritiques();
+  }
+  z.innerHTML = h;
+  brancherLecture(z);
+}
+
+function rendreFermeture() {
+  const sc = scenario(), ids = routesDe.get(S.arc) || [];
+  const tri = rangs();
+  let h = tete("Fermer une liaison", "Choisis une liaison (sur la carte ou dans la liste). Les camions se reportent sur les itinéraires restants selon le modèle calé. Ceux qui n'en ont plus prennent le plus court détour du réseau ; sans détour, leurs trajets ne sont pas desservis.");
+  h += `<label class="choix">Liaison fermée<select id="choix-arc">${tri.map(c => `<option value="${c.ID_ARC}" ${c.ID_ARC === S.arc ? "selected" : ""}>${fmt(c.rang)} · ${esc(nomArc(c.ID_ARC))}</option>`).join("")}</select></label>`;
+  if (ids.length > 1) {
+    h += `<div>${segment("mode", [["liaison", "Toute la liaison"], ["route", "Une seule route"]], S.mode)}</div>`;
+    if (S.mode === "route") {
+      h += `<label class="choix">Route fermée<select id="choix-route">${ids.map(i => `<option value="${i}" ${i === S.route ? "selected" : ""}>Rang ${ROUTES[i].rang} · ${esc(ROUTES[i].nums || ROUTES[i].src)} · ${dec(ROUTES[i].km, 0)} km</option>`).join("")}</select></label>`;
+    }
+  }
+  if (!sc) return h;
+  const c = CRIT_ARC.get(S.arc) || {}, coupure = sc.trajets_non_desservis > 0;
+  h += `<div class="tuiles" aria-live="polite">
+    ${tuile(compact(sc.delta_heures_equivalentes, "h"), `heures équivalentes perdues par an (logsum)${parRoute() ? "" : ` · rang ${fmt(c.rang)} sur ${fmt(CRIT_ARC.size)}`}`)}
+    ${tuile(compact(sc.delta_heures_meilleur, "h"), "par an, sur le meilleur itinéraire seulement (sans la valeur de la diversité)")}
+    ${tuile(plus(sc.delta_camions_km), "camions-km de plus par an")}
+    ${tuile(compact(sc.camions_sur_liaison), "camions par an empruntaient ce qui ferme")}
+    ${coupure ? tuile(compact(sc.trajets_non_desservis), '<span class="badge coupure">coupure</span> trajets par an sans aucun chemin') : ""}
+    ${tuile(compact(sc.cout_perturbation, "$"), `coût de perturbation par an (${fmt(M.cout_horaire)} $/h) <span class="badge" style="color:var(--usd-ink)">provisoire</span>`, "usd")}</div>`;
+  h += note(`Par jour de fermeture : <b>${compact(sc.delta_heures_equivalentes / 365, "h")}</b> équivalentes, <b>${compact(sc.cout_perturbation / 365, "$")}</b>. Une vraie fermeture dure des jours, pas un an.`);
+  if (sc.ms != null) h += `<p class="sous" style="font-size:.72rem;color:var(--muted)">Calculé dans la page en ${fmt(sc.ms)} ms avec ${modifie() ? "les réglages de l'étape 2" : "le modèle calé"}.</p>`;
+  const ferme = fermees(), d = Array.from(sc.delta);
+  const gains = d.map((v, i) => [i, v]).filter(([i, v]) => v >= 5 && !ferme.has(i)).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const pertes = d.map((v, i) => [i, v]).filter(([i, v]) => v <= -5 && !ferme.has(i)).sort((a, b) => a[1] - b[1]).slice(0, 4);
+  const max = Math.max(1, ...gains.map(g => g[1]), ...pertes.map(p => -p[1]));
+  if (gains.length) h += bloc("Où vont les camions", listeBarres(gains.map(([i, v]) => ({ nom: nomRoute(i), v, lib: "+" + fmt(v) + "/j", c: couleurDelta(v) })), C.div[1], max), "Routes qui gagnent le plus de camions par jour.");
+  if (pertes.length) h += bloc("Routes délestées", listeBarres(pertes.map(([i, v]) => ({ nom: nomRoute(i), v, lib: "−" + fmt(-v) + "/j", c: couleurDelta(v) })), C.div[5], max));
+  const traitFerme = `<svg viewBox="0 0 30 12" aria-hidden="true"><line x1="2" y1="6" x2="28" y2="6" stroke="${C.selection}" stroke-width="8" stroke-linecap="round" stroke-opacity=".9"/><line x1="2" y1="6" x2="28" y2="6" stroke="${C.vide}" stroke-width="2.2" stroke-linecap="round"/></svg>`;
+  const LIB_DELTA = ["5 à 50", "50 à 500", "500 et plus"];
+  h += legende("Report du trafic (camions par jour)", "Différence avec le réseau intact.", [
+    ligneLeg(traitFerme, `Route fermée <span class="badge fermee">liseré</span>`),
+    ...[3, 2, 1].map(j => ligneLeg(trait(C.div[3 - j], 1.2 + j), `+${LIB_DELTA[j - 1]} (camions en plus)`)),
+    ...[1, 2, 3].map(j => ligneLeg(trait(C.div[3 + j], 1.2 + j), `−${LIB_DELTA[j - 1]} (camions en moins)`)),
+    ligneLeg(trait(C.reseau, 1), "moins de 5 camions/j de différence")]);
+  if (coupure) h += note("<b>Coupure.</b> Entre Lévis et Rivière-du-Loup, l'A-20 et la R-132 appartiennent aux mêmes liaisons, et le graphe ne compte ni la R-204 ni les traversiers. En réalité un détour existe, long. C'est surtout un artefact du graphe à 307 liaisons.", "attention");
+  return h;
+}
+
+function rendreCritiques() {
+  const tri = rangs(), top = tri.slice(0, 20), max = top.length ? top[0][S.mesure] : 1, bornes = bornesCrit();
+  const nCoupures = [...critiques().values()].filter(c => c.coupure).length;
+  let h = tete("Liaisons critiques", `Chaque liaison est fermée à tour de rôle (${fmt(CRIT_ARC.size)} scénarios, plus ${fmt(CRIT_ROUTE.size)} fermetures d'une seule route). Le classement compte les heures équivalentes perdues par an.`);
+  h += `<div>${segment("mesure", Object.entries(MESURES), S.mesure)}</div>`;
+  if (!PUBLIQUE && modifie()) {
+    h += S.classement ? note("Classement recalculé avec les réglages de l'étape 2.")
+      : `<div class="bloc"><p class="sous">Le classement affiché vient du modèle calé. Tu as modifié les réglages :</p>
+        <button type="button" class="btn petit" data-action="reclasser" ${S.enCours ? "disabled" : ""}>Recalculer les ${fmt(CRIT_ARC.size)} fermetures avec ces réglages</button>
+        <div class="progression" ${S.enCours ? "" : "hidden"}><i id="prog"></i></div></div>`;
+  }
+  h += `<div class="rangs" role="list" aria-label="20 liaisons les plus critiques">${top.map((c, j) => `<button type="button" class="rg" role="listitem" data-arc="${c.ID_ARC}" aria-pressed="${c.ID_ARC === S.arc}">
+      <span class="r">${j + 1}</span><span class="nom" title="${esc(nomArc(c.ID_ARC))}">${esc(nomArc(c.ID_ARC))}${c.coupure ? ' <span class="badge coupure">coupure</span>' : ""}</span>
+      <span class="piste"><i style="width:${Math.max(2, 100 * c[S.mesure] / max)}%;background:${C.or[classe(c[S.mesure], bornes)]}"></i></span>
+      <span class="val">${compact(c[S.mesure], "h")}</span></button>`).join("")}</div>`;
+  const sel = critiques().get(S.arc);
+  if (sel) {
+    const r = tri.findIndex(c => c.ID_ARC === S.arc) + 1;
+    h += blocSelection(`<div class="kv"><span>Rang (${esc(MESURES[S.mesure])})</span><span>${fmt(r)} sur ${fmt(tri.length)}</span>
+      <span>Heures équivalentes par an</span><span>${compact(sel.delta_heures_equivalentes, "h")}</span>
+      <span>Sur le meilleur itinéraire</span><span>${compact(sel.delta_heures_meilleur, "h")}</span>
+      <span>Camions par an sur la liaison</span><span>${compact(sel.camions_sur_liaison)}</span>
+      <span>Trajets non desservis par an</span><span>${compact(sel.trajets_non_desservis)}</span></div>
+      <a class="btn petit" href="#etape=4&arc=${S.arc}" data-action="voir">Voir le report du trafic →</a>`);
+  }
+  h += `<div class="tuiles">${tuile(dec(ROB.kendall_tau_moyen, 3), `τ de Kendall du classement sur 10 tirages du bootstrap (min. ${dec(ROB.kendall_tau_min, 3)})`)}
+    ${tuile(pct(ROB.recouvrement_top20_moyen, 1), "du top 20 retrouvé d'un tirage à l'autre")}
+    ${ROB.liaison_kendall_tau_logsum_meilleur != null ? tuile(dec(ROB.liaison_kendall_tau_logsum_meilleur, 3), "τ entre les deux mesures (fermetures de liaisons)") : ""}
+    ${tuile(fmt(nCoupures), "liaisons dont la fermeture coupe des trajets")}</div>`;
+  h += legende(`${esc(MESURES[S.mesure])} : heures équivalentes par an`, "Couleur de toutes les routes de la liaison.", [
+    ...[0, 1, 2, 3, 4].map(c => ligneLeg(trait(C.or[c], 0.9 + 0.8 * c + 0.6), libBornes(bornes, "h", c))),
+    ligneLeg(`<svg viewBox="0 0 30 12" aria-hidden="true"><line x1="2" y1="6" x2="28" y2="6" stroke="${C.encre}" stroke-width="6" stroke-linecap="round"/><line x1="2" y1="6" x2="28" y2="6" stroke="${C.or[2]}" stroke-width="2.4" stroke-linecap="round"/></svg>`, "Liseré clair : coupure")]);
+  h += note("<b>Robuste n'est pas exact.</b> La stabilité ne couvre que l'incertitude d'échantillonnage des paramètres, pas la structure du modèle (ensembles de chemins, vitesses, demande de 2006-2007). Pour la fermeture d'une seule route, le logsum compte aussi la valeur de la diversité du logit : d'où la seconde mesure.");
+  h += note(`Coût horaire (${fmt(M.cout_horaire)} $/h) et valeur par tonne (${fmt(M.valeur_tonne)} $/t) <b>provisoires</b> : à remplacer par le guide avantages-coûts du MTMD et les $/t du Volet 2.`, "attention");
+  return h;
+}
+
+// ---------- Onglet « Méthode » ----------
+function surligner(code) {
+  return esc(code).split("\n").map(l => {
+    const m = l.match(/^(\s*)(\/\/.*|#.*)$/);
+    return m ? `${m[1]}<span class="c">${m[2]}</span>` : l.replace(/(\/\/ .*)$/, '<span class="c">$1</span>');
+  }).join("\n");
+}
+function rendreMethode() {
+  const [fichier, code] = D.code[String(S.etape)] || ["", ""];
+  document.getElementById("methode").innerHTML = `<div class="tete"><span class="eyebrow">Volet 3 · étape ${S.etape} · code exécuté</span><h2>${esc(ETAPES[S.etape - 1].court)}</h2>
+    <p>Extrait du fichier qui fait réellement le calcul${S.etape === 2 || S.etape === 4 ? " (dans la page locale, ce même code tourne dans ton navigateur)" : ""}.</p></div>
+    <div class="code-tete"><span class="fichier">${esc(fichier)}</span><button type="button" class="copie" id="copier">Copier</button></div>
+    <pre class="code">${surligner(code)}</pre>`;
+  document.getElementById("copier").addEventListener("click", e => { navigator.clipboard?.writeText(code); e.target.textContent = "Copié"; });
+}
+
+// ---------- Événements du panneau ----------
+let attente = 0;
+function brancherLecture(z) {
+  z.querySelectorAll("[data-seg]").forEach(b => b.addEventListener("click", () => {
+    const cle = b.dataset.seg, v = b.dataset.v;
+    if (cle === "preset") { S.preset = v; S.theta = copie(D.prereglages[v].theta); nouveauTheta(); }
+    else S[cle] = v;
+    toutRafraichir();
+  }));
+  z.querySelectorAll("input[type=range]").forEach(inp => inp.addEventListener("input", () => {
+    if (inp.dataset.fond != null) {
+      const j = +inp.dataset.fond; S.theta.fond[j] = Math.round(10 ** +inp.value);
+      document.getElementById("v-fond-" + j).textContent = fmt(S.theta.fond[j]) + " cam./j";
+    } else {
+      const c = CURSEURS.find(x => x[0] === inp.dataset.cle), v = c[3] === "log" ? 10 ** +inp.value : +inp.value;
+      S.theta[c[0]] = v;
+      document.getElementById("v-" + c[0]).textContent = formatTheta(c[0], v) + " " + c[2];
+    }
+    S.preset = null;
+    nouveauTheta();
+    cancelAnimationFrame(attente);
+    attente = requestAnimationFrame(() => {        // un seul recalcul par image, même si le curseur file
+      const d = document.getElementById("direct");
+      if (d) d.innerHTML = tuilesDirectes();
+      if (carte && carte._pret) appliquerEtape(carte);
+      const b = z.querySelector('[data-action="cale"]'); if (b) b.disabled = !modifie();
+      const t = z.querySelector(".tete h2"); if (t && !t.querySelector(".modifie") && modifie()) t.insertAdjacentHTML("beforeend", '<span class="modifie">θ modifié</span>');
+    });
+  }));
+  z.querySelectorAll("[data-action]").forEach(b => b.addEventListener("click", e => {
+    const a = b.dataset.action;
+    if (a === "cale") { S.theta = copie(THETA0); S.preset = "équilibre"; nouveauTheta(); toutRafraichir(); }
+    else if (a === "expert") { S.expert = !S.expert; rendreLecture(); }
+    else if (a === "deselect") { S.arc = null; toutRafraichir(); }
+    else if (a === "voir") { e.preventDefault(); allerA(4); }
+    else if (a === "reclasser") reclasser();
+  }));
+  z.querySelectorAll(".rg").forEach(b => b.addEventListener("click", () => choisirArc(+b.dataset.arc, true)));
+  const ca = z.querySelector("#choix-arc"); if (ca) ca.addEventListener("change", () => choisirArc(+ca.value, true));
+  const cr = z.querySelector("#choix-route"); if (cr) cr.addEventListener("change", () => { S.route = +cr.value; toutRafraichir(); });
+}
+
+// Étape 5, version locale : refaire les 307 fermetures avec les réglages courants, par petits lots
+function reclasser() {
+  S.enCours = true; rendreLecture();
+  const arcs = [...routesDe.keys()], ref = reference(), res = new Map(), t0 = performance.now();
+  let j = 0;
+  const lot = () => {
+    const fin = Math.min(arcs.length, j + 8);
+    for (; j < fin; j++) {
+      const r = ScenarioJumeau.fermer(MOD, ref, new Set(routesDe.get(arcs[j])), M.cout_horaire, M.valeur_tonne);
+      res.set(arcs[j], { ID_ARC: arcs[j], ...r, flux: undefined, coupure: r.trajets_non_desservis > 0 });
+    }
+    const p = document.getElementById("prog"); if (p) p.style.width = (100 * j / arcs.length) + "%";
+    if (j < arcs.length) setTimeout(lot, 0);
+    else {
+      const tri = [...res.values()].sort((a, b) => b.delta_heures_equivalentes - a.delta_heures_equivalentes);
+      tri.forEach((c, k) => { c.rang = k + 1; });
+      S.classement = res; S.enCours = false; console.info(`Classement recalculé en ${fmt(performance.now() - t0)} ms`);
+      toutRafraichir();
+    }
+  };
+  setTimeout(lot, 0);
+}
+
+// ---------- Survol et clic sur la carte ----------
+const bulle = document.getElementById("infobulle");
+const ligneBulle = (a, b) => `<div class="l"><span>${a}</span><span>${b}</span></div>`;
+function contenuBulle(f) {
+  if (f.layer.id === "sections") {
+    const k = f.properties.k, p = resultats().pred[k];
+    return `<strong>Section ${esc(SEC.id[k])}</strong>${ligneBulle("Route", esc(SEC.route[k]))}${ligneBulle("Mesuré, 2025", fmt(SEC.obs[k]) + " camions/j")}${ligneBulle("Prédit", fmt(p) + " camions/j")}${ligneBulle("Rapport", dec(p / Math.max(SEC.obs[k], 1), 2))}`;
+  }
+  const r = ROUTES[f.properties.i];
+  let h = `<strong>${esc(nomArc(r.arc))}</strong>${ligneBulle("Route", `rang ${r.rang} · ${esc(r.nums || r.src)}`)}${ligneBulle("Longueur", dec(r.km, 1) + " km · " + dec(r.min, 0) + " min")}${r.schema ? '<div class="note">Tracé schématique : route faite de raccords estimés, absents du RTSS</div>' : ""}`;
+  if (S.etape === 2 || S.etape === 1) h += ligneBulle("Camions par jour", fmt(resultats().flux[r.i]));
+  if (S.etape === 4) {
+    const sc = scenario();
+    h += fermees().has(r.i) ? ligneBulle("État", "fermée") : ligneBulle("Report", (sc && sc.delta[r.i] > 0 ? "+" : sc && sc.delta[r.i] < 0 ? "−" : "") + fmt(Math.abs(sc ? sc.delta[r.i] : 0)) + " camions/j");
+  }
+  if (S.etape === 5) {
+    const c = critiques().get(r.arc);
+    if (c) h += ligneBulle("Heures équiv. par an", compact(c.delta_heures_equivalentes, "h")) + ligneBulle("Meilleur itinéraire", compact(c.delta_heures_meilleur, "h")) + (c.coupure ? `<div class="note">Coupure : ${compact(c.trajets_non_desservis)} trajets par an sans chemin</div>` : "");
+  }
+  return h + `<div class="note">${S.etape === 4 ? "Clique pour fermer cette liaison" : "Clique pour choisir la liaison"}</div>`;
+}
+function brancherSouris(map) {
+  map.on("mousemove", e => {
+    const couches = S.etape === 3 ? ["sections"] : ["routes-hit"];
+    const f = map.queryRenderedFeatures(e.point, { layers: couches });
+    if (!f.length) { bulle.hidden = true; map.getCanvas().style.cursor = ""; return; }
+    bulle.innerHTML = contenuBulle(f[0]); bulle.hidden = false;
+    const r = document.getElementById("scene").getBoundingClientRect(), x = e.point.x + 14, y = e.point.y + 14;
+    bulle.style.left = Math.min(x, r.width - bulle.offsetWidth - 8) + "px";
+    bulle.style.top = Math.min(y, r.height - bulle.offsetHeight - 8) + "px";
+    map.getCanvas().style.cursor = "pointer";
+  });
+  map.on("mouseout", () => { bulle.hidden = true; });
+  map.on("click", e => {
+    if (S.etape === 3) return;
+    const f = map.queryRenderedFeatures(e.point, { layers: ["routes-hit"] });
+    if (f.length) { const r = ROUTES[f[0].properties.i]; S.route = r.i; choisirArc(r.arc, false); }
+  });
+}
+
+// ---------- Orchestration ----------
+let carte = null;
+function choisirArc(arc, voler) {
+  S.arc = arc;
+  toutRafraichir();
+  if (voler && carte && carte._pret) {
+    const ids = routesDe.get(arc) || [];
+    const pts = D.routes.features.filter(f => ids.includes(f.properties.i)).flatMap(f => (f.geometry.type === "LineString" ? [f.geometry.coordinates] : f.geometry.coordinates).flat());
+    if (pts.length) {
+      const lo = pts.map(p => p[0]), la = pts.map(p => p[1]);
+      carte.fitBounds([[Math.min(...lo), Math.min(...la)], [Math.max(...lo), Math.max(...la)]], { padding: 120, maxZoom: 8, duration: REDUIT ? 0 : 600 });
+    }
+  }
+}
+function rendreEtapes() {
+  const nav = document.getElementById("etapes");
+  nav.innerHTML = `<p class="groupe-etapes v1"><span>Volet 1</span> Le trafic</p>` +
+    ETAPES_V1.map(([court, sur], i) => `<a class="etape v1" href="${URL_V1}#etape=${i + 1}"><b>${i + 1}</b><span>${esc(court)}<small>${esc(sur)}</small></span></a>`).join("") +
+    `<p class="groupe-etapes v2"><span>Volet 2</span> La valeur</p>` +
+    ETAPES_V2.map(([court, sur], i) => `<a class="etape v2" href="${URL_V2}#etape=${i}"><b>${i}</b><span>${esc(court)}<small>${esc(sur)}</small></span></a>`).join("") +
+    `<p class="groupe-etapes v3"><span>Volet 3</span> Le jumeau</p>` +
+    ETAPES.map((e, k) => `<button type="button" class="etape v3" data-k="${k + 1}" ${k + 1 === S.etape ? 'aria-current="step"' : ""}>
+      <b>${k + 1}</b><span>${esc(e.court)}<small>${esc(e.sur)}</small></span></button>`).join("") +
+    `<p class="etapes-pied"><kbd>←</kbd> <kbd>→</kbd> pour changer d'étape. ${PUBLIQUE ? "Résultats du modèle calé." : "Les étapes 2 et 4 se recalculent dans la page."}</p>`;
+  nav.querySelectorAll("button.etape").forEach(b => b.addEventListener("click", () => allerA(+b.dataset.k)));
+}
+// En mode « une seule route », la route fermée appartient toujours à la liaison choisie (par défaut : la principale)
+function normaliser() {
+  const ids = routesDe.get(S.arc) || [];
+  if (S.mode === "route" && ids.length > 1 && (S.route == null || ROUTES[S.route].arc !== S.arc))
+    S.route = ids.slice().sort((a, b) => ROUTES[a].rang - ROUTES[b].rang)[0];
+}
+function toutRafraichir() {
+  normaliser();
+  if (carte && carte._pret) appliquerEtape(carte);
+  rendreEtapes();
+  document.getElementById("bandeau").hidden = !PUBLIQUE || ![2, 4].includes(S.etape);
+  if (S.onglet === "lecture") rendreLecture(); else rendreMethode();
+  try { history.replaceState(null, "", `#etape=${S.etape}${S.arc != null && S.etape >= 4 ? "&arc=" + S.arc : ""}`); } catch (e) {}
+}
+function allerA(k) {
+  if (k < 1 || k > 5) return;
+  const ancienne = ETAPES[S.etape - 1].vue;
+  S.etape = k;
+  toutRafraichir();
+  if (carte && carte._pret && ETAPES[k - 1].vue !== ancienne) carte.fitBounds(VUES[ETAPES[k - 1].vue], { padding: 24, duration: REDUIT ? 0 : 600 });
+  document.getElementById("lecture").scrollTop = 0;
+}
+function afficherProbleme(titre, detail) {
+  const c = document.getElementById("chargement");
+  if (c) c.innerHTML = `<div class="probleme"><h2>${esc(titre)}</h2>${detail}</div>`;
+}
+function lancerCarte() {
+  try { carte = creerCarte("carte"); }
+  catch (e) {
+    if (MOTEUR !== MoteurCanvas) { MOTEUR = MoteurCanvas; document.getElementById("carte").innerHTML = ""; return lancerCarte(); }
+    afficherProbleme("La carte ne peut pas s'afficher", `<p class="sous">Détail : ${esc(e.message)}</p>`); return;
+  }
+  carte.on("load", () => {
+    try {
+      construireCouches(carte); carte._pret = true;
+      brancherSouris(carte);
+      document.getElementById("chargement").remove();
+      toutRafraichir();
+    } catch (e) { afficherProbleme("Erreur pendant la préparation de la carte", `<p class="sous">Détail : ${esc(e.message)}</p>`); }
+  });
+}
+function demarrer() {
+  document.getElementById("date-gen").textContent = M.genere_le;
+  if (PUBLIQUE) document.getElementById("mention-publique").textContent = " · version publique";
+  else document.getElementById("mention-publique").textContent = " · version locale complète";
+  document.getElementById("btn-theme").textContent = THEME === "sombre" ? "Thème clair" : "Thème sombre";
+  ["lecture", "methode"].forEach(o => document.getElementById("tab-" + o).addEventListener("click", () => {
+    S.onglet = o;
+    ["lecture", "methode"].forEach(x => { document.getElementById("tab-" + x).setAttribute("aria-selected", x === o); document.getElementById(x).hidden = x !== o; });
+    toutRafraichir();
+  }));
+  document.addEventListener("keydown", e => {
+    if (e.target.closest("input,select,textarea")) return;
+    if (e.key === "ArrowRight") allerA(S.etape + 1);
+    if (e.key === "ArrowLeft") allerA(S.etape - 1);
+  });
+  window.addEventListener("hashchange", () => {
+    try { const h = new URLSearchParams(location.hash.slice(1)), e = +h.get("etape"), a = +h.get("arc");
+          if (liaison.has(a)) S.arc = a; if (e >= 1 && e <= 5 && e !== S.etape) allerA(e); } catch (err) {}
+  });
+  rendreEtapes(); rendreLecture();
+  lancerCarte();
+}
+demarrer();
+</script>
+</body>
+</html>

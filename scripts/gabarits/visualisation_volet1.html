@@ -8,24 +8,11 @@
 <!-- Gabarit de scripts/visualisation_volet1.py : les données sont injectées dans
      la balise <script id="donnees">. La coque, le style et le moteur Canvas 2D de
      secours sont repris de scripts/gabarits/visualisation_volet2.html. -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;700&family=Overpass:wght@600;800&family=Overpass+Mono:wght@400;600&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>/*__THEME_JS__*/</script>
 <style>
-:root{
-  color-scheme:light;
-  --bg:#fafaf8; --panel:#f2f1ec; --card:#ffffff; --ink:#17181b; --ink2:#4f4e4a; --muted:#7f7d76; --rule:#e2e0d8;
-  --land:#f1efe6; --water:#bcdcf2;
-  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a;
-  --cam-soft:#e4eefa; --cam-ink:#1b5aa6;
-  --usd:#dc9600; --usd-soft:#fcefcf; --usd-ink:#875600;
-  --display:"Overpass","Arimo",system-ui,sans-serif;
-  --body:"Arimo","Helvetica Neue",Arial,sans-serif;
-  --mono:"Overpass Mono",ui-monospace,Menlo,Consolas,monospace;
-  --r:10px;
-}
+/*__THEME_CSS__*/
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{height:100%}
@@ -33,7 +20,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font
 h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
 p{margin:0}
 button{font:inherit;color:inherit}
-:focus-visible{outline:2px solid var(--s1);outline-offset:2px}
+input,select{color:var(--ink);background:var(--card)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .num{font-variant-numeric:tabular-nums}
 .mono{font-family:var(--mono)}
 
@@ -46,22 +34,22 @@ button{font:inherit;color:inherit}
 .provisoire{font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--usd-ink);border:1px dashed var(--usd);border-radius:4px;padding:2px 7px;white-space:nowrap}
 .btn{border:1px solid var(--rule);background:var(--card);border-radius:999px;padding:6px 14px;font-weight:700;font-size:.82rem;cursor:pointer;color:var(--ink);text-decoration:none;white-space:nowrap}
 a.btn:hover{background:var(--panel)}
-.btn[aria-pressed="true"]{background:var(--ink);color:var(--card);border-color:var(--ink)}
+.btn[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
 
 /* ---------- Étapes ---------- */
 .etapes{grid-area:etapes;overflow-y:auto;border-right:1px solid var(--rule);background:var(--panel);padding:8px 10px 12px;display:flex;flex-direction:column;gap:2px}
 /* Barre commune aux deux volets (même format que docs/volet1/) */
 .groupe-etapes{margin:12px 8px 4px;font-family:var(--mono);font-size:.64rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);line-height:1.3}
 .groupe-etapes span{font-weight:700}
-.groupe-etapes.v1 span{color:#1f5fae} .groupe-etapes.v2 span{color:#875600}
+.groupe-etapes.v1 span{color:var(--v1)} .groupe-etapes.v2 span{color:var(--v2)} .groupe-etapes.v3 span{color:var(--v3)}
 .etape{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:center;text-align:left;border:0;background:transparent;border-radius:8px;padding:6px 8px;cursor:pointer;color:var(--ink2);text-decoration:none}
-.etape:hover{background:rgba(0,0,0,.04)}
-.etape b{width:28px;height:28px;border-radius:7px;border:1.5px solid var(--muted);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:.95rem;color:var(--ink2);background:var(--card)}
+.etape:hover{background:var(--hover)}
+.etape b{width:28px;height:28px;border-radius:7px;border:1.5px solid var(--muted);display:flex;align-items:center;justify-content:center;font-family:var(--num);font-size:.95rem;color:var(--ink2);background:var(--card)}
 .etape span{font-size:.84rem;line-height:1.25}
-.etape small{display:block;font-family:var(--mono);font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.etape.v1 b{border-color:#86b6ef;color:#1f5fae} .etape.v2 b{border-color:#e9c46a;color:#875600}
-.etape[aria-current="step"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
-.etape[aria-current="step"] b{background:var(--ink);border-color:var(--ink);color:var(--card)}
+.etape small{display:block;font-family:var(--mono);font-size:.62rem;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
+.etape.v1 b{border-color:var(--v1-soft);color:var(--v1)} .etape.v2 b{border-color:var(--v2-soft);color:var(--v2)} .etape.v3 b{border-color:var(--v3-soft);color:var(--v3)}
+.etape[aria-current="step"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px var(--shadow)}
+.etape[aria-current="step"] b{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .etape.calcul-page small{color:var(--usd-ink)}
 .etapes-pied{margin-top:auto;padding:10px 8px 2px;font-size:.72rem;color:var(--muted);line-height:1.4}
 .etapes-pied kbd{font-family:var(--mono);font-size:.68rem;border:1px solid var(--rule);border-radius:3px;padding:0 4px;background:var(--card)}
@@ -72,13 +60,13 @@ a.btn:hover{background:var(--panel)}
 .carte-gauche{z-index:2}
 .rideau{position:absolute;top:0;bottom:0;width:0;z-index:3;cursor:ew-resize}
 .rideau::before{content:"";position:absolute;top:0;bottom:0;left:-1px;width:2px;background:var(--ink)}
-.rideau span{position:absolute;top:50%;left:-15px;width:30px;height:30px;margin-top:-15px;border-radius:50%;background:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.25)}
-.rideau span::before{content:"‹ ›";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.9rem;letter-spacing:2px}
-.etiquette-cote{position:absolute;top:12px;z-index:4;background:var(--card);border:1px solid var(--rule);border-radius:8px;padding:6px 10px;font-size:.8rem;box-shadow:0 2px 6px rgba(0,0,0,.08);display:flex;align-items:center;gap:6px}
-.etiquette-cote select{font:inherit;font-weight:700;border:1px solid var(--rule);border-radius:6px;padding:2px 4px;background:var(--card)}
+.rideau span{position:absolute;top:50%;left:-15px;width:30px;height:30px;margin-top:-15px;border-radius:50%;background:var(--ink);box-shadow:0 2px 6px var(--shadow)}
+.rideau span::before{content:"‹ ›";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--bg);font-weight:700;font-size:.9rem;letter-spacing:2px}
+.etiquette-cote{position:absolute;top:12px;z-index:4;background:var(--card);border:1px solid var(--rule);border-radius:8px;padding:6px 10px;font-size:.8rem;box-shadow:0 2px 6px var(--shadow);display:flex;align-items:center;gap:6px}
+.etiquette-cote select{font:inherit;font-weight:700;border:1px solid var(--rule-strong);border-radius:6px;padding:2px 4px;background:var(--card)}
 #etiq-a{left:12px} #etiq-b{right:56px}
 .etiquette-cote b{font-family:var(--display)}
-.infobulle{position:absolute;z-index:6;pointer-events:none;background:var(--card);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:9px 11px;box-shadow:0 6px 18px rgba(0,0,0,.14);max-width:290px;font-size:.8rem;line-height:1.4}
+.infobulle{position:absolute;z-index:6;pointer-events:none;background:var(--card);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:9px 11px;box-shadow:0 6px 18px var(--shadow);max-width:290px;font-size:.8rem;line-height:1.4}
 .infobulle strong{display:block;font-family:var(--display);font-size:.9rem;line-height:1.2;margin-bottom:3px}
 .infobulle .l{display:flex;justify-content:space-between;gap:14px}
 .infobulle .l span:first-child{color:var(--muted)}
@@ -88,7 +76,7 @@ a.btn:hover{background:var(--panel)}
 .etiq-ville span{display:block;margin-left:7px;font-family:var(--body);font-size:11px;font-weight:700;color:var(--ink2);text-shadow:0 0 3px var(--land),0 0 3px var(--land),0 0 2px var(--land);white-space:nowrap}
 .etiq-ville.fr span{font-weight:400;font-style:italic;color:var(--muted)}
 .chargement{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.8rem;color:var(--ink2);z-index:5;pointer-events:none}
-.chargement .probleme{pointer-events:auto;max-width:460px;margin:16px;background:var(--card);border:1px solid var(--rule);border-radius:var(--r);padding:18px 20px;box-shadow:0 6px 18px rgba(0,0,0,.1);font-family:var(--body);font-size:.88rem;color:var(--ink);display:flex;flex-direction:column;gap:10px}
+.chargement .probleme{pointer-events:auto;max-width:460px;margin:16px;background:var(--card);border:1px solid var(--rule);border-radius:var(--r);padding:18px 20px;box-shadow:0 6px 18px var(--shadow);font-family:var(--body);font-size:.88rem;color:var(--ink);display:flex;flex-direction:column;gap:10px}
 .probleme h2{font-size:1.1rem}
 .probleme ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;color:var(--ink2)}
 .probleme code{font-family:var(--mono);font-size:.8rem;background:var(--panel);padding:1px 5px;border-radius:4px;user-select:all}
@@ -97,26 +85,26 @@ a.btn:hover{background:var(--panel)}
 .mc-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
 .mc-coin{position:absolute;z-index:3;display:flex;flex-direction:column;gap:6px;margin:10px;align-items:flex-start}
 .mc-top-right{top:0;right:0;align-items:flex-end} .mc-bottom-left{bottom:0;left:0} .mc-bottom-right{bottom:0;right:0;align-items:flex-end}
-.mc-nav{display:flex;flex-direction:column;background:#fff;border-radius:4px;box-shadow:0 0 0 2px rgba(0,0,0,.1);overflow:hidden}
-.mc-nav button{width:29px;height:29px;border:0;background:#fff;font-size:17px;line-height:1;cursor:pointer;color:#333}
-.mc-nav button+button{border-top:1px solid #ddd}
-.mc-nav button:hover{background:#f2f2f2}
-.mc-echelle{border:2px solid #333;border-top:0;background:rgba(255,255,255,.75);font-size:10px;padding:0 5px;color:#333}
-.mc-attrib{background:rgba(255,255,255,.85);font-size:10px;padding:2px 6px;border-radius:3px;color:#333;max-width:70vw}
-.bandeau{position:absolute;left:50%;bottom:44px;transform:translateX(-50%);z-index:4;max-width:min(520px,calc(100% - 32px));background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--usd);border-radius:8px;padding:9px 13px;font-size:.8rem;color:var(--ink);box-shadow:0 4px 14px rgba(0,0,0,.1)}
+.mc-nav{display:flex;flex-direction:column;background:var(--ctrl-bg);border-radius:4px;box-shadow:0 0 0 1px var(--ctrl-rule);overflow:hidden}
+.mc-nav button{width:29px;height:29px;border:0;background:var(--ctrl-bg);font-size:17px;line-height:1;cursor:pointer;color:var(--ctrl-ink)}
+.mc-nav button+button{border-top:1px solid var(--ctrl-rule)}
+.mc-nav button:hover{background:var(--hover)}
+.mc-echelle{border:2px solid var(--ctrl-ink);border-top:0;background:color-mix(in srgb,var(--ctrl-bg) 80%,transparent);font-size:10px;padding:0 5px;color:var(--ctrl-ink)}
+.mc-attrib{background:color-mix(in srgb,var(--ctrl-bg) 88%,transparent);font-size:10px;padding:2px 6px;border-radius:3px;color:var(--ctrl-ink);max-width:70vw}
+.bandeau{position:absolute;left:50%;bottom:44px;transform:translateX(-50%);z-index:4;max-width:min(520px,calc(100% - 32px));background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--usd);border-radius:8px;padding:9px 13px;font-size:.8rem;color:var(--ink);box-shadow:0 4px 14px var(--shadow)}
 
 /* ---------- Panneau ---------- */
 .panneau{grid-area:panneau;border-left:1px solid var(--rule);background:var(--card);display:flex;flex-direction:column;min-height:0}
 .onglets{display:flex;gap:2px;padding:10px 16px 0;border-bottom:1px solid var(--rule)}
 .onglets button{border:0;background:transparent;padding:8px 12px;font-weight:700;font-size:.82rem;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px}
-.onglets button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.onglets button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
 .defile{overflow-y:auto;padding:16px 16px 28px;display:flex;flex-direction:column;gap:16px;min-height:0;flex:1}
 .tete .eyebrow{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .tete h2{font-size:1.45rem;font-weight:800;line-height:1.1;margin:4px 0 8px}
 .tete p{color:var(--ink2)}
 .tuiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .tuile{background:var(--panel);border-radius:8px;padding:9px 11px;min-width:0}
-.tuile b{display:block;font-family:var(--display);font-size:1.25rem;font-weight:800;line-height:1.15}
+.tuile b{display:block;font-family:var(--num);font-size:1.25rem;font-weight:800;line-height:1.15}
 .tuile span{font-size:.75rem;color:var(--ink2);line-height:1.3;display:block}
 .tuile.usd b{color:var(--usd-ink)}
 .bloc{display:flex;flex-direction:column;gap:8px}
@@ -124,10 +112,10 @@ a.btn:hover{background:var(--panel)}
 .bloc .sous{font-size:.75rem;color:var(--muted)}
 .segment{display:inline-flex;flex-wrap:wrap;border:1px solid var(--rule);border-radius:999px;padding:3px;background:var(--panel);gap:2px;align-self:flex-start}
 .segment button{border:0;background:transparent;border-radius:999px;padding:5px 11px;font-size:.78rem;font-weight:700;color:var(--ink2);cursor:pointer}
-.segment button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.segment button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px var(--shadow)}
 .puces{display:flex;flex-wrap:wrap;gap:5px}
 .puce{border:1px solid var(--rule);background:var(--card);border-radius:999px;padding:3px 9px;font-size:.73rem;cursor:pointer;color:var(--ink2)}
-.puce[aria-pressed="true"]{background:var(--cam-soft);border-color:#b8d0f1;color:var(--cam-ink);font-weight:700}
+.puce[aria-pressed="true"]{background:var(--cam-soft);border-color:var(--cam-ink);color:var(--cam-ink);font-weight:700}
 .puces-actions{display:flex;gap:10px;font-size:.73rem}
 .puces-actions button{border:0;background:none;padding:0;color:var(--cam-ink);text-decoration:underline;cursor:pointer}
 .legende{border:1px solid var(--rule);border-radius:var(--r);padding:11px 13px;display:flex;flex-direction:column;gap:6px;background:var(--card)}
@@ -153,11 +141,11 @@ table.tab{border-collapse:collapse;width:100%;font-size:.76rem}
 .tab th:first-child,.tab td:first-child{text-align:left}
 .tab tr.cliquable{cursor:pointer}
 .tab tr.cliquable:hover td{background:var(--panel)}
-.tab input{width:76px;font:inherit;font-family:var(--mono);font-size:.74rem;text-align:right;border:1px solid var(--rule);border-radius:5px;padding:3px 5px;background:var(--card)}
+.tab input{width:76px;font:inherit;font-family:var(--mono);font-size:.74rem;text-align:right;border:1px solid var(--rule-strong);border-radius:5px;padding:3px 5px;background:var(--card)}
 .tab input:focus{border-color:var(--usd);outline:none;box-shadow:0 0 0 2px var(--usd-soft)}
 .tab .mini{display:inline-block;height:7px;border-radius:2px;background:var(--s1);vertical-align:middle;margin-right:6px}
 .param{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:.8rem}
-.param input{width:96px;font:inherit;font-family:var(--mono);font-size:.8rem;text-align:right;border:1px solid var(--rule);border-radius:6px;padding:4px 6px}
+.param input{width:96px;font:inherit;font-family:var(--mono);font-size:.8rem;text-align:right;border:1px solid var(--rule-strong);border-radius:6px;padding:4px 6px}
 .selection{border:1px solid var(--ink);border-radius:var(--r);padding:12px 13px;display:flex;flex-direction:column;gap:8px}
 .selection h3{font-family:var(--display);font-size:1rem}
 .selection .ferme{border:0;background:none;color:var(--muted);cursor:pointer;font-size:.75rem;text-decoration:underline;padding:0;align-self:flex-start}
@@ -171,10 +159,10 @@ table.tab{border-collapse:collapse;width:100%;font-size:.76rem}
 /* ---------- Logique (code) ---------- */
 .code-tete{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .code-tete .fichier{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
-pre.code{margin:0;background:#16181b;color:#e8e6df;border-radius:8px;padding:12px 13px;font-family:var(--mono);font-size:.72rem;line-height:1.55;overflow-x:auto;white-space:pre;tab-size:4}
-pre.code .c{color:#8f9aa6;font-style:italic}
-pre.code .s{color:#e5c07b}
-pre.code .k{color:#8fb8f0}
+pre.code{margin:0;background:var(--code-bg);color:var(--code-ink);border:1px solid var(--rule);border-radius:8px;padding:12px 13px;font-family:var(--mono);font-size:.72rem;line-height:1.55;overflow-x:auto;white-space:pre;tab-size:4}
+pre.code .c{color:var(--code-c);font-style:italic}
+pre.code .s{color:var(--code-s)}
+pre.code .k{color:var(--code-k)}
 .copie{border:1px solid var(--rule);background:var(--card);border-radius:6px;padding:3px 9px;font-size:.72rem;cursor:pointer}
 
 /* ---------- Petits écrans ---------- */
@@ -198,10 +186,10 @@ pre.code .k{color:#8fb8f0}
 
 /* ---------- Propre au Volet 1 ---------- */
 @media (min-width:1101px){ .app{grid-template-columns:230px minmax(0,1fr) 440px} }
-.tete .eyebrow{color:#1f5fae}
-.btn.principal{background:var(--ink);color:var(--card);border-color:var(--ink)}
-a.btn.principal:hover{background:#2f3136}
-.lien-texte{border:0;background:none;padding:0;color:#1f5fae;font-weight:700;font-size:.8rem;text-decoration:underline;cursor:pointer;align-self:flex-start;text-align:left}
+.tete .eyebrow{color:var(--v1)}
+.btn.principal{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+a.btn.principal:hover{filter:brightness(1.08)}
+.lien-texte{border:0;background:none;padding:0;color:var(--v1);font-weight:700;font-size:.8rem;text-decoration:underline;cursor:pointer;align-self:flex-start;text-align:left}
 .suite{display:flex;justify-content:space-between;gap:10px;padding-top:14px;border-top:1px solid var(--rule)}
 .suite a,.suite button{font-weight:700;font-size:.8rem;text-decoration:none;border:1px solid var(--rule);border-radius:999px;padding:6px 13px;background:var(--card);color:var(--ink);cursor:pointer}
 .suite a:hover,.suite button:hover{background:var(--panel)}
@@ -214,8 +202,8 @@ a.btn.principal:hover{background:#2f3136}
 .graph-mini .axe{font-family:var(--mono);font-size:9px;fill:var(--muted)}
 .graph-mini .axe-ligne{stroke:var(--rule);stroke-width:1}
 .cle-points{display:flex;gap:14px;font-size:.72rem;color:var(--muted)}
-.cle-points i{display:inline-block;width:8px;height:8px;border-radius:50%;border:1.5px solid #1f5fae;margin-right:5px;vertical-align:-1px}
-.cle-points i.plein{background:#1f5fae}
+.cle-points i{display:inline-block;width:8px;height:8px;border-radius:50%;border:1.5px solid var(--s1);margin-right:5px;vertical-align:-1px}
+.cle-points i.plein{background:var(--s1)}
 .filtres{display:flex;flex-direction:column;gap:6px}
 .filtre{display:grid;grid-template-columns:22px 1fr;gap:8px;font-size:.78rem;color:var(--ink2)}
 .filtre b{width:22px;height:22px;border-radius:6px;background:var(--panel);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:.8rem;color:var(--ink)}
@@ -228,21 +216,21 @@ a.btn.principal:hover{background:#2f3136}
 .md h4{font-size:.95rem;font-weight:700;margin-top:6px;scroll-margin-top:12px}
 .md p,.md li{color:var(--ink2)}
 .md strong{color:var(--ink)}
-.md a{color:#1f5fae}
+.md a{color:var(--v1)}
 .md ul,.md ol{padding-left:20px;display:flex;flex-direction:column;gap:4px}
 .md img{display:block;max-width:100%!important;height:auto;margin:0 auto;border:1px solid var(--rule);border-radius:8px;background:#fff}
 .md a[target="_blank"]:has(img){display:block}
 .md code{font-family:var(--mono);font-size:.84em;background:var(--panel);padding:1px 5px;border-radius:4px}
-.md blockquote{margin:0;border-left:3px solid #86b6ef;background:#e4eefa;padding:9px 12px;border-radius:0 8px 8px 0}
+.md blockquote{margin:0;border-left:3px solid var(--v1);background:var(--cam-soft);padding:9px 12px;border-radius:0 8px 8px 0}
 .md blockquote p{color:var(--ink)}
 .md table{border-collapse:collapse;width:100%;font-size:.78rem;display:block;overflow-x:auto}
 .md th,.md td{padding:6px 7px;border-bottom:1px solid var(--rule);text-align:left;vertical-align:top}
 .md th{font-family:var(--mono);font-size:.64rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border-bottom:1.5px solid var(--ink2)}
 .md td{color:var(--ink2)}
-.md .highlight pre,.md pre{margin:0;background:#16181b;color:#e8e6df;border-radius:8px;padding:12px 13px;font-family:var(--mono);font-size:.72rem;line-height:1.55;overflow-x:auto}
+.md .highlight pre,.md pre{margin:0;background:var(--code-bg);color:var(--code-ink);border:1px solid var(--rule);border-radius:8px;padding:12px 13px;font-family:var(--mono);font-size:.72rem;line-height:1.55;overflow-x:auto}
 .md pre code{background:none;padding:0;color:inherit;font-size:inherit}
-.md .pl-k{color:#8fb8f0} .md .pl-s,.md .pl-pds{color:#e5c07b} .md .pl-c{color:#8f9aa6;font-style:italic}
-.md .pl-en{color:#9fdcc3} .md .pl-c1{color:#f4b183} .md .pl-v,.md .pl-smi,.md .pl-s1{color:#e8e6df}
+.md .pl-k{color:var(--code-k)} .md .pl-s,.md .pl-pds{color:var(--code-s)} .md .pl-c{color:var(--code-c);font-style:italic}
+.md .pl-en{color:var(--v3)} .md .pl-c1{color:var(--usd)} .md .pl-v,.md .pl-smi,.md .pl-s1{color:var(--code-ink)}
 .md hr{border:0;border-top:1px solid var(--rule);margin:6px 0}
 </style>
 </head>
@@ -254,12 +242,13 @@ a.btn.principal:hover{background:#2f3136}
       <h1>Le trafic sur chaque liaison</h1>
     </div>
     <div class="barre-actions">
+      <button type="button" class="btn" id="btn-theme" onclick="basculerTheme()"></button>
       <a class="btn" href="https://github.com/akrambouznad789-cyber/projet-resilience-cirano">Code sur GitHub</a>
       <a class="btn principal" id="btn-v2" href="#">Volet 2 : carte interactive →</a>
     </div>
   </header>
 
-  <nav class="etapes" id="etapes" aria-label="Étapes des deux volets"></nav>
+  <nav class="etapes" id="etapes" aria-label="Étapes des trois volets"></nav>
 
   <main class="scene" id="scene">
     <div id="carte" class="carte" role="region" aria-label="Carte de l'étape courante"></div>
@@ -291,27 +280,19 @@ const indexSection = new Map(SR.id.map((id, i) => [id, i]));          // identif
 const VIDE = { type: "FeatureCollection", features: [] };
 
 // Couleurs des données (le fond reste neutre ; la couleur porte la donnée)
-const C = {
-  terre: "#f1efe6", bord: "#d9d5c7", qc: "#8e99a6", eau: "#bcdcf2", reseau: "#c9c5b8",
-  encre: "#17181b", encre2: "#4f4e4a", muet: "#7f7d76", vide: "#bdbab1", pale: "#dcd9d0",
-  bleu: ["#a9c8ef", "#6fa5e4", "#3f86d9", "#1f5fae", "#0d2d52"],   // bas de gamme assez foncé pour rester visible sur le fond
-  or:   ["#f8e2a8", "#f0c35b", "#dc9600", "#a66d00", "#6b4600"],
-  div:  ["#b8401c", "#e9845c", "#f4c3a8", "#c8c6bf", "#a9c8ef", "#4a8ddb", "#1c4f95"],
-  vert: "#1baf7a", orange: "#eb6834",
-  rtss: { auto: "#a29d91", nat: "#b5b0a4", reg: "#c6c2b7", col: "#d0ccc2", autre: "#dad7cf" },
-};
-const TYPES_NOEUD = [["municipalite", "Municipalité", "#ffffff"], ["noeud_intermediaire", "Nœud intermédiaire", C.vert],
+const C = PALETTE;   // couleurs des données : scripts/gabarits/theme/jetons.json
+const TYPES_NOEUD = [["municipalite", "Municipalité", C.noeud], ["noeud_intermediaire", "Nœud intermédiaire", C.vert],
                      ["frontiere", "Point frontière (province, État)", C.orange]];
 const CLASSES_RTSS = [["auto", "Autoroute"], ["nat", "Nationale"], ["reg", "Régionale"], ["col", "Collectrice"], ["autre", "Autre ou sans classe"]];
 const MESURE = [[0, "Aucune année mesurée", C.div[0]], [1, "1 à 4 années", C.div[1]], [5, "5 à 9 années", C.div[4]], [10, "10 années sur 10", C.div[6]]];
 const METHODES = [
-  ["c", "Complète : 10 années mesurées", "#1f5fae"],
-  ["i", "Interpolation : trous internes comblés", "#86b6ef"],
-  ["e", "Extrapolation : bords prolongés (gradient local)", "#f0c35b"],
+  ["c", "Complète : 10 années mesurées", C.methodes.c],
+  ["i", "Interpolation : trous internes comblés", C.methodes.i],
+  ["e", "Extrapolation : bords prolongés (gradient local)", C.methodes.e],
   ["m", "RandomForest (MICE) : % camions prédit", C.vert],
   ["g", "KNN géographique : aucune mesure, 5 voisines", C.orange],
 ];
-const STATUTS = [["ok", "Au moins un segment retenu", "#3f86d9"], ["aucun_djma", "Aucun segment retenu", C.orange], ["hors_quebec", "Tracé hors du Québec", "#8e8b82"]];
+const STATUTS = [["ok", "Au moins un segment retenu", C.statut.ok], ["aucun_djma", "Aucun segment retenu", C.orange], ["hors_quebec", "Tracé hors du Québec", C.statut.hors]];
 const NSEG = [[1, "1 segment"], [2, "2 à 4"], [5, "5 à 9"], [10, "10 à 19"], [20, "20 et plus"]];
 const DEF_METHODES = {
   1: ["m1", "Moyenne simple", "Moyenne des DJMA de tous les segments retenus de l'arc."],
@@ -340,6 +321,11 @@ const ETAPES = M.etapes.map((e, i) => ({ ...e, vue: ["QC", "SUD", "QC", "QC", "Q
 const N = ETAPES.length;
 const VUES = { QC: [[-80.2, 44.6], [-56.8, 53.9]], SUD: [[-79.6, 44.9], [-64.8, 49.4]], MTL: [[-74.3, 45.22], [-73.15, 45.82]] };
 // Même liste que ETAPES dans scripts/gabarits/visualisation_volet2.html
+// Étapes du Volet 3 : le jumeau (docs/jumeau/, ou outputs/jumeau/ pour la version complète)
+const ETAPES_V3 = [["Plusieurs routes", "459 routes, 307 liaisons"], ["Le modèle", "logit à taille de chemin"],
+                   ["Calibration", "comptages et enquête"], ["Fermer une liaison", "report du trafic"],
+                   ["Liaisons critiques", "classement"]];
+const URL_V3 = M.publique ? "../jumeau/" : "../jumeau/index.html";
 const ETAPES_V2 = [
   ["Réseau du volet 1", "point de départ"], ["ENR brute", "114 734 camions"], ["Filtre Québec", "37 603 retenus"],
   ["Postes d'enquête", "où on les arrête"], ["Rattachement aux nœuds", "lieux → nœuds"], ["Routage sur le graphe", "chemin par camion"],
@@ -718,7 +704,7 @@ function construireCouches(map) {
                  paint: { "line-color": C.vide, "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.2, 8, 2.4, 11, 4], "line-opacity": 1 } });
 
   map.addSource("segs", { type: "geojson", data: VIDE });
-  map.addLayer({ id: "segs-fond", type: "line", source: "segs", layout: rond, paint: { "line-color": "#fff", "line-width": largeur(5, 9) } });
+  map.addLayer({ id: "segs-fond", type: "line", source: "segs", layout: rond, paint: { "line-color": C.contour, "line-width": largeur(5, 9) } });
   map.addLayer({ id: "segs", type: "line", source: "segs", layout: rond,
                  paint: { "line-color": exprClasses("v", BORNES.d, C.bleu, C.vide), "line-width": largeur(2.6, 5) } });
 
@@ -737,7 +723,7 @@ function construireCouches(map) {
   map.addSource("noeuds", { type: "geojson", data: noeudsGeojson() });
   map.addLayer({ id: "noeuds", type: "circle", source: "noeuds", paint: {
     "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, ["match", ["get", "type"], "municipalite", 2.2, 3.4], 9, ["match", ["get", "type"], "municipalite", 4.5, 6]],
-    "circle-color": ["match", ["get", "type"], "municipalite", "#ffffff", "noeud_intermediaire", C.vert, C.orange],
+    "circle-color": ["match", ["get", "type"], "municipalite", C.noeud, "noeud_intermediaire", C.vert, C.orange],
     "circle-stroke-color": C.encre2, "circle-stroke-width": 1 } });
 
   map.addControl(new MOTEUR.NavigationControl({ showCompass: false }), "top-right");
@@ -850,6 +836,8 @@ function rendreEtapes() {
       <b>${i + 1}</b><span>${esc(e.court)}<small>${esc(e.sur)}</small></span></a>`).join("") +
     `<p class="groupe-etapes v2"><span>Volet 2</span> La valeur</p>` +
     ETAPES_V2.map(([court, sur], i) => `<a class="etape v2" href="${M.url_v2}#etape=${i}"><b>${i}</b><span>${esc(court)}<small>${esc(sur)}</small></span></a>`).join("") +
+    `<p class="groupe-etapes v3"><span>Volet 3</span> Le jumeau</p>` +
+    ETAPES_V3.map(([court, sur], i) => `<a class="etape v3" href="${URL_V3}#etape=${i + 1}"><b>${i + 1}</b><span>${esc(court)}<small>${esc(sur)}</small></span></a>`).join("") +
     `<p class="etapes-pied"><kbd>←</kbd> <kbd>→</kbd> pour changer d'étape. Survole la carte pour le détail, clique pour choisir.</p>`;
 }
 
@@ -898,7 +886,7 @@ function miniGraphe(vals, masque, titre, couleur, unite) {
       <text x="${g - 5}" y="${H - b + 3}" text-anchor="end" class="axe">0</text>
       ${A.map((a, j) => j % 3 === 0 ? `<text x="${x(j)}" y="${H - 5}" text-anchor="${j === A.length - 1 ? "end" : "middle"}" class="axe">${a}</text>` : "").join("")}
       <path d="${chemin}" fill="none" stroke="${couleur}" stroke-width="1.6"/>
-      ${pts.map((p, j) => p ? `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.4" fill="${mesure(j) ? couleur : "#fff"}" stroke="${couleur}" stroke-width="1.5"><title>${A[j]} : ${lib(vals[j])} (${mesure(j) ? "mesuré" : "complété"})</title></circle>` : "").join("")}
+      ${pts.map((p, j) => p ? `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.4" fill="${mesure(j) ? couleur : C.contour}" stroke="${couleur}" stroke-width="1.5"><title>${A[j]} : ${lib(vals[j])} (${mesure(j) ? "mesuré" : "complété"})</title></circle>` : "").join("")}
     </svg></div>`;
 }
 const libMethode = code => (METHODES.find(m => m[0] === code) || [, "–"])[1];
@@ -1221,6 +1209,7 @@ function demarrer() {
   document.getElementById("date-gen").textContent = M.genere_le;
   document.getElementById("mention").textContent = M.publique ? "" : " · version locale complète";
   document.getElementById("btn-v2").href = M.url_v2 + "#etape=0";
+  document.getElementById("btn-theme").textContent = THEME === "sombre" ? "Thème clair" : "Thème sombre";
   S.etape = lireAdresse().k;
   rendreTexte(); brancherPanneau();
   window.addEventListener("hashchange", suivreAdresse);
