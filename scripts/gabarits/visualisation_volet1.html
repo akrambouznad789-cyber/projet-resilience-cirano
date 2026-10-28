@@ -1,0 +1,1240 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Volet 1 · Le trafic sur chaque liaison</title>
+<meta name="description" content="Résilience du réseau routier québécois, Volet 1 : comptages routiers, complétion des données, routage et trafic par liaison, sur une carte interactive.">
+<!-- Gabarit de scripts/visualisation_volet1.py : les données sont injectées dans
+     la balise <script id="donnees">. La coque, le style et le moteur Canvas 2D de
+     secours sont repris de scripts/gabarits/visualisation_volet2.html. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;700&family=Overpass:wght@600;800&family=Overpass+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+:root{
+  color-scheme:light;
+  --bg:#fafaf8; --panel:#f2f1ec; --card:#ffffff; --ink:#17181b; --ink2:#4f4e4a; --muted:#7f7d76; --rule:#e2e0d8;
+  --land:#f1efe6; --water:#bcdcf2;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a;
+  --cam-soft:#e4eefa; --cam-ink:#1b5aa6;
+  --usd:#dc9600; --usd-soft:#fcefcf; --usd-ink:#875600;
+  --display:"Overpass","Arimo",system-ui,sans-serif;
+  --body:"Arimo","Helvetica Neue",Arial,sans-serif;
+  --mono:"Overpass Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:10px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
+p{margin:0}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--s1);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono)}
+
+/* ---------- Grille de l'application ---------- */
+.app{display:grid;height:100vh;grid-template-columns:230px minmax(0,1fr) 410px;grid-template-rows:56px minmax(0,1fr);grid-template-areas:"barre barre barre" "etapes scene panneau"}
+.barre{grid-area:barre;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 16px;border-bottom:1px solid var(--rule);background:var(--card)}
+.barre .eyebrow{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block;line-height:1.2}
+.barre h1{font-size:1.2rem;font-weight:800;line-height:1.15}
+.barre-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.provisoire{font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--usd-ink);border:1px dashed var(--usd);border-radius:4px;padding:2px 7px;white-space:nowrap}
+.btn{border:1px solid var(--rule);background:var(--card);border-radius:999px;padding:6px 14px;font-weight:700;font-size:.82rem;cursor:pointer;color:var(--ink);text-decoration:none;white-space:nowrap}
+a.btn:hover{background:var(--panel)}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--card);border-color:var(--ink)}
+
+/* ---------- Étapes ---------- */
+.etapes{grid-area:etapes;overflow-y:auto;border-right:1px solid var(--rule);background:var(--panel);padding:8px 10px 12px;display:flex;flex-direction:column;gap:2px}
+/* Barre commune aux deux volets (même format que docs/volet1/) */
+.groupe-etapes{margin:12px 8px 4px;font-family:var(--mono);font-size:.64rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);line-height:1.3}
+.groupe-etapes span{font-weight:700}
+.groupe-etapes.v1 span{color:#1f5fae} .groupe-etapes.v2 span{color:#875600}
+.etape{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:center;text-align:left;border:0;background:transparent;border-radius:8px;padding:6px 8px;cursor:pointer;color:var(--ink2);text-decoration:none}
+.etape:hover{background:rgba(0,0,0,.04)}
+.etape b{width:28px;height:28px;border-radius:7px;border:1.5px solid var(--muted);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:.95rem;color:var(--ink2);background:var(--card)}
+.etape span{font-size:.84rem;line-height:1.25}
+.etape small{display:block;font-family:var(--mono);font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.etape.v1 b{border-color:#86b6ef;color:#1f5fae} .etape.v2 b{border-color:#e9c46a;color:#875600}
+.etape[aria-current="step"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.etape[aria-current="step"] b{background:var(--ink);border-color:var(--ink);color:var(--card)}
+.etape.calcul-page small{color:var(--usd-ink)}
+.etapes-pied{margin-top:auto;padding:10px 8px 2px;font-size:.72rem;color:var(--muted);line-height:1.4}
+.etapes-pied kbd{font-family:var(--mono);font-size:.68rem;border:1px solid var(--rule);border-radius:3px;padding:0 4px;background:var(--card)}
+
+/* ---------- Carte ---------- */
+.scene{grid-area:scene;position:relative;min-width:0;min-height:0;overflow:hidden;background:var(--water)}
+.carte{position:absolute;inset:0;overflow:hidden}
+.carte-gauche{z-index:2}
+.rideau{position:absolute;top:0;bottom:0;width:0;z-index:3;cursor:ew-resize}
+.rideau::before{content:"";position:absolute;top:0;bottom:0;left:-1px;width:2px;background:var(--ink)}
+.rideau span{position:absolute;top:50%;left:-15px;width:30px;height:30px;margin-top:-15px;border-radius:50%;background:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.rideau span::before{content:"‹ ›";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.9rem;letter-spacing:2px}
+.etiquette-cote{position:absolute;top:12px;z-index:4;background:var(--card);border:1px solid var(--rule);border-radius:8px;padding:6px 10px;font-size:.8rem;box-shadow:0 2px 6px rgba(0,0,0,.08);display:flex;align-items:center;gap:6px}
+.etiquette-cote select{font:inherit;font-weight:700;border:1px solid var(--rule);border-radius:6px;padding:2px 4px;background:var(--card)}
+#etiq-a{left:12px} #etiq-b{right:56px}
+.etiquette-cote b{font-family:var(--display)}
+.infobulle{position:absolute;z-index:6;pointer-events:none;background:var(--card);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:9px 11px;box-shadow:0 6px 18px rgba(0,0,0,.14);max-width:290px;font-size:.8rem;line-height:1.4}
+.infobulle strong{display:block;font-family:var(--display);font-size:.9rem;line-height:1.2;margin-bottom:3px}
+.infobulle .l{display:flex;justify-content:space-between;gap:14px}
+.infobulle .l span:first-child{color:var(--muted)}
+.infobulle .l span:last-child{font-variant-numeric:tabular-nums;text-align:right}
+.infobulle .note{color:var(--muted);font-size:.74rem;margin-top:4px}
+.etiq-ville{pointer-events:none}
+.etiq-ville span{display:block;margin-left:7px;font-family:var(--body);font-size:11px;font-weight:700;color:var(--ink2);text-shadow:0 0 3px var(--land),0 0 3px var(--land),0 0 2px var(--land);white-space:nowrap}
+.etiq-ville.fr span{font-weight:400;font-style:italic;color:var(--muted)}
+.chargement{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.8rem;color:var(--ink2);z-index:5;pointer-events:none}
+.chargement .probleme{pointer-events:auto;max-width:460px;margin:16px;background:var(--card);border:1px solid var(--rule);border-radius:var(--r);padding:18px 20px;box-shadow:0 6px 18px rgba(0,0,0,.1);font-family:var(--body);font-size:.88rem;color:var(--ink);display:flex;flex-direction:column;gap:10px}
+.probleme h2{font-size:1.1rem}
+.probleme ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;color:var(--ink2)}
+.probleme code{font-family:var(--mono);font-size:.8rem;background:var(--panel);padding:1px 5px;border-radius:4px;user-select:all}
+.probleme .sous{font-size:.78rem;color:var(--muted)}
+.maplibregl-ctrl-attrib{font-size:10px}
+.mc-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+.mc-coin{position:absolute;z-index:3;display:flex;flex-direction:column;gap:6px;margin:10px;align-items:flex-start}
+.mc-top-right{top:0;right:0;align-items:flex-end} .mc-bottom-left{bottom:0;left:0} .mc-bottom-right{bottom:0;right:0;align-items:flex-end}
+.mc-nav{display:flex;flex-direction:column;background:#fff;border-radius:4px;box-shadow:0 0 0 2px rgba(0,0,0,.1);overflow:hidden}
+.mc-nav button{width:29px;height:29px;border:0;background:#fff;font-size:17px;line-height:1;cursor:pointer;color:#333}
+.mc-nav button+button{border-top:1px solid #ddd}
+.mc-nav button:hover{background:#f2f2f2}
+.mc-echelle{border:2px solid #333;border-top:0;background:rgba(255,255,255,.75);font-size:10px;padding:0 5px;color:#333}
+.mc-attrib{background:rgba(255,255,255,.85);font-size:10px;padding:2px 6px;border-radius:3px;color:#333;max-width:70vw}
+.bandeau{position:absolute;left:50%;bottom:44px;transform:translateX(-50%);z-index:4;max-width:min(520px,calc(100% - 32px));background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--usd);border-radius:8px;padding:9px 13px;font-size:.8rem;color:var(--ink);box-shadow:0 4px 14px rgba(0,0,0,.1)}
+
+/* ---------- Panneau ---------- */
+.panneau{grid-area:panneau;border-left:1px solid var(--rule);background:var(--card);display:flex;flex-direction:column;min-height:0}
+.onglets{display:flex;gap:2px;padding:10px 16px 0;border-bottom:1px solid var(--rule)}
+.onglets button{border:0;background:transparent;padding:8px 12px;font-weight:700;font-size:.82rem;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px}
+.onglets button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.defile{overflow-y:auto;padding:16px 16px 28px;display:flex;flex-direction:column;gap:16px;min-height:0;flex:1}
+.tete .eyebrow{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tete h2{font-size:1.45rem;font-weight:800;line-height:1.1;margin:4px 0 8px}
+.tete p{color:var(--ink2)}
+.tuiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tuile{background:var(--panel);border-radius:8px;padding:9px 11px;min-width:0}
+.tuile b{display:block;font-family:var(--display);font-size:1.25rem;font-weight:800;line-height:1.15}
+.tuile span{font-size:.75rem;color:var(--ink2);line-height:1.3;display:block}
+.tuile.usd b{color:var(--usd-ink)}
+.bloc{display:flex;flex-direction:column;gap:8px}
+.bloc h3{font-size:.86rem;font-weight:700;font-family:var(--body)}
+.bloc .sous{font-size:.75rem;color:var(--muted)}
+.segment{display:inline-flex;flex-wrap:wrap;border:1px solid var(--rule);border-radius:999px;padding:3px;background:var(--panel);gap:2px;align-self:flex-start}
+.segment button{border:0;background:transparent;border-radius:999px;padding:5px 11px;font-size:.78rem;font-weight:700;color:var(--ink2);cursor:pointer}
+.segment button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.puces{display:flex;flex-wrap:wrap;gap:5px}
+.puce{border:1px solid var(--rule);background:var(--card);border-radius:999px;padding:3px 9px;font-size:.73rem;cursor:pointer;color:var(--ink2)}
+.puce[aria-pressed="true"]{background:var(--cam-soft);border-color:#b8d0f1;color:var(--cam-ink);font-weight:700}
+.puces-actions{display:flex;gap:10px;font-size:.73rem}
+.puces-actions button{border:0;background:none;padding:0;color:var(--cam-ink);text-decoration:underline;cursor:pointer}
+.legende{border:1px solid var(--rule);border-radius:var(--r);padding:11px 13px;display:flex;flex-direction:column;gap:6px;background:var(--card)}
+.legende h3{font-size:.84rem;font-family:var(--body);font-weight:700}
+.legende .sous{font-size:.74rem;color:var(--muted);margin-top:-3px}
+.leg{display:grid;grid-template-columns:30px 1fr auto;gap:9px;align-items:center;font-size:.79rem}
+.leg svg{width:30px;height:12px;display:block}
+.leg .n{color:var(--muted);font-family:var(--mono);font-size:.7rem}
+.note{border-left:3px solid var(--rule);padding:4px 0 4px 11px;font-size:.79rem;color:var(--ink2)}
+.note.attention{border-left-color:var(--usd);background:var(--usd-soft);padding:8px 11px;border-radius:0 6px 6px 0;color:var(--ink)}
+.note b{color:var(--ink)}
+.barre-empilee{display:flex;height:26px;border-radius:6px;overflow:hidden;gap:2px}
+.barre-empilee div{min-width:2px}
+.liste-barres{display:flex;flex-direction:column;gap:5px}
+.lb{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) auto;gap:8px;align-items:center;font-size:.77rem}
+.lb .nom{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+.lb .piste{height:9px;background:var(--panel);border-radius:3px;overflow:hidden}
+.lb .piste i{display:block;height:100%;border-radius:0 3px 3px 0}
+.lb .val{font-family:var(--mono);font-size:.7rem;color:var(--ink2);text-align:right;white-space:nowrap}
+table.tab{border-collapse:collapse;width:100%;font-size:.76rem}
+.tab th,.tab td{padding:5px 4px;border-bottom:1px solid var(--rule);text-align:right;font-variant-numeric:tabular-nums;vertical-align:middle}
+.tab th{font-family:var(--mono);font-size:.63rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.tab th:first-child,.tab td:first-child{text-align:left}
+.tab tr.cliquable{cursor:pointer}
+.tab tr.cliquable:hover td{background:var(--panel)}
+.tab input{width:76px;font:inherit;font-family:var(--mono);font-size:.74rem;text-align:right;border:1px solid var(--rule);border-radius:5px;padding:3px 5px;background:var(--card)}
+.tab input:focus{border-color:var(--usd);outline:none;box-shadow:0 0 0 2px var(--usd-soft)}
+.tab .mini{display:inline-block;height:7px;border-radius:2px;background:var(--s1);vertical-align:middle;margin-right:6px}
+.param{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:.8rem}
+.param input{width:96px;font:inherit;font-family:var(--mono);font-size:.8rem;text-align:right;border:1px solid var(--rule);border-radius:6px;padding:4px 6px}
+.selection{border:1px solid var(--ink);border-radius:var(--r);padding:12px 13px;display:flex;flex-direction:column;gap:8px}
+.selection h3{font-family:var(--display);font-size:1rem}
+.selection .ferme{border:0;background:none;color:var(--muted);cursor:pointer;font-size:.75rem;text-decoration:underline;padding:0;align-self:flex-start}
+.kv{display:grid;grid-template-columns:1fr auto;gap:2px 12px;font-size:.78rem}
+.kv span:nth-child(odd){color:var(--muted)}
+.kv span:nth-child(even){text-align:right;font-variant-numeric:tabular-nums}
+.statut-statcan{font-size:.76rem;color:var(--ink2);display:flex;gap:6px;align-items:baseline}
+.statut-statcan i{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--s2)}
+.statut-statcan i.ok{background:var(--s3)}
+
+/* ---------- Logique (code) ---------- */
+.code-tete{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.code-tete .fichier{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+pre.code{margin:0;background:#16181b;color:#e8e6df;border-radius:8px;padding:12px 13px;font-family:var(--mono);font-size:.72rem;line-height:1.55;overflow-x:auto;white-space:pre;tab-size:4}
+pre.code .c{color:#8f9aa6;font-style:italic}
+pre.code .s{color:#e5c07b}
+pre.code .k{color:#8fb8f0}
+.copie{border:1px solid var(--rule);background:var(--card);border-radius:6px;padding:3px 9px;font-size:.72rem;cursor:pointer}
+
+/* ---------- Petits écrans ---------- */
+@media (min-width:1101px){ body{overflow:hidden} }
+@media (max-width:1100px){
+  .app{height:auto;min-height:100vh;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto 62vh auto;grid-template-areas:"barre" "etapes" "scene" "panneau"}
+  .barre{padding:10px 16px;flex-wrap:wrap}
+  .etapes{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--rule);padding:8px 16px}
+  .etape{grid-template-columns:24px auto;flex:0 0 auto}
+  .etape b{width:24px;height:24px}
+  .etape small,.etapes-pied{display:none}
+  .groupe-etapes{flex:0 0 auto;margin:0 6px;align-self:center}
+  .panneau{border-left:0;border-top:1px solid var(--rule)}
+  .defile{overflow:visible}
+}
+@media (max-width:560px){
+  .barre h1{font-size:1.05rem}
+  .tuiles{grid-template-columns:1fr 1fr}
+  #etiq-b{right:12px;top:56px}
+}
+
+/* ---------- Propre au Volet 1 ---------- */
+@media (min-width:1101px){ .app{grid-template-columns:230px minmax(0,1fr) 440px} }
+.tete .eyebrow{color:#1f5fae}
+.btn.principal{background:var(--ink);color:var(--card);border-color:var(--ink)}
+a.btn.principal:hover{background:#2f3136}
+.lien-texte{border:0;background:none;padding:0;color:#1f5fae;font-weight:700;font-size:.8rem;text-decoration:underline;cursor:pointer;align-self:flex-start;text-align:left}
+.suite{display:flex;justify-content:space-between;gap:10px;padding-top:14px;border-top:1px solid var(--rule)}
+.suite a,.suite button{font-weight:700;font-size:.8rem;text-decoration:none;border:1px solid var(--rule);border-radius:999px;padding:6px 13px;background:var(--card);color:var(--ink);cursor:pointer}
+.suite a:hover,.suite button:hover{background:var(--panel)}
+.suite :last-child{margin-left:auto}
+.selection .sous{font-size:.75rem;color:var(--muted)}
+.graph-mini{display:flex;flex-direction:column;gap:2px}
+.graph-mini .gm-tete{display:flex;justify-content:space-between;gap:8px;font-size:.76rem}
+.graph-mini .gm-tete span{color:var(--muted);font-family:var(--mono);font-size:.68rem}
+.graph-mini svg{width:100%;height:auto;display:block}
+.graph-mini .axe{font-family:var(--mono);font-size:9px;fill:var(--muted)}
+.graph-mini .axe-ligne{stroke:var(--rule);stroke-width:1}
+.cle-points{display:flex;gap:14px;font-size:.72rem;color:var(--muted)}
+.cle-points i{display:inline-block;width:8px;height:8px;border-radius:50%;border:1.5px solid #1f5fae;margin-right:5px;vertical-align:-1px}
+.cle-points i.plein{background:#1f5fae}
+.filtres{display:flex;flex-direction:column;gap:6px}
+.filtre{display:grid;grid-template-columns:22px 1fr;gap:8px;font-size:.78rem;color:var(--ink2)}
+.filtre b{width:22px;height:22px;border-radius:6px;background:var(--panel);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:.8rem;color:var(--ink)}
+.filtre strong{color:var(--ink)}
+
+/* ---------- Texte complet (pages docs/*.md) ---------- */
+.md{display:flex;flex-direction:column;gap:14px;font-size:.86rem;line-height:1.6}
+.md > *{margin:0}
+.md h3{font-size:1.08rem;font-weight:800;margin-top:14px;scroll-margin-top:12px}
+.md h4{font-size:.95rem;font-weight:700;margin-top:6px;scroll-margin-top:12px}
+.md p,.md li{color:var(--ink2)}
+.md strong{color:var(--ink)}
+.md a{color:#1f5fae}
+.md ul,.md ol{padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.md img{display:block;max-width:100%!important;height:auto;margin:0 auto;border:1px solid var(--rule);border-radius:8px;background:#fff}
+.md a[target="_blank"]:has(img){display:block}
+.md code{font-family:var(--mono);font-size:.84em;background:var(--panel);padding:1px 5px;border-radius:4px}
+.md blockquote{margin:0;border-left:3px solid #86b6ef;background:#e4eefa;padding:9px 12px;border-radius:0 8px 8px 0}
+.md blockquote p{color:var(--ink)}
+.md table{border-collapse:collapse;width:100%;font-size:.78rem;display:block;overflow-x:auto}
+.md th,.md td{padding:6px 7px;border-bottom:1px solid var(--rule);text-align:left;vertical-align:top}
+.md th{font-family:var(--mono);font-size:.64rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border-bottom:1.5px solid var(--ink2)}
+.md td{color:var(--ink2)}
+.md .highlight pre,.md pre{margin:0;background:#16181b;color:#e8e6df;border-radius:8px;padding:12px 13px;font-family:var(--mono);font-size:.72rem;line-height:1.55;overflow-x:auto}
+.md pre code{background:none;padding:0;color:inherit;font-size:inherit}
+.md .pl-k{color:#8fb8f0} .md .pl-s,.md .pl-pds{color:#e5c07b} .md .pl-c{color:#8f9aa6;font-style:italic}
+.md .pl-en{color:#9fdcc3} .md .pl-c1{color:#f4b183} .md .pl-v,.md .pl-smi,.md .pl-s1{color:#e8e6df}
+.md hr{border:0;border-top:1px solid var(--rule);margin:6px 0}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="barre">
+    <div>
+      <span class="eyebrow">CIRANO · Volet 1 · terminé · mis à jour le <span id="date-gen"></span><span id="mention"></span></span>
+      <h1>Le trafic sur chaque liaison</h1>
+    </div>
+    <div class="barre-actions">
+      <a class="btn" href="https://github.com/akrambouznad789-cyber/projet-resilience-cirano">Code sur GitHub</a>
+      <a class="btn principal" id="btn-v2" href="#">Volet 2 : carte interactive →</a>
+    </div>
+  </header>
+
+  <nav class="etapes" id="etapes" aria-label="Étapes des deux volets"></nav>
+
+  <main class="scene" id="scene">
+    <div id="carte" class="carte" role="region" aria-label="Carte de l'étape courante"></div>
+    <div class="infobulle" id="infobulle" hidden></div>
+    <div class="chargement" id="chargement">Chargement de la carte…</div>
+  </main>
+
+  <aside class="panneau" aria-label="Lecture de l'étape">
+    <div class="onglets" role="tablist">
+      <button type="button" role="tab" id="tab-lecture" aria-selected="true" aria-controls="lecture">Carte</button>
+      <button type="button" role="tab" id="tab-texte" aria-selected="false" aria-controls="texte">Texte complet</button>
+    </div>
+    <div class="defile" id="lecture" role="tabpanel" aria-labelledby="tab-lecture"></div>
+    <div class="defile" id="texte" role="tabpanel" aria-labelledby="tab-texte" hidden></div>
+  </aside>
+</div>
+
+<script id="donnees" type="application/json">/*__DONNEES__*/null</script>
+<script>
+"use strict";
+
+// ---------- Données ----------
+const D = JSON.parse(document.getElementById("donnees").textContent);
+const M = D.meta, SR = D.series;
+const NOEUDS = D.noeuds, noeudParId = new Map(NOEUDS.map(n => [n.id, n]));
+const ARCS = D.arcs.features.map(f => f.properties), parId = new Map(ARCS.map(a => [a.id, a]));
+const SECTIONS = D.sections.features;                                  // index = propriété « i »
+const indexSection = new Map(SR.id.map((id, i) => [id, i]));          // identifiant MTQ → index
+const VIDE = { type: "FeatureCollection", features: [] };
+
+// Couleurs des données (le fond reste neutre ; la couleur porte la donnée)
+const C = {
+  terre: "#f1efe6", bord: "#d9d5c7", qc: "#8e99a6", eau: "#bcdcf2", reseau: "#c9c5b8",
+  encre: "#17181b", encre2: "#4f4e4a", muet: "#7f7d76", vide: "#bdbab1", pale: "#dcd9d0",
+  bleu: ["#a9c8ef", "#6fa5e4", "#3f86d9", "#1f5fae", "#0d2d52"],   // bas de gamme assez foncé pour rester visible sur le fond
+  or:   ["#f8e2a8", "#f0c35b", "#dc9600", "#a66d00", "#6b4600"],
+  div:  ["#b8401c", "#e9845c", "#f4c3a8", "#c8c6bf", "#a9c8ef", "#4a8ddb", "#1c4f95"],
+  vert: "#1baf7a", orange: "#eb6834",
+  rtss: { auto: "#a29d91", nat: "#b5b0a4", reg: "#c6c2b7", col: "#d0ccc2", autre: "#dad7cf" },
+};
+const TYPES_NOEUD = [["municipalite", "Municipalité", "#ffffff"], ["noeud_intermediaire", "Nœud intermédiaire", C.vert],
+                     ["frontiere", "Point frontière (province, État)", C.orange]];
+const CLASSES_RTSS = [["auto", "Autoroute"], ["nat", "Nationale"], ["reg", "Régionale"], ["col", "Collectrice"], ["autre", "Autre ou sans classe"]];
+const MESURE = [[0, "Aucune année mesurée", C.div[0]], [1, "1 à 4 années", C.div[1]], [5, "5 à 9 années", C.div[4]], [10, "10 années sur 10", C.div[6]]];
+const METHODES = [
+  ["c", "Complète : 10 années mesurées", "#1f5fae"],
+  ["i", "Interpolation : trous internes comblés", "#86b6ef"],
+  ["e", "Extrapolation : bords prolongés (gradient local)", "#f0c35b"],
+  ["m", "RandomForest (MICE) : % camions prédit", C.vert],
+  ["g", "KNN géographique : aucune mesure, 5 voisines", C.orange],
+];
+const STATUTS = [["ok", "Au moins un segment retenu", "#3f86d9"], ["aucun_djma", "Aucun segment retenu", C.orange], ["hors_quebec", "Tracé hors du Québec", "#8e8b82"]];
+const NSEG = [[1, "1 segment"], [2, "2 à 4"], [5, "5 à 9"], [10, "10 à 19"], [20, "20 et plus"]];
+const DEF_METHODES = {
+  1: ["m1", "Moyenne simple", "Moyenne des DJMA de tous les segments retenus de l'arc."],
+  2: ["m2", "Pondérée par la longueur", "Chaque segment pèse selon sa longueur : un long tronçon compte plus qu'une bretelle."],
+  3: ["m3", "Pondérée par le type de route", "Poids 4 autoroute, 3 nationale, 2 régionale ou collectrice, 1 autre."],
+  4: ["m4", "80e percentile par rang", "Valeur réelle du segment classé au rang round(0,8 × n) : un trafic chargé, jamais une moyenne."],
+};
+const SOURCES_LIEN = { bfs: "BFS", force: "forcé", noeud: "nœud", frontiere: "frontière" };
+const VILLES = ["Montréal", "Québec", "Gatineau", "Sherbrooke", "Trois-Rivières", "Saguenay", "Rimouski", "Rouyn-Noranda",
+                "Val-d'Or", "Sept-Îles", "Baie-Comeau", "Gaspé", "Drummondville", "Saint-Georges", "Chibougamau", "Rivière-du-Loup"];
+
+// ---------- Formats ----------
+const nf = new Intl.NumberFormat("fr-CA");
+const fmt = v => (v == null || !isFinite(v)) ? "–" : nf.format(Math.round(v));
+const fmt1 = v => (v == null || !isFinite(v)) ? "–" : v.toLocaleString("fr-CA", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const pctv = v => (v == null || !isFinite(v)) ? "–" : fmt1(v) + " %";              // valeur déjà en %
+const pct = (x, d = 0) => (x == null || !isFinite(x)) ? "–" : (100 * x).toLocaleString("fr-CA", { minimumFractionDigits: d, maximumFractionDigits: d }) + " %";
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function arrondi2(x) { if (!x) return x; const p = Math.pow(10, Math.floor(Math.log10(Math.abs(x))) - 1); return Math.round(x / p) * p; }
+const nomArc = a => `${a.a} – ${a.b}`;
+const typeNoeud = t => t.startsWith("frontiere") ? "frontiere" : t;
+const mediane = v => { const s = v.filter(x => x != null).sort((a, b) => a - b); return s.length ? s[Math.floor((s.length - 1) / 2)] : null; };
+
+// ---------- Étapes ----------
+const ETAPES = M.etapes.map((e, i) => ({ ...e, vue: ["QC", "SUD", "QC", "QC", "QC"][i] }));
+const N = ETAPES.length;
+const VUES = { QC: [[-80.2, 44.6], [-56.8, 53.9]], SUD: [[-79.6, 44.9], [-64.8, 49.4]], MTL: [[-74.3, 45.22], [-73.15, 45.82]] };
+// Même liste que ETAPES dans scripts/gabarits/visualisation_volet2.html
+const ETAPES_V2 = [
+  ["Réseau du volet 1", "point de départ"], ["ENR brute", "114 734 camions"], ["Filtre Québec", "37 603 retenus"],
+  ["Postes d'enquête", "où on les arrête"], ["Rattachement aux nœuds", "lieux → nœuds"], ["Routage sur le graphe", "chemin par camion"],
+  ["$ par tonne", "calcul dans la page"], ["Actualisation $ 2026", "calcul dans la page"], ["Valeur par arc", "calcul dans la page"],
+];
+
+const S = {
+  etape: 1, onglet: "lecture",
+  couches: new Set(["graphe", "rtss", "sections"]),
+  vue1: "djma", vue2: "djma", vue3: "statut",
+  var4: "djma", m: 4, vue4: "valeur",
+  var5: "djma", vue5: "trafic",
+  section: null, arc: null,
+};
+
+// Classes de trafic communes aux 4 méthodes (quintiles de toutes les valeurs m1-m4)
+function bornesTrafic(prefixe) {
+  const v = ARCS.flatMap(a => [1, 2, 3, 4].map(m => a[prefixe + m])).filter(x => x != null).sort((a, b) => a - b);
+  return [0.2, 0.4, 0.6, 0.8].map(q => arrondi2(v[Math.floor(q * (v.length - 1))]));
+}
+const BORNES = { d: bornesTrafic("d"), c: bornesTrafic("c") };
+const BORNES_ECART = [10, 20, 35, 60];
+const classeDe = (x, bornes) => x == null ? -1 : bornes.filter(b => x >= b).length;
+const libellesClasses = (bornes, unite = "") => [`< ${fmt(bornes[0])}${unite}`, ...bornes.slice(0, -1).map((b, i) => `${fmt(b)} – ${fmt(bornes[i + 1])}${unite}`), `≥ ${fmt(bornes[bornes.length - 1])}${unite}`];
+const exprClasses = (champ, bornes, palette, vide) => ["step", ["coalesce", ["get", champ], -1], vide, 0, palette[0],
+  bornes[0], palette[1], bornes[1], palette[2], bornes[2], palette[3], bornes[3], palette[4]];
+const largeur = (bas, haut) => ["interpolate", ["linear"], ["zoom"], 4, bas, 9, haut];
+const exprLargeurClasses = (champ, bornes) => ["interpolate", ["linear"], ["zoom"],
+  4, ["step", ["coalesce", ["get", champ], -1], 0.9, 0, 1.2, bornes[0], 1.6, bornes[1], 2, bornes[2], 2.5, bornes[3], 3.1],
+  9, ["step", ["coalesce", ["get", champ], -1], 1.8, 0, 2.4, bornes[0], 3.2, bornes[1], 4, bornes[2], 5, bornes[3], 6.2]];
+
+// ---------- Moteur de secours sans WebGL (Canvas 2D) ----------
+// Reproduit la petite partie de l'API MapLibre dont la page a besoin (sources
+// GeoJSON, couches fill/line/circle, expressions, états, survol, Marker,
+// contrôles). Il prend le relais quand le navigateur n'a pas WebGL.
+const MoteurCanvas = (() => {
+  const TUILE = 512, LAT_MAX = 85.05;
+  const lngX = lng => (lng + 180) / 360;
+  const latY = lat => { const s = Math.sin(Math.max(-LAT_MAX, Math.min(LAT_MAX, lat)) * Math.PI / 180); return 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI); };
+  const xLng = x => x * 360 - 180;
+  const yLat = y => 360 / Math.PI * Math.atan(Math.exp((0.5 - y) * 2 * Math.PI)) - 90;
+  const enLngLat = c => Array.isArray(c) ? c : [c.lng ?? c.lon, c.lat];
+  const borner = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  // Expressions MapLibre utilisées par la page
+  function evaluer(e, f, etat, zoom) {
+    if (!Array.isArray(e)) return e;
+    const v = x => evaluer(x, f, etat, zoom);
+    switch (e[0]) {
+      case "get": return f.properties[e[1]];
+      case "feature-state": return etat ? etat[e[1]] : undefined;
+      case "zoom": return zoom;
+      case "coalesce": for (let i = 1; i < e.length; i++) { const r = v(e[i]); if (r != null) return r; } return null;
+      case "match": { const x = v(e[1]); for (let i = 2; i < e.length - 1; i += 2) if (e[i] === x) return v(e[i + 1]); return v(e[e.length - 1]); }
+      case "case": for (let i = 1; i < e.length - 1; i += 2) if (v(e[i])) return v(e[i + 1]); return v(e[e.length - 1]);
+      case "step": { const x = v(e[1]); let r = v(e[2]); for (let i = 3; i < e.length; i += 2) { if (x >= e[i]) r = v(e[i + 1]); else break; } return r; }
+      case "interpolate": {
+        const x = v(e[2]);
+        if (x <= e[3]) return v(e[4]);
+        for (let i = 3; i < e.length - 2; i += 2) {
+          if (x <= e[i + 2]) { const t = (x - e[i]) / (e[i + 2] - e[i]), a = v(e[i + 1]); return a + (v(e[i + 3]) - a) * t; }
+        }
+        return v(e[e.length - 1]);
+      }
+      case "==": return v(e[1]) === v(e[2]);
+      case "<": return v(e[1]) < v(e[2]);
+      case "*": return v(e[1]) * v(e[2]);
+      case "+": return v(e[1]) + v(e[2]);
+      case "sqrt": return Math.sqrt(v(e[1]));
+      default: return e;
+    }
+  }
+
+  function preparer(donnees, promoteId) {
+    return donnees.features.map((f, i) => {
+      const g = f.geometry, o = { properties: f.properties || {}, _id: promoteId ? (f.properties || {})[promoteId] : i, x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+      const proj = coords => {
+        const a = new Float64Array(coords.length * 2);
+        coords.forEach(([lng, lat], k) => {
+          const x = lngX(lng), y = latY(lat); a[2 * k] = x; a[2 * k + 1] = y;
+          if (x < o.x0) o.x0 = x; if (x > o.x1) o.x1 = x; if (y < o.y0) o.y0 = y; if (y > o.y1) o.y1 = y;
+        });
+        return a;
+      };
+      if (g.type === "Point") o.pt = proj([g.coordinates]);
+      else if (g.type === "LineString") o.lignes = [proj(g.coordinates)];
+      else if (g.type === "MultiLineString") o.lignes = g.coordinates.map(proj);
+      else if (g.type === "Polygon") o.polys = [g.coordinates.map(proj)];
+      else if (g.type === "MultiPolygon") o.polys = g.coordinates.map(p => p.map(proj));
+      return o;
+    });
+  }
+
+  function distSegment(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    const t = l2 ? borner(((px - ax) * dx + (py - ay) * dy) / l2, 0, 1) : 0;
+    return Math.hypot(px - ax - t * dx, py - ay - t * dy);
+  }
+
+  class Carte {
+    constructor(o) {
+      this._cont = typeof o.container === "string" ? document.getElementById(o.container) : o.container;
+      this._canvas = Object.assign(document.createElement("canvas"), { className: "mc-canvas" });
+      this._cont.appendChild(this._canvas);
+      this._ctx = this._canvas.getContext("2d");
+      this._sources = {}; this._couches = []; this._etats = {}; this._ecoute = {}; this._marqueurs = []; this._coins = {};
+      this._centre = [-71, 47]; this._zoom = 4;
+      this._fond = (o.style?.layers || []).find(c => c.type === "background")?.paint?.["background-color"] || "#fff";
+      this._redim();
+      if (o.bounds) this.fitBounds(o.bounds, { ...(o.fitBoundsOptions || {}), duration: 0 });
+      new ResizeObserver(() => { this._redim(); this._planifier(false); }).observe(this._cont);
+      this._souris();
+      setTimeout(() => { this._emettre("load", {}); this._planifier(false); }, 0);
+    }
+    // --- API utilisée par la page ---
+    on(type, fn) { (this._ecoute[type] ||= []).push(fn); return this; }
+    addSource(id, def) { this._sources[id] = { promoteId: def.promoteId, features: preparer(def.data, def.promoteId), version: 0 }; }
+    getSource(id) { return { setData: d => { const s = this._sources[id]; s.features = preparer(d, s.promoteId); s.version++; this._planifier(false); } }; }
+    addLayer(def) { this._couches.push({ ...def, layout: { ...(def.layout || {}) }, paint: { ...(def.paint || {}) }, filter: def.filter || null }); this._planifier(false); }
+    getLayer(id) { return this._couches.find(c => c.id === id); }
+    setLayoutProperty(id, p, v) { this.getLayer(id).layout[p] = v; this._planifier(false); }
+    getLayoutProperty(id, p) { return this.getLayer(id).layout[p]; }
+    setPaintProperty(id, p, v) { this.getLayer(id).paint[p] = v; this._planifier(false); }
+    setFilter(id, f) { this.getLayer(id).filter = f || null; this._planifier(false); }
+    setFeatureState(ref, etat) { const m = (this._etats[ref.source] ||= new Map()); m.set(ref.id, { ...(m.get(ref.id) || {}), ...etat }); this._planifier(false); }
+    getCanvas() { return this._canvas; }
+    getCenter() { return { lng: this._centre[0], lat: this._centre[1] }; }
+    getZoom() { return this._zoom; }
+    getBearing() { return 0; }
+    getPitch() { return 0; }
+    resize() { this._redim(); this._planifier(false); }
+    project(ll) { const [lng, lat] = enLngLat(ll), W = TUILE * 2 ** this._zoom; return { x: (lngX(lng) - lngX(this._centre[0])) * W + this._l / 2, y: (latY(lat) - latY(this._centre[1])) * W + this._h / 2 }; }
+    unproject(p) { const W = TUILE * 2 ** this._zoom; return { lng: xLng(lngX(this._centre[0]) + (p.x - this._l / 2) / W), lat: yLat(latY(this._centre[1]) + (p.y - this._h / 2) / W) }; }
+    jumpTo(o) { this._fixer(o.center ? enLngLat(o.center) : this._centre, o.zoom ?? this._zoom, false); }
+    flyTo(o) { this._aller(o.center ? enLngLat(o.center) : this._centre, o.zoom ?? this._zoom, o.duration ?? 600); }
+    fitBounds(b, o = {}) {
+      if (this._l <= 0 || this._h <= 0) { this._attente = [b, o]; return; }
+      const p = o.padding ?? 0, xa = lngX(b[0][0]), xb = lngX(b[1][0]), ya = latY(b[0][1]), yb = latY(b[1][1]);
+      const z = Math.log2(Math.min((this._l - 2 * p) / (Math.abs(xb - xa) * TUILE || 1), (this._h - 2 * p) / (Math.abs(yb - ya) * TUILE || 1)));
+      this._aller([xLng((xa + xb) / 2), yLat((ya + yb) / 2)], borner(Math.min(z, o.maxZoom ?? 14), 1, 14), o.duration ?? 500);
+    }
+    addControl(c, coin) { c._ajouter(this, this._coin(coin)); }
+    queryRenderedFeatures(p, o = {}) {
+      const res = [], W = TUILE * 2 ** this._zoom, ox = this._l / 2 - lngX(this._centre[0]) * W, oy = this._h / 2 - latY(this._centre[1]) * W;
+      for (const id of o.layers || this._couches.map(c => c.id)) {
+        const c = this.getLayer(id), s = c && this._sources[c.source];
+        if (!s || c.layout.visibility === "none") continue;
+        const etats = this._etats[c.source];
+        for (const f of s.features) {
+          if (c.filter && !evaluer(c.filter, f, null, this._zoom)) continue;
+          const etat = etats?.get(f._id);
+          if (c.type === "circle" && f.pt) {
+            const r = evaluer(c.paint["circle-radius"] ?? 5, f, etat, this._zoom) + 2;
+            if (Math.hypot(f.pt[0] * W + ox - p.x, f.pt[1] * W + oy - p.y) <= r) res.push({ layer: { id }, properties: f.properties, source: c.source });
+          } else if (c.type === "line" && f.lignes) {
+            const tol = Math.max(1, evaluer(c.paint["line-width"] ?? 1, f, etat, this._zoom)) / 2 + 3;
+            if (p.x < f.x0 * W + ox - tol || p.x > f.x1 * W + ox + tol || p.y < f.y0 * W + oy - tol || p.y > f.y1 * W + oy + tol) continue;
+            let touche = false;
+            for (const l of f.lignes) {
+              for (let i = 0; i < l.length - 2 && !touche; i += 2)
+                touche = distSegment(p.x, p.y, l[i] * W + ox, l[i + 1] * W + oy, l[i + 2] * W + ox, l[i + 3] * W + oy) <= tol;
+              if (touche) break;
+            }
+            if (touche) res.push({ layer: { id }, properties: f.properties, source: c.source });
+          }
+        }
+      }
+      return res;
+    }
+    // --- Rendu ---
+    _redim() {
+      const r = this._cont.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+      this._l = r.width; this._h = r.height; this._dpr = dpr;
+      this._canvas.width = Math.max(1, Math.round(r.width * dpr)); this._canvas.height = Math.max(1, Math.round(r.height * dpr));
+      if (this._attente && this._l > 0) { const [b, o] = this._attente; this._attente = null; this.fitBounds(b, { ...o, duration: 0 }); }
+    }
+    _planifier(rapide) {
+      this._complet = this._complet || !rapide;
+      if (!this._raf) this._raf = requestAnimationFrame(() => { this._raf = 0; const complet = this._complet; this._complet = false; this._dessiner(!complet); });
+      if (rapide) { clearTimeout(this._fin); this._fin = setTimeout(() => this._planifier(false), 220); }
+    }
+    _dessiner(rapide) {
+      const ctx = this._ctx, l = this._l, h = this._h, z = this._zoom, W = TUILE * 2 ** z;
+      const ox = l / 2 - lngX(this._centre[0]) * W, oy = h / 2 - latY(this._centre[1]) * W;
+      const vx0 = -ox / W, vx1 = (l - ox) / W, vy0 = -oy / W, vy1 = (h - oy) / W, marge = 20 / W;
+      ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+      ctx.globalAlpha = 1; ctx.fillStyle = this._fond; ctx.fillRect(0, 0, l, h);
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      const trace = arr => { for (let i = 0; i < arr.length; i += 2) { const X = arr[i] * W + ox, Y = arr[i + 1] * W + oy; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); } };
+      for (const c of this._couches) {
+        const s = this._sources[c.source];
+        if (!s || c.layout.visibility === "none") continue;
+        if (rapide && s.features.length > 4000) continue;           // couches denses redessinées à l'arrêt
+        let feats = s.features;
+        const cle = c.layout["line-sort-key"];
+        if (cle) {
+          if (c._triVersion !== s.version || c._triSource !== s) { c._tri = [...feats].sort((a, b) => evaluer(cle, a, null, z) - evaluer(cle, b, null, z)); c._triVersion = s.version; c._triSource = s; }
+          feats = c._tri;
+        }
+        const etats = this._etats[c.source], pa = c.paint;
+        for (const f of feats) {
+          if (f.x1 < vx0 - marge || f.x0 > vx1 + marge || f.y1 < vy0 - marge || f.y0 > vy1 + marge) continue;
+          if (c.filter && !evaluer(c.filter, f, null, z)) continue;
+          const etat = etats?.get(f._id);
+          if (c.type === "fill" && f.polys) {
+            ctx.globalAlpha = evaluer(pa["fill-opacity"] ?? 1, f, etat, z);
+            ctx.fillStyle = evaluer(pa["fill-color"] ?? "#000", f, etat, z);
+            ctx.beginPath(); for (const poly of f.polys) for (const anneau of poly) { trace(anneau); ctx.closePath(); }
+            ctx.fill("evenodd");
+          } else if (c.type === "line" && (f.lignes || f.polys)) {          // une couche line trace aussi le contour des polygones
+            const op = evaluer(pa["line-opacity"] ?? 1, f, etat, z), lw = evaluer(pa["line-width"] ?? 1, f, etat, z);
+            if (!(op > 0) || !(lw > 0)) continue;
+            ctx.globalAlpha = op; ctx.lineWidth = lw; ctx.strokeStyle = evaluer(pa["line-color"] ?? "#000", f, etat, z);
+            ctx.beginPath(); for (const ligne of (f.lignes || f.polys.flat())) trace(ligne); ctx.stroke();
+          } else if (c.type === "circle" && f.pt) {
+            const r = evaluer(pa["circle-radius"] ?? 5, f, etat, z), sw = evaluer(pa["circle-stroke-width"] ?? 0, f, etat, z);
+            if (!(r > 0)) continue;
+            ctx.beginPath(); ctx.arc(f.pt[0] * W + ox, f.pt[1] * W + oy, r, 0, 2 * Math.PI);
+            ctx.globalAlpha = evaluer(pa["circle-opacity"] ?? 1, f, etat, z);
+            ctx.fillStyle = evaluer(pa["circle-color"] ?? "#000", f, etat, z); ctx.fill();
+            if (sw > 0) { ctx.globalAlpha = 1; ctx.lineWidth = sw; ctx.strokeStyle = evaluer(pa["circle-stroke-color"] ?? "#fff", f, etat, z); ctx.stroke(); }
+          }
+        }
+      }
+      ctx.globalAlpha = 1;
+      this._marqueurs.forEach(m => m._placer());
+      this._emettre("render", {});
+    }
+    _fixer(c, z, rapide) {
+      this._centre = [c[0], borner(c[1], -LAT_MAX, LAT_MAX)]; this._zoom = borner(z, 1, 14);
+      this._emettre("move", {});
+      this._planifier(rapide);
+    }
+    _aller(c, z, duree) {
+      cancelAnimationFrame(this._anim);
+      if (!duree) { this._fixer(c, z, false); return; }
+      const x0 = lngX(this._centre[0]), y0 = latY(this._centre[1]), z0 = this._zoom, x1 = lngX(c[0]), y1 = latY(c[1]), t0 = performance.now();
+      const pas = t => {
+        const k = Math.min(1, (t - t0) / duree), e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+        this._fixer([xLng(x0 + (x1 - x0) * e), yLat(y0 + (y1 - y0) * e)], z0 + (z - z0) * e, k < 1);
+        if (k < 1) this._anim = requestAnimationFrame(pas);
+      };
+      this._anim = requestAnimationFrame(pas);
+    }
+    _zoomer(dz, p) {
+      const W0 = TUILE * 2 ** this._zoom, mx = lngX(this._centre[0]) + (p.x - this._l / 2) / W0, my = latY(this._centre[1]) + (p.y - this._h / 2) / W0;
+      const z = borner(this._zoom + dz, 1, 14), W = TUILE * 2 ** z;
+      this._fixer([xLng(mx - (p.x - this._l / 2) / W), yLat(my - (p.y - this._h / 2) / W)], z, true);
+    }
+    _emettre(type, e) { (this._ecoute[type] || []).forEach(fn => fn(e)); }
+    _souris() {
+      const cv = this._canvas;
+      let glisse = null;
+      const point = ev => { const r = this._cont.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; };
+      cv.addEventListener("pointerdown", ev => {
+        if (ev.button !== 0) return;
+        cv.setPointerCapture(ev.pointerId);
+        glisse = { p: point(ev), x: lngX(this._centre[0]), y: latY(this._centre[1]), bouge: false };
+      });
+      cv.addEventListener("pointermove", ev => {
+        const p = point(ev);
+        if (glisse) {
+          const dx = p.x - glisse.p.x, dy = p.y - glisse.p.y;
+          if (Math.abs(dx) + Math.abs(dy) > 3) glisse.bouge = true;
+          if (glisse.bouge) {
+            const W = TUILE * 2 ** this._zoom;
+            this._fixer([xLng(glisse.x - dx / W), yLat(glisse.y - dy / W)], this._zoom, true);
+            cv.style.cursor = "grabbing";
+            return;
+          }
+        }
+        if (!this._survol) this._survol = requestAnimationFrame(() => { this._survol = 0; this._emettre("mousemove", { point: p, lngLat: this.unproject(p) }); });
+      });
+      cv.addEventListener("pointerup", ev => {
+        const g = glisse; glisse = null;
+        if (g && !g.bouge) this._emettre("click", { point: point(ev), lngLat: this.unproject(point(ev)) });
+        if (g?.bouge) cv.style.cursor = "";
+      });
+      cv.addEventListener("pointerleave", () => { if (!glisse) this._emettre("mouseout", {}); });
+      cv.addEventListener("wheel", ev => { ev.preventDefault(); this._zoomer(-ev.deltaY * (ev.deltaMode ? 0.05 : 0.002), point(ev)); }, { passive: false });
+      cv.addEventListener("dblclick", ev => this._zoomer(1, point(ev)));
+    }
+    _coin(nom) {
+      if (!this._coins[nom]) this._cont.appendChild(this._coins[nom] = Object.assign(document.createElement("div"), { className: "mc-coin mc-" + nom }));
+      return this._coins[nom];
+    }
+  }
+
+  class NavigationControl {
+    _ajouter(carte, coin) {
+      const d = Object.assign(document.createElement("div"), { className: "mc-nav" });
+      [["+", 1, "Zoom avant"], ["−", -1, "Zoom arrière"]].forEach(([t, dz, lib]) => {
+        const b = Object.assign(document.createElement("button"), { type: "button", textContent: t, title: lib });
+        b.setAttribute("aria-label", lib);
+        b.addEventListener("click", () => carte._aller(carte._centre, carte._zoom + dz, 250));
+        d.appendChild(b);
+      });
+      coin.appendChild(d);
+    }
+  }
+  class ScaleControl {
+    _ajouter(carte, coin) {
+      const d = Object.assign(document.createElement("div"), { className: "mc-echelle" });
+      coin.appendChild(d);
+      const maj = () => {
+        const mpp = 40075016.686 * Math.cos(carte._centre[1] * Math.PI / 180) / (TUILE * 2 ** carte._zoom), m = mpp * 100;
+        const p = 10 ** Math.floor(Math.log10(m)), dist = m / p >= 5 ? 5 * p : m / p >= 2 ? 2 * p : p;
+        d.style.width = Math.round(dist / mpp) + "px";
+        d.textContent = dist >= 1000 ? dist / 1000 + " km" : dist + " m";
+      };
+      carte.on("render", maj);
+    }
+  }
+  class AttributionControl {
+    constructor(o = {}) { this._texte = o.customAttribution || ""; }
+    _ajouter(carte, coin) { coin.appendChild(Object.assign(document.createElement("div"), { className: "mc-attrib", textContent: this._texte })); }
+  }
+  class Marker {
+    constructor(o = {}) { this._el = o.element || document.createElement("div"); this._ancre = o.anchor || "center"; }
+    setLngLat(ll) { this._ll = enLngLat(ll); return this; }
+    addTo(carte) {
+      this._carte = carte;
+      Object.assign(this._el.style, { position: "absolute", left: "0", top: "0", zIndex: 2 });
+      carte._cont.appendChild(this._el); carte._marqueurs.push(this); this._placer();
+      return this;
+    }
+    getElement() { return this._el; }
+    _placer() {
+      const p = this._carte.project(this._ll);
+      this._el.style.transform = `translate(${p.x}px, ${p.y}px) translate(${this._ancre === "left" ? "0" : "-50%"}, -50%)`;
+    }
+  }
+  return { Map: Carte, NavigationControl, ScaleControl, AttributionControl, Marker };
+})();
+
+// ---------- Carte ----------
+const BASE_STYLE = { version: 8, sources: {}, layers: [{ id: "fond", type: "background", paint: { "background-color": C.terre } }] };
+function creerCarte(conteneur) {
+  return new MOTEUR.Map({
+    container: conteneur, style: BASE_STYLE, bounds: VUES[ETAPES[S.etape - 1].vue],
+    fitBoundsOptions: { padding: 24 }, attributionControl: false, dragRotate: false, pitchWithRotate: false, keyboard: false,
+    maxBounds: [[-110, 25], [-40, 70]],
+  });
+}
+const rond = { "line-cap": "round", "line-join": "round" };
+function noeudsGeojson() {
+  return { type: "FeatureCollection", features: NOEUDS.map(n => ({ type: "Feature", geometry: { type: "Point", coordinates: [n.lon, n.lat] },
+    properties: { id: n.id, nom: n.nom, type: typeNoeud(n.type), nb: n.nb } })) };
+}
+function construireCouches(map) {
+  map.addSource("ocean", { type: "geojson", data: D.fond.ocean });
+  map.addSource("lacs", { type: "geojson", data: D.fond.lacs });
+  map.addSource("admin", { type: "geojson", data: D.fond.admin });
+  map.addLayer({ id: "ocean", type: "fill", source: "ocean", paint: { "fill-color": C.eau } });
+  map.addLayer({ id: "lacs", type: "fill", source: "lacs", paint: { "fill-color": C.eau } });
+  map.addLayer({ id: "admin", type: "line", source: "admin", paint: { "line-color": C.bord, "line-width": 0.8 } });
+  map.addLayer({ id: "admin-qc", type: "line", source: "admin", filter: ["==", ["get", "qc"], true],
+                 paint: { "line-color": C.qc, "line-width": 1.4 } });
+
+  map.addSource("rtss", { type: "geojson", data: D.rtss });
+  map.addLayer({ id: "rtss", type: "line", source: "rtss", layout: rond, paint: {
+    "line-color": ["match", ["get", "cl"], "auto", C.rtss.auto, "nat", C.rtss.nat, "reg", C.rtss.reg, "col", C.rtss.col, C.rtss.autre],
+    "line-width": ["interpolate", ["linear"], ["zoom"], 4, ["match", ["get", "cl"], "auto", 1.1, "nat", 0.9, 0.5],
+                   9, ["match", ["get", "cl"], "auto", 2.6, "nat", 2, 1.1]],
+    "line-opacity": 1 } });
+
+  map.addSource("graphe", { type: "geojson", data: D.graphe });
+  map.addLayer({ id: "graphe", type: "line", source: "graphe", paint: { "line-color": C.encre2, "line-width": largeur(0.9, 1.8), "line-opacity": 0.7 } });
+  map.addLayer({ id: "graphe-sel", type: "line", source: "graphe", filter: ["==", ["get", "id"], -1],
+                 paint: { "line-color": C.encre, "line-width": 1.3, "line-opacity": 0.55 } });
+
+  map.addSource("sections", { type: "geojson", data: D.sections, promoteId: "i" });
+  map.addLayer({ id: "section-sel", type: "line", source: "sections", filter: ["==", ["get", "i"], -1], layout: rond,
+                 paint: { "line-color": C.encre, "line-width": largeur(7, 12), "line-opacity": 0.35 } });
+  map.addLayer({ id: "sections", type: "line", source: "sections", layout: rond,
+                 paint: { "line-color": C.vide, "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.2, 8, 2.4, 11, 4], "line-opacity": 1 } });
+
+  map.addSource("segs", { type: "geojson", data: VIDE });
+  map.addLayer({ id: "segs-fond", type: "line", source: "segs", layout: rond, paint: { "line-color": "#fff", "line-width": largeur(5, 9) } });
+  map.addLayer({ id: "segs", type: "line", source: "segs", layout: rond,
+                 paint: { "line-color": exprClasses("v", BORNES.d, C.bleu, C.vide), "line-width": largeur(2.6, 5) } });
+
+  map.addSource("cercles", { type: "geojson", data: VIDE });
+  map.addLayer({ id: "cercles-fond", type: "fill", source: "cercles", paint: { "fill-color": C.orange, "fill-opacity": 0.08 } });
+  map.addLayer({ id: "cercles", type: "line", source: "cercles", paint: { "line-color": C.orange, "line-width": 1.3, "line-opacity": 0.85 } });
+
+  map.addSource("arcs", { type: "geojson", data: D.arcs, promoteId: "id" });
+  map.addLayer({ id: "arcs-sel", type: "line", source: "arcs", filter: ["==", ["get", "id"], -1], layout: rond,
+                 paint: { "line-color": C.encre, "line-width": largeur(8, 13), "line-opacity": 0.28 } });
+  map.addLayer({ id: "arcs-don", type: "line", source: "arcs", filter: ["==", ["get", "id"], -1], layout: rond,
+                 paint: { "line-color": C.vert, "line-width": largeur(8, 13), "line-opacity": 0.5 } });
+  map.addLayer({ id: "arcs", type: "line", source: "arcs", layout: rond, paint: { "line-color": C.reseau, "line-width": 1.5, "line-opacity": 1 } });
+  map.addLayer({ id: "arcs-hit", type: "line", source: "arcs", paint: { "line-color": "#000", "line-opacity": 0, "line-width": 12 } });
+
+  map.addSource("noeuds", { type: "geojson", data: noeudsGeojson() });
+  map.addLayer({ id: "noeuds", type: "circle", source: "noeuds", paint: {
+    "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, ["match", ["get", "type"], "municipalite", 2.2, 3.4], 9, ["match", ["get", "type"], "municipalite", 4.5, 6]],
+    "circle-color": ["match", ["get", "type"], "municipalite", "#ffffff", "noeud_intermediaire", C.vert, C.orange],
+    "circle-stroke-color": C.encre2, "circle-stroke-width": 1 } });
+
+  map.addControl(new MOTEUR.NavigationControl({ showCompass: false }), "top-right");
+  map.addControl(new MOTEUR.ScaleControl({ unit: "metric" }), "bottom-left");
+  map.addControl(new MOTEUR.AttributionControl({ compact: true,
+    customAttribution: (MOTEUR === MoteurCanvas ? "Rendu simplifié sans accélération graphique · " : "") + "Natural Earth · MTMD (RTSS, débits de circulation) · tracés OSRM" }), "bottom-right");
+  ajouterEtiquettes(map);
+}
+function ajouterEtiquettes(map) {
+  NOEUDS.forEach(n => {
+    const ville = VILLES.includes(n.nom), fr = n.type.startsWith("frontiere");
+    if (!ville && !fr) return;
+    const el = document.createElement("div");
+    el.className = "etiq-ville" + (fr ? " fr" : "");
+    el.appendChild(document.createElement("span")).textContent = n.nom;
+    new MOTEUR.Marker({ element: el, anchor: "left" }).setLngLat([n.lon, n.lat]).addTo(map);
+  });
+}
+
+// Sections retenues par l'arc choisi, colorées selon le DJMA utilisé
+function segsGeojson(id) {
+  const lignes = id == null ? null : D.segs_arc[id];
+  if (!lignes) return VIDE;
+  return { type: "FeatureCollection", features: lignes.map(([sid, v, p, annee]) => {
+    const i = indexSection.get(sid);
+    return i == null ? null : { type: "Feature", geometry: SECTIONS[i].geometry, properties: { i, sid, v, p, annee } };
+  }).filter(Boolean) };
+}
+// Filtre 3 du routage : disques de 3 km exclus autour de A et B (arcs de 6 km et plus à vol d'oiseau)
+function cerclesGeojson(id) {
+  const a = id == null ? null : parId.get(id);
+  if (!a || a.vol < 6) return VIDE;
+  const disque = n => {
+    const pts = [];
+    for (let j = 0; j <= 64; j++) {
+      const t = 2 * Math.PI * j / 64;
+      pts.push([n.lon + 3 / (111.32 * Math.cos(n.lat * Math.PI / 180)) * Math.cos(t), n.lat + 3 / 110.57 * Math.sin(t)]);
+    }
+    return { type: "Feature", geometry: { type: "Polygon", coordinates: [pts] }, properties: {} };
+  };
+  return { type: "FeatureCollection", features: [a.ida, a.idb].map(i => noeudParId.get(i)).filter(Boolean).map(disque) };
+}
+
+// ---------- Application d'une étape sur la carte ----------
+const COUCHES = ["rtss", "graphe", "graphe-sel", "section-sel", "sections", "segs-fond", "segs", "cercles-fond", "cercles",
+                 "arcs-sel", "arcs-don", "arcs", "arcs-hit", "noeuds"];
+function appliquerEtape(map) {
+  const k = S.etape, on = new Set();
+  const arc = S.arc != null ? parId.get(S.arc) : null;
+  if (k === 1) {
+    if (S.couches.has("rtss")) on.add("rtss");
+    if (S.couches.has("graphe")) { on.add("graphe"); on.add("noeuds"); }
+    if (S.couches.has("sections")) { on.add("sections"); on.add("section-sel"); }
+    map.setPaintProperty("rtss", "line-opacity", 1);
+    map.setPaintProperty("sections", "line-color", ["step", ["get", S.vue1 === "cam" ? "nc" : "nd"],
+      MESURE[0][2], 1, MESURE[1][2], 5, MESURE[2][2], 10, MESURE[3][2]]);
+    map.setPaintProperty("sections", "line-opacity", 1);
+  } else if (k === 2) {
+    ["rtss", "sections", "section-sel"].forEach(c => on.add(c));
+    map.setPaintProperty("rtss", "line-opacity", 0.55);
+    map.setPaintProperty("sections", "line-color", ["match", ["get", S.vue2 === "cam" ? "mc" : "md"],
+      ...METHODES.flatMap(([c, , col]) => [c, col]), C.vide]);
+    map.setPaintProperty("sections", "line-opacity", 1);
+  } else if (k === 3) {
+    ["rtss", "sections", "segs-fond", "segs", "cercles-fond", "cercles", "graphe-sel", "arcs-sel", "arcs", "arcs-hit", "noeuds"].forEach(c => on.add(c));
+    map.setPaintProperty("rtss", "line-opacity", 0.5);
+    map.setPaintProperty("sections", "line-color", C.pale);
+    map.setPaintProperty("sections", "line-opacity", arc ? 1 : 0);
+    map.setPaintProperty("arcs", "line-color", S.vue3 === "nseg"
+      ? ["step", ["get", "nseg"], C.vide, 1, C.bleu[0], 2, C.bleu[1], 5, C.bleu[2], 10, C.bleu[3], 20, C.bleu[4]]
+      : ["match", ["get", "statut"], ...STATUTS.flatMap(([s, , col]) => [s, col]), C.vide]);
+    map.setPaintProperty("arcs", "line-width", largeur(1.6, 3.4));
+    map.setPaintProperty("arcs", "line-opacity", arc ? 0.55 : 1);
+  } else {
+    ["rtss", "arcs-sel", "arcs", "arcs-hit", "noeuds"].forEach(c => on.add(c));
+    if (k === 5) on.add("arcs-don");
+    map.setPaintProperty("rtss", "line-opacity", 0.4);
+    map.setPaintProperty("arcs", "line-opacity", 1);
+    if (k === 4 && S.vue4 === "ecart") {
+      map.setPaintProperty("arcs", "line-color", exprClasses("ecart", BORNES_ECART, C.or, C.pale));
+      map.setPaintProperty("arcs", "line-width", exprLargeurClasses("ecart", BORNES_ECART));
+    } else if (k === 5 && S.vue5 === "cas") {
+      map.setPaintProperty("arcs", "line-color", ["case", ["==", ["get", "comp"], true], C.orange,
+        ["==", ["get", "statut"], "hors_quebec"], C.encre2, C.pale]);
+      map.setPaintProperty("arcs", "line-width", ["case", ["==", ["get", "statut"], "ok"], largeur(1.2, 2.4), largeur(3, 6)]);
+    } else {
+      const champ = champTrafic(k);
+      const p = champ[0];
+      map.setPaintProperty("arcs", "line-color", exprClasses(champ, BORNES[p], C.bleu, C.pale));
+      map.setPaintProperty("arcs", "line-width", exprLargeurClasses(champ, BORNES[p]));
+      if (k === 4) map.setPaintProperty("arcs", "line-opacity", ["case", ["==", ["get", "comp"], true], 0.35, 1]);
+    }
+  }
+  COUCHES.forEach(id => map.setLayoutProperty(id, "visibility", on.has(id) ? "visible" : "none"));
+  map.setFilter("section-sel", ["==", ["get", "i"], S.section ?? -1]);
+  map.setFilter("arcs-sel", ["==", ["get", "id"], S.arc ?? -1]);
+  map.setFilter("graphe-sel", ["==", ["get", "id"], k === 3 ? (S.arc ?? -1) : -1]);
+  map.setFilter("arcs-don", ["==", ["get", "id"], (k === 5 && arc?.don) || -1]);
+  map.getSource("segs").setData(k === 3 ? segsGeojson(S.arc) : VIDE);
+  map.getSource("cercles").setData(k === 3 ? cerclesGeojson(S.arc) : VIDE);
+}
+// Propriété de trafic affichée : d = DJMA, c = camions/jour ; m1-m4 à l'étape 4, m4 à l'étape 5
+const champTrafic = k => (k === 4 ? (S.var4 === "cam" ? "c" : "d") + S.m : (S.var5 === "cam" ? "c" : "d") + "4");
+
+// ---------- Navigation commune aux deux volets ----------
+function rendreEtapes() {
+  const nav = document.getElementById("etapes");
+  nav.innerHTML = `<p class="groupe-etapes v1"><span>Volet 1</span> Le trafic</p>` +
+    ETAPES.map((e, i) => `<a class="etape v1" href="#etape=${i + 1}" ${i + 1 === S.etape ? 'aria-current="step"' : ""}>
+      <b>${i + 1}</b><span>${esc(e.court)}<small>${esc(e.sur)}</small></span></a>`).join("") +
+    `<p class="groupe-etapes v2"><span>Volet 2</span> La valeur</p>` +
+    ETAPES_V2.map(([court, sur], i) => `<a class="etape v2" href="${M.url_v2}#etape=${i}"><b>${i}</b><span>${esc(court)}<small>${esc(sur)}</small></span></a>`).join("") +
+    `<p class="etapes-pied"><kbd>←</kbd> <kbd>→</kbd> pour changer d'étape. Survole la carte pour le détail, clique pour choisir.</p>`;
+}
+
+// ---------- Briques du panneau ----------
+const tuile = (val, lib, cls = "") => `<div class="tuile ${cls}"><b class="num">${val}</b><span>${lib}</span></div>`;
+const segment = (cle, options, actif) => `<div class="segment" role="group">${options.map(([v, l]) =>
+  `<button type="button" data-cle="${cle}" data-val="${v}" aria-pressed="${String(v) === String(actif)}">${esc(l)}</button>`).join("")}</div>`;
+const ligneLeg = (forme, lib, n = "") => `<div class="leg">${forme}<span>${lib}</span><span class="n">${n === "" ? "" : fmt(n)}</span></div>`;
+const trait = (couleur, l = 3, op = 1) => `<svg viewBox="0 0 30 12" aria-hidden="true"><line x1="2" y1="6" x2="28" y2="6" stroke="${couleur}" stroke-width="${l}" stroke-opacity="${op}" stroke-linecap="round"/></svg>`;
+const rondLeg = (couleur, r = 4.5) => `<svg viewBox="0 0 30 12" aria-hidden="true"><circle cx="15" cy="6" r="${r}" fill="${couleur}" stroke="${C.encre2}" stroke-width="1"/></svg>`;
+const legende = (titre, sous, lignes) => `<div class="legende"><h3>${titre}</h3>${sous ? `<p class="sous">${sous}</p>` : ""}${lignes.join("")}</div>`;
+const bloc = (titre, contenu, sous = "") => `<div class="bloc"><h3>${titre}</h3>${sous ? `<p class="sous">${sous}</p>` : ""}${contenu}</div>`;
+const note = (texte, cls = "") => `<p class="note ${cls}">${texte}</p>`;
+function compter(valeurs, bornes) {
+  const n = new Array(bornes.length + 1).fill(0); let sans = 0;
+  valeurs.forEach(v => { const c = classeDe(v, bornes); if (c < 0) sans++; else n[c]++; });
+  return { n, sans };
+}
+function listeBarres(lignes, couleur) {
+  const max = Math.max(...lignes.map(l => l.v || 0), 1);
+  return `<div class="liste-barres">${lignes.map(l => `<div class="lb" ${l.attr || ""}><span class="nom" title="${esc(l.nom)}">${esc(l.nom)}</span>
+    <span class="piste"><i style="width:${100 * (l.v || 0) / max}%;background:${l.couleur || couleur}"></i></span><span class="val">${l.lib}</span></div>`).join("")}</div>`;
+}
+function blocCadrage() {
+  return bloc("Cadrer la carte", `<div class="segment" role="group">${[["QC", "Tout le Québec"], ["SUD", "Sud du Québec"], ["MTL", "Grand Montréal"]].map(([v, l]) =>
+    `<button type="button" data-cadrer="${v}" aria-pressed="false">${l}</button>`).join("")}</div>`);
+}
+
+// Série 2016-2025 d'une section : point plein = mesuré par le MTQ, point vide = complété
+function miniGraphe(vals, masque, titre, couleur, unite) {
+  const A = SR.annees, W = 380, H = 104, g = 40, d = 8, t = 10, b = 20;
+  const ok = vals.filter(v => v != null);
+  if (!ok.length) return `<p class="sous">${titre} : aucune valeur.</p>`;
+  const haut = Math.max(...ok), max = haut * 1.12 || 1;
+  const x = j => g + (W - g - d) * j / (A.length - 1), y = v => t + (H - t - b) * (1 - v / max);
+  const mesure = j => (masque >> j) & 1;
+  const pts = vals.map((v, j) => v == null ? null : [x(j), y(v)]);
+  const chemin = pts.filter(Boolean).map((p, j) => (j ? "L" : "M") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join("");
+  const nMes = A.filter((_, j) => mesure(j)).length;
+  const lib = v => unite === "%" ? fmt1(v) + " %" : fmt(v);
+  return `<div class="graph-mini"><div class="gm-tete"><b>${titre}</b><span>${nMes}/10 années mesurées</span></div>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(titre)}, de 2016 à 2025">
+      <line x1="${g}" y1="${H - b}" x2="${W - d}" y2="${H - b}" class="axe-ligne"/>
+      <line x1="${g}" y1="${y(haut)}" x2="${W - d}" y2="${y(haut)}" class="axe-ligne" stroke-dasharray="2 3"/>
+      <text x="${g - 5}" y="${y(haut) + 3}" text-anchor="end" class="axe">${lib(haut)}</text>
+      <text x="${g - 5}" y="${H - b + 3}" text-anchor="end" class="axe">0</text>
+      ${A.map((a, j) => j % 3 === 0 ? `<text x="${x(j)}" y="${H - 5}" text-anchor="${j === A.length - 1 ? "end" : "middle"}" class="axe">${a}</text>` : "").join("")}
+      <path d="${chemin}" fill="none" stroke="${couleur}" stroke-width="1.6"/>
+      ${pts.map((p, j) => p ? `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.4" fill="${mesure(j) ? couleur : "#fff"}" stroke="${couleur}" stroke-width="1.5"><title>${A[j]} : ${lib(vals[j])} (${mesure(j) ? "mesuré" : "complété"})</title></circle>` : "").join("")}
+    </svg></div>`;
+}
+const libMethode = code => (METHODES.find(m => m[0] === code) || [, "–"])[1];
+function carteSection(i) {
+  const f = SECTIONS[i].properties;
+  return `<div class="selection"><h3>Section ${SR.id[i]}${SR.route[i] ? " · route " + esc(SR.route[i]) : ""}</h3>
+    <p class="sous">${esc(SR.de[i])} → ${esc(SR.a[i])}</p>
+    ${miniGraphe(SR.djma[i], SR.md[i], "DJMA (véhicules par jour)", C.bleu[3], "")}
+    ${miniGraphe(SR.cam[i], SR.mc[i], "Part de camions", C.vert, "%")}
+    <div class="cle-points"><span><i class="plein"></i>mesuré par le MTQ</span><span><i></i>complété par la cascade</span></div>
+    <div class="kv"><span>Complétion du DJMA</span><span>${esc(libMethode(f.md))}</span>
+      <span>Complétion du % camions</span><span>${esc(libMethode(f.mc))}</span></div>
+    <button type="button" class="ferme" data-fermer="section">Retirer la sélection</button></div>`;
+}
+
+// ---------- Contenu du panneau, étape par étape ----------
+function contenu1() {
+  const types = {}; NOEUDS.forEach(n => { const t = typeNoeud(n.type); types[t] = (types[t] || 0) + 1; });
+  const champ = S.vue1 === "cam" ? "nc" : "nd";
+  const comptes = MESURE.map(() => 0);
+  SECTIONS.forEach(f => { const v = f.properties[champ]; comptes[v >= 10 ? 3 : v >= 5 ? 2 : v >= 1 ? 1 : 0]++; });
+  let h = `<div class="tuiles">${tuile(fmt(ARCS.length), "liens du graphe (paires de villes)")}
+    ${tuile(fmt(NOEUDS.length), `nœuds : ${fmt(types.municipalite)} municipalités, ${fmt(types.noeud_intermediaire)} intermédiaires, ${fmt(types.frontiere)} frontières`)}
+    ${tuile(fmt(M.n_rtss), "sous-routes du réseau RTSS (MTMD)")}${tuile(fmt(M.n_sections), "sections de comptage (MTMD)")}
+    ${tuile(pct(M.n_djma_complet / M.n_sections, 1), "des sections ont un DJMA mesuré 10 ans sur 10")}
+    ${tuile(pct(M.n_cam_complet / M.n_sections, 1), "ont un % camions mesuré 10 ans sur 10")}</div>`;
+  h += bloc("Couches affichées", `<div class="puces">${[["graphe", "Graphe : liens et nœuds"], ["rtss", "Réseau routier RTSS"], ["sections", "Sections de comptage"]].map(([c, l]) =>
+    `<button type="button" class="puce" data-couche="${c}" aria-pressed="${S.couches.has(c)}">${l}</button>`).join("")}</div>`);
+  h += bloc("Couleur des sections : années mesurées", segment("vue1", [["djma", "DJMA"], ["cam", "% camions"]], S.vue1));
+  if (S.section != null) h += carteSection(S.section);
+  if (S.couches.has("sections")) h += legende(`Sections : années de ${S.vue1 === "cam" ? "% camions" : "DJMA"} mesurées (2016-2025)`,
+    "C'est ici que se loge le problème des données manquantes.", MESURE.map(([, lib, col], i) => ligneLeg(trait(col, 3.4), lib, comptes[i])));
+  if (S.couches.has("graphe")) h += legende("Graphe du projet", "Lignes droites entre les villes reliées : le tracé routier vient à l'étape 3.",
+    [ligneLeg(trait(C.encre2, 1.6, 0.8), "Lien (paire de villes)", ARCS.length), ...TYPES_NOEUD.map(([t, lib, col]) => ligneLeg(rondLeg(col), lib, types[t]))]);
+  if (S.couches.has("rtss")) h += legende("Réseau routier RTSS, par classe", "", CLASSES_RTSS.map(([c, lib], i) => ligneLeg(trait(C.rtss[c], [3, 2.6, 2, 1.8, 1.4][i]), lib, M.rtss_classes[c])));
+  h += note("Survole une section pour voir ses années mesurées ; clique-la pour afficher sa série 2016-2025.");
+  return h;
+}
+function contenu2() {
+  const cam = S.vue2 === "cam", cnt = cam ? M.methodes_cam : M.methodes_djma, champ = cam ? "mc" : "md";
+  const methodes = METHODES.filter(([c]) => cam || c !== "m");
+  let h = `<div class="tuiles">${tuile(fmt(cnt.c || 0), "sections déjà complètes, aucune valeur à combler")}
+    ${tuile(fmt((cnt.i || 0) + (cnt.e || 0)), "comblées dans le temps (interpolation, extrapolation)")}
+    ${cam ? tuile(fmt(cnt.m || 0), "% camions prédit par RandomForest (DJMA connu)") : ""}
+    ${tuile(fmt(cnt.g || 0), "sans aucune mesure : série empruntée aux 5 voisines")}
+    ${tuile("100 %", "des sections ont une série complète à la fin de la cascade")}</div>`;
+  h += bloc("Variable", segment("vue2", [["djma", "DJMA"], ["cam", "% camions"]], S.vue2));
+  if (S.section != null) h += carteSection(S.section);
+  h += legende(`Étape la plus avancée utilisée (${cam ? "% camions" : "DJMA"})`, "Du plus fiable au plus incertain : la couleur dit jusqu'où la section a dû descendre dans la cascade.",
+    methodes.map(([c, lib, col]) => ligneLeg(trait(col, 3.4), lib, cnt[c] || 0)));
+  h += note(`<b>Le KNN géographique n'invente pas de station.</b> Il complète une section qui existe dans les données du MTMD mais n'a aucune mesure, avec la moyenne de ses 5 voisines pondérée par 1/distance², en privilégiant la même direction.`);
+  h += note("Clique une section pour comparer, année par année, ce qui a été mesuré et ce qui a été complété.");
+  return h;
+}
+function carteArc3(a) {
+  const lignes = D.segs_arc[a.id] || [];
+  let h = `<div class="selection"><h3>${esc(nomArc(a))}</h3>
+    <div class="kv"><span>Statut</span><span>${esc((STATUTS.find(s => s[0] === a.statut) || [, a.statut])[1])}</span>
+      <span>Tracé OSRM</span><span>${fmt1(a.km)} km</span><span>dont au Québec</span><span>${fmt1(a.kmqc)} km</span>
+      <span>Vol d'oiseau (ligne du graphe)</span><span>${fmt1(a.vol)} km</span><span>Segments retenus</span><span>${fmt(a.nseg)}</span></div>`;
+  if (lignes.length) h += listeBarres(lignes.slice().sort((x, y) => (y[1] || 0) - (x[1] || 0)).slice(0, 12).map(([sid, v, p, annee]) => ({
+    nom: `Section ${sid}`, v, lib: `${fmt(v)} · ${pctv(p)}`, couleur: C.bleu[Math.max(0, classeDe(v, BORNES.d))] })), C.bleu[2]) +
+    (lignes.length > 12 ? `<p class="sous">… et ${lignes.length - 12} autres. Valeurs ${lignes[0][3] || ""} (DJMA · % camions).</p>` : `<p class="sous">DJMA · % camions, année ${lignes[0][3] || ""}.</p>`);
+  else if (a.statut === "aucun_djma") h += note(`Aucun segment ne survit aux 3 filtres. Le DJMA est emprunté à l'arc voisin ${a.don ? `<b>${esc(nomArc(parId.get(a.don)))}</b>` : ""} à l'étape 4.`, "attention");
+  else h += note("Le tracé sort du territoire québécois : aucune section du MTMD ne peut lui être rattachée.", "attention");
+  if (a.vol >= 6) h += `<p class="sous">Cercles orange : 3 km autour de A et B, où le filtre 3 écarte le trafic local.</p>`;
+  return h + `<button type="button" class="ferme" data-fermer="arc">Retirer la sélection</button></div>`;
+}
+function contenu3() {
+  const st = M.statuts;
+  let h = `<div class="tuiles">${tuile(fmt(st.ok || 0), "arcs avec au moins un segment retenu")}${tuile(fmt(st.aucun_djma || 0), "aucun segment retenu : complétés à l'étape 4")}
+    ${tuile(fmt(M.mediane_segs), "segments retenus par arc (médiane)")}${tuile(fmt(M.n_rattachements), "rattachements segment–arc")}
+    ${tuile(fmt1(M.mediane_km) + " km", "longueur médiane d'un tracé (arcs routés)")}${tuile(fmt(st.hors_quebec || 0), "tracés hors du territoire québécois")}</div>`;
+  h += bloc("Couleur des arcs", segment("vue3", [["statut", "Statut du routage"], ["nseg", "Segments retenus"]], S.vue3));
+  if (S.arc != null) h += carteArc3(parId.get(S.arc));
+  else h += note("<b>Clique un arc.</b> La carte montre son tracé OSRM, la ligne droite du graphe, les sections retenues (colorées selon leur DJMA) et, s'il fait 6 km ou plus, les zones de 3 km exclues autour de A et B.");
+  if (S.vue3 === "nseg") {
+    const n = NSEG.map(([b], i) => ARCS.filter(a => a.nseg >= b && (i === NSEG.length - 1 || a.nseg < NSEG[i + 1][0])).length);
+    h += legende("Segments de comptage retenus par arc", "", [...NSEG.map(([, lib], i) => ligneLeg(trait(C.bleu[i], 3.4), lib, n[i])), ligneLeg(trait(C.vide, 2), "Aucun", ARCS.filter(a => !a.nseg).length)]);
+  } else h += legende("Statut du routage", "", STATUTS.map(([s, lib, col]) => ligneLeg(trait(col, 3.4), lib, st[s] || 0)));
+  if (S.arc != null) h += legende("Sections retenues : DJMA utilisé", "Valeur la plus récente de chaque section (véhicules par jour).",
+    libellesClasses(BORNES.d).map((lib, i) => ligneLeg(trait(C.bleu[i], 4), lib)));
+  h += bloc("Les 3 filtres, dans l'ordre", `<div class="filtres">
+    <div class="filtre"><b>1</b><span><strong>Distance au tracé ≤ 400 m.</strong> Écarte les routes parallèles captées par erreur.</span></div>
+    <div class="filtre"><b>2</b><span><strong>Direction ≤ 45° d'écart.</strong> Écarte les bretelles et les routes qui croisent le tracé.</span></div>
+    <div class="filtre"><b>3</b><span><strong>À plus de 3 km de A et de B</strong> (arcs de 6 km et plus). Écarte le trafic de distribution locale près des villes.</span></div></div>`,
+    "Avant les filtres, le tracé est coupé au territoire québécois (tampon de 2 km autour du RTSS).");
+  return h;
+}
+function carteArc45(a, k) {
+  const v = S[k === 4 ? "var4" : "var5"] === "cam" ? "c" : "d";
+  const lib = v === "c" ? "camions par jour" : "véhicules par jour";
+  let h = `<div class="selection"><h3>${esc(nomArc(a))}</h3>`;
+  if (a.statut === "hors_quebec") return h + note("Tracé hors du Québec : aucune valeur.", "attention") + `<button type="button" class="ferme" data-fermer="arc">Retirer la sélection</button></div>`;
+  h += listeBarres([1, 2, 3, 4].map(m => ({ nom: `m${m} · ${DEF_METHODES[m][1]}`, v: a[v + m], lib: fmt(a[v + m]), couleur: m === 4 ? C.bleu[3] : C.bleu[1] })), C.bleu[2]);
+  h += `<p class="sous">En ${lib}.</p><div class="kv"><span>Segments retenus</span><span>${fmt(a.nseg)}</span>
+    <span>Écart entre les 4 méthodes</span><span>${a.ecart == null ? "–" : fmt1(a.ecart) + " %"}</span>
+    <span>Part de camions (m4)</span><span>${pctv(a.p4)}</span></div>`;
+  if (a.comp) h += note(`Valeurs empruntées à l'arc voisin <b>${esc(nomArc(parId.get(a.don)))}</b> (aucun segment propre) : les 4 méthodes y sont identiques par construction.`, "attention");
+  return h + `<button type="button" class="ferme" data-fermer="arc">Retirer la sélection</button></div>`;
+}
+function contenu4() {
+  const mesures = ARCS.filter(a => a.statut === "ok");
+  let h = bloc("Variable", segment("var4", [["djma", "DJMA (véh./jour)"], ["cam", "Camions par jour"]], S.var4));
+  h += bloc("Afficher", segment("vue4", [["valeur", "Une méthode"], ["ecart", "Écart entre les 4"]], S.vue4));
+  if (S.vue4 === "valeur") {
+    h += bloc("Méthode", segment("m", [[1, "m1"], [2, "m2"], [3, "m3"], [4, "m4"]], S.m));
+    const [code, nom, def] = DEF_METHODES[S.m];
+    h += note(`<b>${code} · ${nom}.</b> ${def}`);
+  }
+  const p = S.var4 === "cam" ? "c" : "d";
+  h += `<div class="tuiles">${[1, 2, 3, 4].map(m => tuile(fmt(mediane(mesures.map(a => a[p + m]))), `médiane m${m} des ${fmt(mesures.length)} arcs mesurés`)).join("")}</div>`;
+  if (S.arc != null) h += carteArc45(parId.get(S.arc), 4);
+  if (S.vue4 === "ecart") {
+    const { n, sans } = compter(ARCS.map(a => a.ecart), BORNES_ECART);
+    h += legende("Écart relatif entre m1, m2, m3 et m4", "(max − min) ÷ moyenne des 4 valeurs de l'arc. Les arcs complétés sont exclus.",
+      [...libellesClasses(BORNES_ECART, " %").map((lib, i) => ligneLeg(trait(C.or[i], 1.6 + i * 0.6), lib, n[i])), ligneLeg(trait(C.pale, 2), "Non comparé (complété ou hors Québec)", sans)]);
+    h += note(`${fmt(ARCS.filter(a => a.ecart > 30).length)} des ${fmt(mesures.length)} arcs mesurés ont un écart de plus de 30 %. Un écart fort vient soit d'un petit nombre de segments (un seul segment extrême pèse lourd sur m4), soit d'un arc très hétérogène.`);
+  } else {
+    const champ = champTrafic(4), { n, sans } = compter(ARCS.map(a => a[champ]), BORNES[p]);
+    h += legende(`${S.var4 === "cam" ? "Camions par jour" : "DJMA, véhicules par jour"} · m${S.m}`, "Mêmes classes pour les 4 méthodes : changer de méthode montre ce qui bouge. Trait pâle : arc complété.",
+      [...libellesClasses(BORNES[p]).map((lib, i) => ligneLeg(trait(C.bleu[i], 1.6 + i * 0.6), lib, n[i])), ligneLeg(trait(C.pale, 2), "Sans valeur", sans)]);
+  }
+  return h;
+}
+function contenu5() {
+  const st = M.statuts, comp = ARCS.filter(a => a.comp);
+  let h = `<div class="tuiles">${tuile(`${fmt(ARCS.length - (st.hors_quebec || 0))} / ${fmt(ARCS.length)}`, "arcs avec un trafic (99 %)")}
+    ${tuile(fmt(st.ok || 0), "mesurés directement par leurs segments")}${tuile(fmt(comp.length), "empruntés à l'arc voisin le plus proche (0 km)")}
+    ${tuile(fmt(st.hors_quebec || 0), "sans valeur : tracé hors du Québec")}</div>`;
+  h += bloc("Afficher", segment("vue5", [["trafic", "Trafic final (m4)"], ["cas", "Les 22 cas particuliers"]], S.vue5));
+  if (S.vue5 === "trafic") {
+    h += bloc("Variable", segment("var5", [["djma", "DJMA (véh./jour)"], ["cam", "Camions par jour"]], S.var5));
+    const p = S.var5 === "cam" ? "c" : "d", { n, sans } = compter(ARCS.map(a => a[p + "4"]), BORNES[p]);
+    if (S.arc != null) h += carteArc45(parId.get(S.arc), 5);
+    h += legende(`${S.var5 === "cam" ? "Camions par jour" : "DJMA, véhicules par jour"} · m4 (80e percentile)`, "La valeur retenue pour l'analyse de résilience, qui vise les conditions chargées.",
+      [...libellesClasses(BORNES[p]).map((lib, i) => ligneLeg(trait(C.bleu[i], 1.6 + i * 0.6), lib, n[i])), ligneLeg(trait(C.pale, 2), "Sans valeur", sans)]);
+  } else {
+    if (S.arc != null) h += carteArc45(parId.get(S.arc), 5);
+    h += legende("Les 22 cas particuliers", "Clique un arc orange : son arc donneur s'affiche en vert.",
+      [ligneLeg(trait(C.orange, 4), "Aucun segment retenu : DJMA emprunté", comp.length), ligneLeg(trait(C.encre2, 4), "Tracé hors du Québec : sans valeur", st.hors_quebec || 0),
+       ligneLeg(trait(C.pale, 2), "Mesuré directement", st.ok || 0)]);
+    h += bloc("Arcs complétés et leur donneur", `<table class="tab"><thead><tr><th>Arc complété</th><th>Donneur</th></tr></thead><tbody>${
+      comp.map(a => `<tr class="cliquable" data-arc="${a.id}"><td>${esc(nomArc(a))}</td><td>${esc(a.don ? nomArc(parId.get(a.don)) : "–")}</td></tr>`).join("")}</tbody></table>`,
+      "Le donneur est l'arc mesuré le plus proche ; il touche l'arc complété dans les 19 cas. 13 des 19 sont autour de Montréal.");
+  }
+  return h;
+}
+
+function rendreLecture() {
+  const k = S.etape, e = ETAPES[k - 1];
+  let h = `<div class="tete"><p class="eyebrow">Volet 1 · étape ${k} sur ${N}</p><h2>${esc(e.court)}</h2><p>${esc(e.intro)}</p></div>`;
+  h += [contenu1, contenu2, contenu3, contenu4, contenu5][k - 1]();
+  h += blocCadrage();
+  h += `<button type="button" class="lien-texte" data-texte="1">Lire le texte complet de l'étape : méthode, figures et pseudo-code →</button>`;
+  h += navigationSuite();
+  document.getElementById("lecture").innerHTML = h;
+}
+function navigationSuite() {
+  const k = S.etape;
+  const prec = k > 1 ? `<a href="#etape=${k - 1}">← ${esc(ETAPES[k - 2].court)}</a>` : "<span></span>";
+  const suiv = k < N ? `<a href="#etape=${k + 1}">${esc(ETAPES[k].court)} →</a>` : `<a href="${M.url_v2}#etape=0">Volet 2 : la carte interactive →</a>`;
+  return `<nav class="suite" aria-label="Étapes voisines">${prec}${suiv}</nav>`;
+}
+function rendreTexte() {
+  const k = S.etape, e = ETAPES[k - 1];
+  document.getElementById("texte").innerHTML = `<div class="tete"><p class="eyebrow">Volet 1 · étape ${k} · texte complet</p><h2>${esc(e.court)}</h2><p>${esc(e.intro)}</p></div>
+    <div class="md">${D.textes[k - 1]}</div>${navigationSuite()}`;
+}
+function choisirOnglet(o) {
+  S.onglet = o;
+  ["lecture", "texte"].forEach(x => {
+    document.getElementById("tab-" + x).setAttribute("aria-selected", x === o);
+    document.getElementById(x).hidden = x !== o;
+  });
+}
+
+// ---------- Infobulle ----------
+function contenuBulle(f) {
+  const p = f.properties, l = (a, b) => `<div class="l"><span>${a}</span><span>${b}</span></div>`;
+  const id = f.layer.id;
+  if (id === "noeuds") return `<strong>${esc(p.nom)}</strong>${l("Type", esc((TYPES_NOEUD.find(t => t[0] === p.type) || [, p.type])[1]))}${l("Liens", fmt(p.nb))}`;
+  if (id === "sections") {
+    const i = p.i;
+    return `<strong>Section ${SR.id[i]}${SR.route[i] ? " · route " + esc(SR.route[i]) : ""}</strong><div class="note" style="margin:0 0 4px">${esc(SR.de[i])} → ${esc(SR.a[i])}</div>
+      ${l("DJMA 2025", fmt(SR.djma[i][9]))}${l("% camions 2025", pctv(SR.cam[i][9]))}
+      ${l("Années mesurées", `DJMA ${p.nd}/10 · camions ${p.nc}/10`)}${S.etape === 2 ? l("Complétion", esc(libMethode(S.vue2 === "cam" ? p.mc : p.md))) : ""}
+      <div class="note">Clique pour la série 2016-2025.</div>`;
+  }
+  if (id === "graphe") { const a = parId.get(p.id); return `<strong>${esc(nomArc(a))}</strong>${l("Vol d'oiseau", fmt1(p.vol) + " km")}${l("Paire retenue par", esc(SOURCES_LIEN[p.src] || p.src))}`; }
+  if (id === "rtss") return `<strong>${p.r ? "Route " + esc(p.r) : "Sous-route"}</strong>${l("Classe", esc((CLASSES_RTSS.find(c => c[0] === p.cl) || [, p.cl])[1]))}`;
+  if (id === "segs") return `<strong>Section ${p.sid}</strong>${l("DJMA utilisé", fmt(p.v))}${l("% camions", pctv(p.p))}${l("Année", p.annee || "–")}`;
+  // arcs-hit
+  const a = parId.get(p.id), k = S.etape;
+  let h = `<strong>${esc(nomArc(a))}</strong>`;
+  if (k === 3) h += l("Tracé", fmt1(a.km) + " km") + l("Segments retenus", fmt(a.nseg)) + l("Statut", esc((STATUTS.find(s => s[0] === a.statut) || [, a.statut])[1]));
+  else if (a.statut === "hors_quebec") h += `<div class="note">Tracé hors du Québec : aucune valeur.</div>`;
+  else {
+    const champ = champTrafic(k);
+    if (k === 4 && S.vue4 === "ecart") h += l("Écart m1-m4", a.ecart == null ? "–" : fmt1(a.ecart) + " %") + l("Segments retenus", fmt(a.nseg));
+    else h += l(`${champ[0] === "c" ? "Camions/jour" : "DJMA"} · m${champ[1]}`, fmt(a[champ])) + l("Segments retenus", fmt(a.nseg));
+    if (a.comp) h += `<div class="note">Emprunté à ${esc(nomArc(parId.get(a.don)))}.</div>`;
+  }
+  return h + `<div class="note">Clique pour le détail.</div>`;
+}
+const PRIORITE = ["noeuds", "segs", "sections", "arcs-hit", "graphe", "rtss"];
+function survoles(map, point) {
+  const k = S.etape;
+  const couches = { 1: ["noeuds", "sections", "graphe", "rtss"], 2: ["sections"], 3: ["noeuds", "segs", "arcs-hit"], 4: ["noeuds", "arcs-hit"], 5: ["noeuds", "arcs-hit"] }[k]
+    .filter(c => map.getLayoutProperty(c, "visibility") !== "none");
+  const f = couches.length ? map.queryRenderedFeatures(point, { layers: couches }) : [];
+  return f.sort((a, b) => PRIORITE.indexOf(a.layer.id) - PRIORITE.indexOf(b.layer.id));
+}
+function brancherSouris(map) {
+  const bulle = document.getElementById("infobulle");
+  map.on("mousemove", e => {
+    const f = survoles(map, e.point);
+    if (!f.length) { bulle.hidden = true; map.getCanvas().style.cursor = ""; return; }
+    bulle.innerHTML = contenuBulle(f[0]);
+    bulle.hidden = false;
+    const r = document.getElementById("scene").getBoundingClientRect();
+    bulle.style.left = Math.max(8, Math.min(e.point.x + 14, r.width - bulle.offsetWidth - 8)) + "px";
+    bulle.style.top = Math.max(8, Math.min(e.point.y + 14, r.height - bulle.offsetHeight - 8)) + "px";
+    map.getCanvas().style.cursor = ["sections", "arcs-hit"].includes(f[0].layer.id) ? "pointer" : "";
+  });
+  map.on("mouseout", () => { bulle.hidden = true; });
+  map.on("click", e => {
+    const f = survoles(map, e.point).filter(x => ["sections", "arcs-hit"].includes(x.layer.id));
+    if (!f.length) return;
+    if (f[0].layer.id === "sections") { S.section = f[0].properties.i; choisirOnglet("lecture"); toutRafraichir(); }
+    else choisirArc(f[0].properties.id, S.etape === 3);
+  });
+}
+function choisirArc(id, cadrer) {
+  S.arc = id; choisirOnglet("lecture"); toutRafraichir();
+  if (!cadrer || !carte?._pret) return;
+  const f = D.arcs.features.find(x => x.properties.id === id);
+  const c = f.geometry.type === "LineString" ? f.geometry.coordinates : f.geometry.coordinates.flat();
+  const lons = c.map(p => p[0]), lats = c.map(p => p[1]);
+  carte.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 70, maxZoom: 11, duration: 700 });
+}
+
+// ---------- Orchestration ----------
+let carte = null;
+function toutRafraichir() {
+  if (carte && carte._pret) appliquerEtape(carte);
+  rendreEtapes();
+  rendreLecture();
+}
+function lireAdresse() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  return { k: Math.min(N, Math.max(1, parseInt(p.get("etape"), 10) || 1)), ancre: p.get("ancre") };
+}
+function suivreAdresse() {
+  const { k, ancre } = lireAdresse(), change = k !== S.etape;
+  S.etape = k;
+  if (change) rendreTexte();
+  choisirOnglet(ancre ? "texte" : S.onglet);
+  toutRafraichir();
+  if (change && carte && carte._pret) carte.fitBounds(VUES[ETAPES[k - 1].vue], { padding: 24, duration: 700 });
+  const cible = ancre && document.getElementById(`e${k}-${ancre}`);
+  if (cible) cible.scrollIntoView();
+  else if (change) { document.getElementById("lecture").scrollTop = 0; document.getElementById("texte").scrollTop = 0; }
+}
+function allerA(k) { if (k >= 1 && k <= N) location.hash = "etape=" + k; }
+
+function brancherPanneau() {
+  document.getElementById("lecture").addEventListener("click", e => {
+    const b = e.target.closest("button, tr[data-arc]");
+    if (!b) return;
+    if (b.dataset.cle) { const v = b.dataset.val; S[b.dataset.cle] = /^\d+$/.test(v) ? +v : v; toutRafraichir(); }
+    else if (b.dataset.couche) { const c = b.dataset.couche; S.couches.has(c) ? S.couches.delete(c) : S.couches.add(c); toutRafraichir(); }
+    else if (b.dataset.cadrer) { carte?._pret && carte.fitBounds(VUES[b.dataset.cadrer], { padding: 24, duration: 700 }); }
+    else if (b.dataset.texte) { choisirOnglet("texte"); document.getElementById("texte").scrollTop = 0; }
+    else if (b.dataset.fermer) { S[b.dataset.fermer] = null; toutRafraichir(); }
+    else if (b.dataset.arc) choisirArc(+b.dataset.arc, false);
+  });
+  ["lecture", "texte"].forEach(o => document.getElementById("tab-" + o).addEventListener("click", () => choisirOnglet(o)));
+}
+
+// ---------- Diagnostic : MapLibre (WebGL) si possible, sinon le moteur Canvas 2D ----------
+function webglDisponible() {
+  try { const c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); }
+  catch (e) { return false; }
+}
+function afficherProbleme(titre, detail) {
+  const zone = document.getElementById("chargement");
+  if (!zone) return;
+  zone.innerHTML = `<div class="probleme" role="alert"><h2>${titre}</h2>${detail}
+    <p class="sous">Le panneau de droite et l'onglet « Texte complet » fonctionnent quand même.</p></div>`;
+}
+let MOTEUR = (window.maplibregl && webglDisponible()) ? window.maplibregl : MoteurCanvas;
+function lancerCarte() {
+  try { carte = creerCarte("carte"); }
+  catch (e) {
+    if (MOTEUR !== MoteurCanvas) {
+      MOTEUR = MoteurCanvas;
+      const c = document.getElementById("carte"); c.innerHTML = ""; c.className = "carte";
+      return lancerCarte();
+    }
+    carte = null; afficherProbleme("La carte ne peut pas s'afficher", `<p class="sous">Détail : ${esc(e.message)}</p>`); return;
+  }
+  carte.on("load", () => {
+    try {
+      construireCouches(carte); carte._pret = true;
+      brancherSouris(carte);
+      document.getElementById("chargement").remove();
+      toutRafraichir();
+    } catch (e) {
+      afficherProbleme("Erreur pendant la préparation de la carte", `<p class="sous">Détail : ${esc(e.message)}</p>`);
+    }
+  });
+  setTimeout(() => {
+    if (carte && !carte._pret) afficherProbleme("La carte tarde à se charger",
+      `<p>Recharge la page (F5). Si rien ne change, appuie sur F12, onglet « Console », et note le message en rouge.</p>`);
+  }, 15000);
+}
+
+function demarrer() {
+  document.getElementById("date-gen").textContent = M.genere_le;
+  document.getElementById("mention").textContent = M.publique ? "" : " · version locale complète";
+  document.getElementById("btn-v2").href = M.url_v2 + "#etape=0";
+  S.etape = lireAdresse().k;
+  rendreTexte(); brancherPanneau();
+  window.addEventListener("hashchange", suivreAdresse);
+  document.addEventListener("keydown", e => {
+    if (e.target.closest("input,select,textarea")) return;
+    if (e.key === "ArrowRight") allerA(S.etape + 1);
+    if (e.key === "ArrowLeft") allerA(S.etape - 1);
+  });
+  toutRafraichir();
+  const { ancre } = lireAdresse();
+  if (ancre) { choisirOnglet("texte"); document.getElementById(`e${S.etape}-${ancre}`)?.scrollIntoView(); }
+  lancerCarte();
+}
+demarrer();
+</script>
+</body>
+</html>

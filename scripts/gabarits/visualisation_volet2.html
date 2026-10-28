@@ -65,8 +65,8 @@ a.btn:hover{background:var(--panel)}
 .etapes-pied kbd{font-family:var(--mono);font-size:.68rem;border:1px solid var(--rule);border-radius:3px;padding:0 4px;background:var(--card)}
 
 /* ---------- Carte ---------- */
-.scene{grid-area:scene;position:relative;min-width:0;min-height:0;background:var(--water)}
-.carte{position:absolute;inset:0}
+.scene{grid-area:scene;position:relative;min-width:0;min-height:0;overflow:hidden;background:var(--water)}
+.carte{position:absolute;inset:0;overflow:hidden}
 .carte-gauche{z-index:2}
 .rideau{position:absolute;top:0;bottom:0;width:0;z-index:3;cursor:ew-resize}
 .rideau::before{content:"";position:absolute;top:0;bottom:0;left:-1px;width:2px;background:var(--ink)}
@@ -953,7 +953,8 @@ function appliquerEtape(map, k) {
 // Étapes du Volet 1 : pages de docs/volet1/ (même liste que ETAPES_V1 dans scripts/generer_site_volet1.py)
 const ETAPES_V1 = [["Données", "trois couches de départ"], ["Complétion", "combler les trous"], ["Routage", "tracer les liaisons"],
                    ["Méthodes DJMA", "4 façons de résumer"], ["Résultats", "304 liaisons sur 307"]];
-const URL_V1 = PUBLIQUE ? "../volet1/" : "https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet1/";
+// Version publique : docs/volet1/ ; version complète : outputs/volet1/ (même page, liée à la carte complète)
+const URL_V1 = PUBLIQUE ? "../volet1/" : "../volet1/index.html";
 function rendreEtapes() {
   const nav = document.getElementById("etapes");
   nav.innerHTML = `<p class="groupe-etapes v1"><span>Volet 1</span> Le trafic</p>` +
