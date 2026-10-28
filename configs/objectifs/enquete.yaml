@@ -1,0 +1,4 @@
+# Objectif « enquête » : reproduire les itinéraires déclarés (usage : choix de route, réacheminement).
+nom: enquête
+poids_comptages: 0.0
+poids_enquete: 1.0

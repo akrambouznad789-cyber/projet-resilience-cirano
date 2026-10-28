@@ -1,0 +1,4 @@
+# Objectif « comptages » : coller aux débits de camions mesurés (usage : charge par liaison).
+nom: comptages
+poids_comptages: 1.0
+poids_enquete: 0.0

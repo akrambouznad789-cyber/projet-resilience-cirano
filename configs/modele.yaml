@@ -1,0 +1,40 @@
+# Modèle d'affectation des camions : demande ENR, ensembles de chemins, paramètres, calibration.
+# Les données de l'ENR sont confidentielles : tout ce qui en dérive reste dans outputs/jumeau/ (hors Git).
+
+reseau: configs/reseau.yaml                  # graphe des liaisons et routes (sortie de `jumeau reseau`)
+dossier_sortie: outputs/jumeau
+
+chemins:
+  k_par_paire: 6            # chemins les plus rapides gardés par paire de nœuds (Yen)
+  detour_max: 1.6           # un chemin ≤ 1,6 × le temps du meilleur
+  max_par_itineraire: 20    # itinéraires gardés par paire de lieux (frontières comprises)
+  vitesse_hors_qc_kmh: 80   # accès hors Québec : 1,2 × vol d'oiseau à 80 km/h
+  detour_hors_qc: 1.2
+
+# Coût d'un chemin (en minutes équivalentes) :
+#   minutes + β_hors_autoroute·km hors autoroute + β_estime·km estimés (raccords, accès)
+#   + β_frontiere·passages de frontière + minutes d'accès hors Québec
+# Probabilité : logit à taille de chemin, P(p) ∝ exp(−μ·coût_p) · PS_p
+parametres_initiaux:
+  mu: 0.05                  # dispersion (1/minute) ; grand μ = tout-ou-rien
+  beta_hors_autoroute: 0.0  # minutes par km hors autoroute (préférence pour l'autoroute si > 0)
+  beta_estime: 0.0          # minutes par km de raccord ou d'accès estimé
+  beta_frontiere: 0.0       # minutes par passage, une valeur par point frontière (choix de la frontière)
+  croissance: 1.5           # g : camions 2025 / trajets ENR 2006-2007
+  fond_par_classe:          # camions par jour absents de l'ENR (trafic local), par classe RTSS
+    "10": 300
+    "20": 150
+    "30": 80
+    "40": 50
+    autre: 30
+
+calibration:
+  objectif: configs/objectifs/equilibre.yaml
+  pas_adam: 0.05
+  iterations_adam: 200
+  iterations_lbfgs: 40
+  plis: 5                    # validation : blocs spatiaux de sections, groupes de postes
+  bloc_km: 50
+  bootstrap: 20
+  graine: 42
+  regularisation: 0.01       # rappel vers les valeurs initiales (en échelle log)

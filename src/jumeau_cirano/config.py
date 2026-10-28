@@ -115,3 +115,52 @@ def charger(chemin: str | Path, schema: type[S]) -> S:
     with p.open(encoding="utf-8") as f:
         brut = yaml.safe_load(f) or {}
     return schema.model_validate(brut)
+
+
+# ---------------------------------------------------------------------------
+# Modèle (configs/modele.yaml, configs/objectifs/*.yaml)
+# ---------------------------------------------------------------------------
+
+class ParamChemins(Schema):
+    k_par_paire: int
+    detour_max: float
+    max_par_itineraire: int
+    vitesse_hors_qc_kmh: float
+    detour_hors_qc: float
+
+
+class ParametresModele(Schema):
+    mu: float
+    beta_hors_autoroute: float
+    beta_estime: float
+    beta_frontiere: float
+    croissance: float
+    fond_par_classe: dict[str, float]
+
+
+class ParamCalibration(Schema):
+    objectif: str
+    pas_adam: float
+    iterations_adam: int
+    iterations_lbfgs: int
+    plis: int
+    bloc_km: float
+    bootstrap: int
+    graine: int
+    regularisation: float
+
+
+class ConfigModele(Schema):
+    reseau: str
+    dossier_sortie: str
+    chemins: ParamChemins
+    parametres_initiaux: ParametresModele
+    calibration: ParamCalibration
+
+
+class Objectif(Schema):
+    """Ce qu'on vise : le poids de chaque source d'observation dans la perte."""
+
+    nom: str
+    poids_comptages: float
+    poids_enquete: float

@@ -1,0 +1,4 @@
+# Objectif équilibré : reproduire les comptages ET le comportement observé dans l'enquête.
+nom: équilibre
+poids_comptages: 1.0       # déviance de Poisson sur les sections mesurées en 2025
+poids_enquete: 1.0         # vraisemblance des postes franchis par les camions enquêtés
