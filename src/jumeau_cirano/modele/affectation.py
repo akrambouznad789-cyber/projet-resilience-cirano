@@ -12,6 +12,8 @@ Paramètres :
                       frontière est identifiable, pas le nombre de passages, constant dans une paire) (libre)
     g                 croissance : camions 2025 par trajet ENR 2006-2007                              (> 0)
     b[c]              camions par jour absents de l'ENR (trafic local), par classe RTSS              (> 0)
+    ε                 erreur de classement d'un poste dans l'enquête (paramètre de l'OBSERVATION,
+                      pas de l'affectation : n'intervient ni dans les flux ni dans modele.js)        (0 à 0,5)
 
 Les paramètres positifs sont calés en échelle log (θ = exp(brut)) : gradient bien
 conditionné et pas multiplicatifs. Les β sont libres : le signe est à apprendre.
@@ -74,8 +76,16 @@ def softmax_par_groupe(u: torch.Tensor, groupe: torch.Tensor, n_groupes: int) ->
     return e / torch.where(s > 0, s, torch.ones_like(s))[groupe]
 
 
+def logsum_par_groupe(u: torch.Tensor, groupe: torch.Tensor, n_groupes: int) -> torch.Tensor:
+    """ln Σ exp(u) au sein de chaque groupe. Un groupe tout à −∞ donne −∞."""
+    m = torch.full((n_groupes,), -torch.inf, dtype=u.dtype).scatter_reduce(0, groupe, u, reduce="amax")
+    m = torch.where(torch.isfinite(m), m, torch.zeros_like(m))
+    s = torch.zeros(n_groupes, dtype=u.dtype).index_add(0, groupe, torch.exp(u - m[groupe]))
+    return torch.where(s > 0, m + torch.log(s), torch.full_like(s, -torch.inf))
+
+
 class ModeleAffectation(nn.Module):
-    """Logit à taille de chemin. μ, g et b en échelle log ; β libres."""
+    """Logit à taille de chemin. μ, g et b en échelle log ; β libres ; ε = 0,5 · sigmoïde."""
 
     POSITIFS = ["mu", "croissance"]
     LIBRES = ["beta_hors_autoroute", "beta_estime"]
@@ -89,12 +99,15 @@ class ModeleAffectation(nn.Module):
         self.frontieres = list(frontieres)
         self.beta_frontiere = nn.Parameter(torch.full((len(frontieres),), float(initiaux["beta_frontiere"]),
                                                       dtype=torch.float64))
+        e = float(initiaux.get("erreur_postes", 0.05))
+        self.brut_erreur = nn.Parameter(torch.tensor(np.log(2 * e / (1 - 2 * e)), dtype=torch.float64))
 
     def theta(self) -> dict[str, torch.Tensor]:
         """Paramètres dans leur unité."""
         t = {n: torch.exp(self.brut[n]) for n in self.POSITIFS} | {n: self.brut[n] for n in self.LIBRES}
         t["fond"] = torch.exp(self.brut_fond)
         t["beta_frontiere"] = self.beta_frontiere
+        t["erreur_postes"] = 0.5 * torch.sigmoid(self.brut_erreur)
         return t
 
     def couts(self, d: Donnees, t: dict[str, torch.Tensor] | None = None) -> torch.Tensor:
@@ -103,13 +116,23 @@ class ModeleAffectation(nn.Module):
         poids = torch.stack([torch.ones((), dtype=torch.float64), t["beta_hors_autoroute"], t["beta_estime"]])
         return d.composantes @ poids + d.minutes_acces + d.frontieres @ t["beta_frontiere"]
 
-    def probabilites(self, d: Donnees, masque: torch.Tensor | None = None) -> torch.Tensor:
-        """P(chemin | paire). `masque` (P, booléen) : chemins interdits (route fermée)."""
+    def utilites(self, d: Donnees, masque: torch.Tensor | None = None) -> torch.Tensor:
+        """−μ·coût_p + ln PS_p ; −∞ pour les chemins interdits par `masque` (P, booléen : route fermée)."""
         t = self.theta()
         u = -t["mu"] * self.couts(d, t) + d.ln_ps
-        if masque is not None:
-            u = torch.where(masque, torch.full_like(u, -torch.inf), u)
-        return softmax_par_groupe(u, d.paire, d.n_paires)
+        return u if masque is None else torch.where(masque, torch.full_like(u, -torch.inf), u)
+
+    def probabilites(self, d: Donnees, masque: torch.Tensor | None = None) -> torch.Tensor:
+        """P(chemin | paire). `masque` (P, booléen) : chemins interdits (route fermée)."""
+        return softmax_par_groupe(self.utilites(d, masque), d.paire, d.n_paires)
+
+    def cout_compose(self, d: Donnees, masque: torch.Tensor | None = None) -> torch.Tensor:
+        """Coût composite de chaque paire (minutes équivalentes) : −ln Σ_p exp(−μ·coût_p + ln PS_p) / μ.
+
+        Mesure de bien-être du logit (« logsum », Williams 1977) : elle ne baisse jamais quand on retire
+        un itinéraire, contrairement au temps moyen. +∞ pour une paire sans itinéraire.
+        """
+        return -logsum_par_groupe(self.utilites(d, masque), d.paire, d.n_paires) / self.theta()["mu"]
 
     def flux_routes(self, d: Donnees, p: torch.Tensor) -> torch.Tensor:
         """Camions par jour (2025) sur chaque route."""
@@ -126,10 +149,20 @@ class ModeleAffectation(nn.Module):
         f = self.flux_routes(d, p)
         return p, f, self.camions_sections(d, f)
 
+    @classmethod
+    def depuis_valeurs(cls, v: dict[str, float], frontieres: list[str]) -> ModeleAffectation:
+        """Modèle reconstruit à partir de paramètres calés (calibration_<objectif>.json, API)."""
+        initiaux = {n: v[n] for n in cls.NOMS} | {"beta_frontiere": 0.0, "erreur_postes": v.get("erreur_postes", 0.05)}
+        m = cls(initiaux, {c: v[f"fond_{c}"] for c in CLASSES}, frontieres)
+        with torch.no_grad():
+            m.beta_frontiere.copy_(torch.tensor([v.get(f"beta_frontiere_{f}", 0.0) for f in frontieres],
+                                                dtype=torch.float64))
+        return m
+
     def valeurs(self) -> dict[str, float]:
         """Paramètres calés, en nombres Python (pour MLflow, JSON, l'API)."""
         t = self.theta()
-        v = {n: float(t[n]) for n in self.NOMS}
+        v = {n: float(t[n]) for n in [*self.NOMS, "erreur_postes"]}
         v.update({f"fond_{c}": float(x) for c, x in zip(CLASSES, t["fond"], strict=True)})
         v.update({f"beta_frontiere_{f}": float(x) for f, x in zip(self.frontieres, t["beta_frontiere"], strict=True)})
         return v

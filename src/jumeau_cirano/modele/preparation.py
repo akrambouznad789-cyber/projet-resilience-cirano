@@ -75,7 +75,8 @@ def preparer(cfg: ConfigModele) -> Path:
 
     print("  demande ENR")
     lieux, camions, postes = construire_demande()
-    paires = camions.groupby(["o_pt", "d_pt"]).agg(n3=("n3", "sum"), nobs=("id", "size")).reset_index()
+    paires = (camions.groupby(["o_pt", "d_pt"]).agg(n3=("n3", "sum"), t3=("t3", "sum"), nobs=("id", "size"))
+              .reset_index())
     candidats = lieux.set_index("pt")["candidats"]
     besoin = {(no, nd) for o, d in zip(paires["o_pt"], paires["d_pt"], strict=True)
               for no, _ in candidats.loc[o] for nd, _ in candidats.loc[d] if no != nd}

@@ -9,6 +9,7 @@ sur chaque nationale (S1 sur r1, S3 sur r3).
 
 from __future__ import annotations
 
+import json
 import math
 
 import numpy as np
@@ -17,7 +18,7 @@ import pytest
 import torch
 
 from jumeau_cirano.calibration.entrainement import Selection, entrainer
-from jumeau_cirano.calibration.pertes import nll_enquete
+from jumeau_cirano.calibration.pertes import nll_enquete, probabilites_postes
 from jumeau_cirano.config import Objectif, ParamCalibration
 from jumeau_cirano.modele.affectation import Donnees, ModeleAffectation, creux
 from jumeau_cirano.modele.tenseurs import Enquete, construire_enquete
@@ -94,11 +95,17 @@ def enquete_attendue(vrai: ModeleAffectation, d: Donnees, camions_par_paire: flo
 
 
 def test_recuperation_des_parametres():
-    """Les paramètres qui ont généré l'enquête sont retrouvés depuis un autre point de départ."""
+    """Les paramètres qui ont généré l'enquête sont retrouvés depuis un autre point de départ.
+
+    ε est figé à sa vraie valeur (0) : avec deux postes, l'enquête ne donne que deux proportions
+    indépendantes, trop peu pour μ, β et ε à la fois (ε a son propre test).
+    """
     d = donnees()
     vrai = modele(mu=0.1, beta=0.2)
     enq = enquete_attendue(vrai, d)
     estime = modele(mu=0.03, beta=0.0)
+    estime.brut_erreur.data.fill_(-40.0)
+    estime.brut_erreur.requires_grad_(False)
 
     class Art:                                                     # le strict nécessaire de modele.tenseurs.Artefact
         donnees, enquete = d, enq
@@ -115,3 +122,61 @@ def test_recuperation_des_parametres():
     assert v["beta_hors_autoroute"] == pytest.approx(0.2, rel=0.005)
     assert float(nll_enquete(estime.probabilites(d), enq, sel.groupes)) <= float(
         nll_enquete(modele(mu=0.03, beta=0.0).probabilites(d), enq, sel.groupes))
+
+
+def test_depuis_valeurs_reproduit_le_modele():
+    """Paramètres exportés (JSON, API) → même modèle, mêmes probabilités."""
+    m = modele(mu=0.07, beta=0.3, croissance=1.4)
+    copie = ModeleAffectation.depuis_valeurs(m.valeurs(), m.frontieres)
+    d = donnees()
+    assert torch.allclose(copie.probabilites(d), m.probabilites(d))
+    assert copie.valeurs() == pytest.approx(m.valeurs())
+
+
+def test_resume_validation_exportable_en_json():
+    from jumeau_cirano.calibration.commande import resume_validation
+
+    cv = pd.DataFrame({"modele": ["M", "M", "B0", "B0"], "pli": [0, 1, 0, 1], "r2_log": [0.5, 0.7, 0.4, 0.6]})
+    r = json.loads(json.dumps(resume_validation(cv)))
+    assert r["M"]["r2_log"]["moyenne"] == pytest.approx(0.6) and set(r) == {"M", "B0"}
+
+
+def test_erreur_nulle_reproduit_la_vraisemblance_sans_erreur():
+    d, vrai = donnees(), modele()
+    enq, p = enquete_attendue(vrai, d), vrai.probabilites(d)
+    poids = torch.ones(len(CHEMINS), dtype=torch.float64)
+    q = probabilites_postes(p, enq).clamp(1e-6, 1 - 1e-6)
+    attendu = -((poids * enq.n)[enq.groupe] * (enq.observe * torch.log(q) + (1 - enq.observe) * torch.log(1 - q))).sum()
+    assert float(nll_enquete(p, enq, poids, 0.0)) == pytest.approx(float(attendu / enq.n.sum()))
+
+
+def test_recuperation_du_taux_d_erreur():
+    """Une enquête dont 15 % des postes sont notés à tort : μ et β connus, ε est retrouvé."""
+    d, vrai = donnees(), modele(mu=0.1, beta=0.2)
+    p = vrai.probabilites(d).detach().numpy()
+    stations = [frozenset(POSTES_ROUTE[r] for r in routes if r in POSTES_ROUTE) for _, routes in CHEMINS]
+    lignes = []
+    for k, (pa, _) in enumerate(CHEMINS):                          # chaque chemin × chaque combinaison d'erreurs
+        for s1 in (False, True):
+            for s3 in (False, True):
+                note = {s for s, err in (("S1", s1), ("S3", s3)) if (s in stations[k]) != err}
+                lignes.append({"paire": pa, "poste": None, "franchis": "|".join(sorted(note)),
+                               "n": 1000 * p[k] * (0.15 if s1 else 0.85) * (0.15 if s3 else 0.85)})
+    par_paire = pd.Series([pa for pa, _ in CHEMINS]).groupby(lambda i: CHEMINS[i][0]).indices
+    enq = construire_enquete(pd.DataFrame(lignes), par_paire, stations)
+
+    estime = modele(mu=0.1, beta=0.2)
+    for n in ("mu", "beta_hors_autoroute"):
+        estime.brut[n].requires_grad_(False)
+    estime.beta_frontiere.requires_grad_(False)
+
+    class Art:
+        donnees, enquete = d, enq
+        observees = np.array([], dtype=int)
+        y_obs = torch.zeros(0, dtype=torch.float64)
+
+    cal = ParamCalibration(objectif="", pas_adam=0.05, iterations_adam=300, iterations_lbfgs=50, plis=2, bloc_km=50,
+                           bootstrap=0, graine=0, regularisation=0.0)
+    entrainer(estime, Art, Selection(torch.zeros(0, dtype=torch.float64), torch.ones(len(lignes), dtype=torch.float64)),
+              Objectif(nom="enquête", poids_comptages=0.0, poids_enquete=1.0), cal)
+    assert estime.valeurs()["erreur_postes"] == pytest.approx(0.15, abs=0.002)

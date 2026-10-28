@@ -57,29 +57,36 @@ def validation_croisee(cfg: ConfigModele, art: Artefact, objectif: Objectif) -> 
     """Une ligne par (modèle, pli) : métriques sur les sections et les camions mis de côté."""
     cal = cfg.calibration
     ps, pg = plis_sections(art, cal.bloc_km, cal.plis), plis_groupes(art, cal.plis)
-    comptages = Objectif(nom="comptages", poids_comptages=1.0, poids_enquete=0.0)
     lignes = []
     for pli in range(cal.plis):
         sel = selection_entrainement(ps, pg, pli)
         for nom, base in (("modèle calé", None), ("B0 : Volet 2", "B0"), ("B1 : plus rapide", "B1")):
             m = nouveau_modele(cfg, art, base)
-            entrainer(m, art, sel, objectif if base is None else comptages, cal)
+            entrainer(m, art, sel, objectif, cal)       # bases : l'enquête ne cale que leur ε (P figées)
             lignes.append({"modele": nom, "pli": pli, **metriques(m, art, ps == pli, pg == pli)})
             print(f"      pli {pli + 1}/{cal.plis} · {nom:16s} " + " ".join(
                 f"{k}={v:.3f}" for k, v in lignes[-1].items() if isinstance(v, float)))
     return pd.DataFrame(lignes)
 
 
+def resume_validation(cv: pd.DataFrame) -> dict[str, dict[str, dict[str, float]]]:
+    """{modèle: {métrique: {moyenne, ecart_type}}} sur les plis (clés en texte : exportable en JSON)."""
+    r = cv.drop(columns="pli").groupby("modele").agg(["mean", "std"])
+    return {m: {k: {"moyenne": round(float(ligne[k, "mean"]), 4), "ecart_type": round(float(ligne[k, "std"]), 4)}
+                for k in r.columns.get_level_values(0).unique()} for m, ligne in r.iterrows()}
+
+
 def bootstrap(cfg: ConfigModele, art: Artefact, objectif: Objectif, final: ModeleAffectation) -> pd.DataFrame:
     """Paramètres recalés sur des poids de Poisson(1) (départ à chaud depuis la calibration finale)."""
     gen = torch.Generator().manual_seed(cfg.calibration.graine)
+    ancre = nouveau_modele(cfg, art)
     tirages = []
     for b in range(cfg.calibration.bootstrap):
         sel = Selection(torch.poisson(torch.ones(len(art.observees), dtype=torch.float64), generator=gen),
                         torch.poisson(torch.ones(art.enquete.n.shape[0], dtype=torch.float64), generator=gen))
         m = nouveau_modele(cfg, art)
         m.load_state_dict(final.state_dict())
-        entrainer(m, art, sel, objectif, cfg.calibration, iterations_adam=40, iterations_lbfgs=20)
+        entrainer(m, art, sel, objectif, cfg.calibration, iterations_adam=40, iterations_lbfgs=20, ancre=ancre)
         tirages.append(m.valeurs())
         print(f"      tirage {b + 1}/{cfg.calibration.bootstrap}", end="\r")
     print()
@@ -132,12 +139,12 @@ def executer(args: argparse.Namespace) -> None:
         if not args.rapide and cfg.calibration.bootstrap:
             print(f"[4/4] bootstrap ({cfg.calibration.bootstrap} tirages)")
             tirages = bootstrap(cfg, art, objectif, final)
+            tirages.to_parquet(dossier / f"bootstrap_{objectif.nom}.parquet")      # stabilité des scénarios
             ic = {k: [float(tirages[k].quantile(0.025)), float(tirages[k].quantile(0.975))] for k in tirages}
 
         resultat = {"genere_le": date.today().isoformat(), "objectif": objectif.model_dump(),
                     "parametres": valeurs, "ic95": ic, "metriques_finales": tout,
-                    "validation_croisee": None if cv is None else
-                    cv.drop(columns="pli").groupby("modele").agg(["mean", "std"]).round(4).to_dict(),
+                    "validation_croisee": None if cv is None else resume_validation(cv),
                     "observations": {"sections_mesurees": len(art.observees),
                                      "camions_enquetes": int(art.enquete.n.sum()),
                                      "itineraires": int(art.donnees.chemin_route.shape[0])}}

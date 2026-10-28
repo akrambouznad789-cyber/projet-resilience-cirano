@@ -1,0 +1,177 @@
+{
+  "genere_le": "2026-10-28",
+  "objectif": {
+    "nom": "équilibre",
+    "poids_comptages": 1.0,
+    "poids_enquete": 1.0
+  },
+  "parametres": {
+    "mu": 0.07795921867534854,
+    "beta_hors_autoroute": -0.269771763375607,
+    "beta_estime": 6.698740744318987,
+    "croissance": 0.604663387072173,
+    "erreur_postes": 0.2728217738830574,
+    "fond_10": 3759.9083389537914,
+    "fond_20": 452.1586073778896,
+    "fond_30": 377.18633351061925,
+    "fond_40": 82.6983768766427,
+    "fond_autre": 29.99979557522388,
+    "beta_frontiere_F1": 0.011695547961485142,
+    "beta_frontiere_F10": -0.16112629153802646,
+    "beta_frontiere_F11": -0.16061578905536825,
+    "beta_frontiere_F2": 2.330234191208093e-08,
+    "beta_frontiere_F3": -2.3302341879241265e-08,
+    "beta_frontiere_F7": 0.04567376172655317,
+    "beta_frontiere_F9": 0.2647877408904894
+  },
+  "ic95": {
+    "mu": [
+      0.0690107891502927,
+      0.08445275338601864
+    ],
+    "beta_hors_autoroute": [
+      -0.2820771525501959,
+      -0.24669085764479282
+    ],
+    "beta_estime": [
+      6.175603643272717,
+      7.044084559040802
+    ],
+    "croissance": [
+      0.5039210768060739,
+      0.8257472878367975
+    ],
+    "erreur_postes": [
+      0.2630948981189819,
+      0.2801457977848193
+    ],
+    "fond_10": [
+      3131.1895756833815,
+      4238.751897068221
+    ],
+    "fond_20": [
+      376.61915283016225,
+      496.49925211353246
+    ],
+    "fond_30": [
+      289.96563257751467,
+      417.7684602980541
+    ],
+    "fond_40": [
+      66.94004247223691,
+      107.81695810138366
+    ],
+    "fond_autre": [
+      29.979568195929666,
+      30.026367030515885
+    ],
+    "beta_frontiere_F1": [
+      -0.12376942015459862,
+      0.0731272863419582
+    ],
+    "beta_frontiere_F10": [
+      -0.3719985236929051,
+      0.16958215215748762
+    ],
+    "beta_frontiere_F11": [
+      -0.2435976790111071,
+      -0.029923852439379298
+    ],
+    "beta_frontiere_F2": [
+      -0.002506502084868854,
+      -0.0010034496476358898
+    ],
+    "beta_frontiere_F3": [
+      0.0010034496412420076,
+      0.0025065020533210857
+    ],
+    "beta_frontiere_F7": [
+      -0.020354500512990214,
+      0.11338803000665296
+    ],
+    "beta_frontiere_F9": [
+      0.0027671855370407852,
+      0.42426102055014364
+    ]
+  },
+  "metriques_finales": {
+    "r2_log": 0.5600755160731434,
+    "erreur_mediane": 0.41346395768954025,
+    "part_30": 0.36617647058823527,
+    "nll_enquete": 2.033786385032694,
+    "poste_retrouve": 0.4644752358490566
+  },
+  "validation_croisee": {
+    "B0 : Volet 2": {
+      "r2_log": {
+        "moyenne": 0.5521,
+        "ecart_type": 0.0932
+      },
+      "erreur_mediane": {
+        "moyenne": 0.4419,
+        "ecart_type": 0.0698
+      },
+      "part_30": {
+        "moyenne": 0.3441,
+        "ecart_type": 0.0578
+      },
+      "nll_enquete": {
+        "moyenne": 2.1833,
+        "ecart_type": 0.1218
+      },
+      "poste_retrouve": {
+        "moyenne": 0.4907,
+        "ecart_type": 0.1189
+      }
+    },
+    "B1 : plus rapide": {
+      "r2_log": {
+        "moyenne": 0.5439,
+        "ecart_type": 0.0875
+      },
+      "erreur_mediane": {
+        "moyenne": 0.4504,
+        "ecart_type": 0.0847
+      },
+      "part_30": {
+        "moyenne": 0.3529,
+        "ecart_type": 0.0651
+      },
+      "nll_enquete": {
+        "moyenne": 2.2145,
+        "ecart_type": 0.1213
+      },
+      "poste_retrouve": {
+        "moyenne": 0.5387,
+        "ecart_type": 0.1041
+      }
+    },
+    "modèle calé": {
+      "r2_log": {
+        "moyenne": 0.5314,
+        "ecart_type": 0.1101
+      },
+      "erreur_mediane": {
+        "moyenne": 0.4422,
+        "ecart_type": 0.0884
+      },
+      "part_30": {
+        "moyenne": 0.3544,
+        "ecart_type": 0.0719
+      },
+      "nll_enquete": {
+        "moyenne": 2.0323,
+        "ecart_type": 0.1315
+      },
+      "poste_retrouve": {
+        "moyenne": 0.4679,
+        "ecart_type": 0.1209
+      }
+    }
+  },
+  "observations": {
+    "sections_mesurees": 680,
+    "camions_enquetes": 37235,
+    "itineraires": 257952
+  }
+}

@@ -35,9 +35,13 @@ def probabilites_postes(p: torch.Tensor, e: Enquete) -> torch.Tensor:
     return num / den.clamp(min=EPS)
 
 
-def nll_enquete(p: torch.Tensor, e: Enquete, poids: torch.Tensor) -> torch.Tensor:
-    """− log-vraisemblance composite moyenne par camion enquêté (poids : par groupe)."""
-    q = probabilites_postes(p, e).clamp(EPS, 1 - EPS)
+def nll_enquete(p: torch.Tensor, e: Enquete, poids: torch.Tensor, erreur: torch.Tensor | float = 0.0) -> torch.Tensor:
+    """− log-vraisemblance composite moyenne par camion enquêté (poids : par groupe).
+
+    `erreur` (ε) : probabilité qu'un poste soit noté à tort, franchi ou non (poste mal localisé sur le
+    réseau, déclaration erronée) ; P(noté franchi) = ε + (1 − 2ε)·q.
+    """
+    q = (erreur + (1 - 2 * erreur) * probabilites_postes(p, e)).clamp(EPS, 1 - EPS)
     w = (poids * e.n)[e.groupe]
     ll = e.observe * torch.log(q) + (1 - e.observe) * torch.log(1 - q)
     camions = torch.zeros_like(poids).index_add(0, e.groupe, torch.ones_like(q)).gt(0) * poids * e.n

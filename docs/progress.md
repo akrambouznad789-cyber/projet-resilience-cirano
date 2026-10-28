@@ -83,3 +83,41 @@ Le plan d'ensemble : réseau à plusieurs routes par liaison → modèle d'affec
 **Chiffres** : R² 0,306 (segments mélangés, publié, reproduit à l'identique) → **0,187** (blocs spatiaux). Autoroutes 0,38 → 0,07 ; nationales 0,44 → 0,33. `docs/completion.md` montre désormais les deux, avec l'explication.
 
 **Revue critique** : la validation mélangée laissait fuir l'information des segments voisins (la position est une variable du modèle). C'est exactement le type d'erreur qu'un relecteur ML repère ; elle est maintenant écrite et chiffrée. Conséquence directe pour la suite : le modèle d'affectation ne se calera que sur les 680 sections mesurées, jamais sur des valeurs complétées.
+
+## Phases 2-3 · Modèle d'affectation et calibration (2026-10-27 → 28)
+
+**Fait** — `modele/` (logit à taille de chemin en PyTorch, tenseurs creux, artefact Parquet local), `calibration/` (déviance de Poisson sur les 680 sections mesurées + vraisemblance composite des postes franchis, Adam puis L-BFGS, plis spatiaux et par poste, bases B0 et B1, bootstrap, MLflow) ; `jumeau preparer` (2 min 30) et `jumeau calibrer` (23 min). Artefact : 20 484 paires de lieux, 257 952 itinéraires, 37 235 camions enquêtés, 49 postes localisés (couverture 69 %).
+
+**Ce que le point de contrôle a révélé, dans l'ordre**
+1. Vraisemblance de l'enquête : le crédit partiel de Jaccard biaisait μ de +4 % ; la correspondance exacte ne gardait que 34 % des camions. Retenu : une vraisemblance composite poste par poste, conditionnelle au poste d'interception (tests : μ et β retrouvés à 0,5 % près).
+2. La calibration complète du 27 a planté à l'export JSON, après 20 min (clés en tuple) : corrigé, testé.
+3. **Bootstrap faux.** Ses intervalles à 95 % excluaient l'estimation centrale (μ = 0,0041 hors de [0,0026 ; 0,0028]). Le point final avait pourtant convergé (gradients ~1e-7, 900 pas de plus sans effet). Cause : le départ à chaud ancrait le terme de rappel sur le point final, donc chaque tirage calait une autre perte. Corrigé (`entrainer(..., ancre=)`).
+4. **L'enquête écrasait μ.** Calibrée seule, elle donnait μ = 0,0004/min (0,004 avec le rappel) : le temps n'expliquerait plus le choix de route. Les comptages seuls donnaient 0,060. Diagnostic : erreurs de classement. Un poste « franchi » qu'aucun chemin plausible ne traverse (poste mal localisé, déclaration erronée) coûte moins cher si l'on étale toutes les probabilités. Remède : un taux d'erreur ε, appris (P(noté franchi) = ε + (1 − 2ε)·q).
+
+| Calage (complet, sans validation) | μ (1/min) | β hors autoroute | ε | R² log | NLL enquête |
+|---|---|---|---|---|---|
+| comptages seuls | 0,060 | +4,4 | – | 0,601 | – |
+| enquête seule, sans ε | 0,0041 | −0,52 | – | 0,190 | 2,595 |
+| enquête seule, sans ε ni rappel | 0,00035 | −5,5 | – | 0,174 | 2,493 |
+| enquête seule, ε appris | 0,099 | −0,28 | 0,274 | 0,060 | 2,029 |
+| **équilibre, ε appris (retenu)** | **0,078** | **−0,27** | **0,273** | **0,560** | **2,034** |
+
+ε converge vers 0,274 depuis deux départs (0,06 et 0,31) : il est identifié. Les bases B0 et B1 reçoivent aussi leur propre ε, pour que les NLL restent comparables.
+
+**Chiffres (objectif équilibre, IC bootstrap à 95 %, 20 tirages)** : μ = 0,078 [0,069 ; 0,085] ; β hors autoroute = −0,27 min/km [−0,28 ; −0,25] ; β estimé = 6,7 min/km [6,2 ; 7,0] ; g = 0,60 [0,50 ; 0,83] ; ε = 0,27 [0,26 ; 0,28] ; fond local 3 760 camions/j sur les autoroutes [3 131 ; 4 239].
+
+Validation croisée (5 plis : blocs de 50 km × postes entiers, moyenne ± écart type) :
+
+| | R² log | erreur médiane | part à ±30 % | NLL enquête | poste retrouvé |
+|---|---|---|---|---|---|
+| B0 : routage du Volet 2 | **0,552** ± 0,09 | **0,442** | 0,344 | 2,183 | 0,491 |
+| B1 : plus rapide | 0,544 ± 0,09 | 0,450 | 0,353 | 2,215 | **0,539** |
+| modèle calé | 0,531 ± 0,11 | **0,442** | **0,354** | **2,032** | 0,468 |
+
+**Revue critique**
+- **Le modèle calé ne bat pas le routage du Volet 2 sur les comptages** (R² log 0,53 contre 0,55, écart inférieur à un écart type) ; il gagne sur la vraisemblance de l'enquête (−0,15 nat par camion). Le plus rapide (B1) reste le meilleur pour retrouver le poste d'interception sur le chemin le plus probable. Son apport réel : une répartition calée entre itinéraires, qui permet de simuler un report de trafic. B0 et B1 ne savent pas le faire.
+- ε = 0,27 est élevé : plus d'un quart des lignes (camion, poste) informatives seraient mal notées. C'est cohérent avec la couverture de 69 % et avec Lacolle (un seul nœud frontière par État). Mieux localiser les postes est le levier principal, avant tout raffinement du modèle.
+- β hors autoroute < 0 alors que les comptages seuls disent +4,4 : l'enquête domine ce paramètre. Lecture probable : les vitesses supposées hors autoroute sont trop basses, et β corrige la vitesse plus qu'il ne mesure une préférence.
+- g = 0,60 n'est pas une croissance du camionnage depuis 2006 : g et le fond local par classe sont confondus (le fond absorbe 3 760 camions/j sur autoroute). Ne pas l'interpréter seul.
+- Non identifiés, tenus par le rappel : `fond_autre` (aucune section mesurée de cette classe) et la différence F2 − F3 (|β| < 0,003 min, sans effet).
+- Les intervalles ne couvrent que l'incertitude d'échantillonnage, pas celle de la structure du modèle (ensembles de chemins, vitesses, localisation des postes).

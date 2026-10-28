@@ -21,6 +21,7 @@ parametres_initiaux:
   beta_estime: 0.0          # minutes par km de raccord ou d'accès estimé
   beta_frontiere: 0.0       # minutes par passage, une valeur par point frontière (choix de la frontière)
   croissance: 1.5           # g : camions 2025 / trajets ENR 2006-2007
+  erreur_postes: 0.05       # ε : part des postes notés à tort dans l'enquête (franchi ↔ non franchi)
   fond_par_classe:          # camions par jour absents de l'ENR (trafic local), par classe RTSS
     "10": 300
     "20": 150

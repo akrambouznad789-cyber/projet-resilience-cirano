@@ -9,7 +9,8 @@ camions (même paire de lieux, même poste d'interception i_k, mêmes postes
 québécois franchis O_k) et chaque poste s qu'un de ses chemins peut franchir :
 
     q_ks = P(franchir s | passer par i_k) = Σ_p P(p)·c_kp·1[s ∈ S_p] / Σ_p P(p)·c_kp
-    ln L = Σ_k n_k Σ_s [ o_ks ln q_ks + (1 − o_ks) ln(1 − q_ks) ],   o_ks = 1[s ∈ O_k]
+    q̃_ks = ε + (1 − 2ε)·q_ks          (ε : poste noté à tort, franchi ou non)
+    ln L = Σ_k n_k Σ_s [ o_ks ln q̃_ks + (1 − o_ks) ln(1 − q̃_ks) ],   o_ks = 1[s ∈ O_k]
 
     S_p  = postes situés sur le chemin p
     c_kp = 1 si p passe par le poste d'interception (on ne voit un camion que s'il y
@@ -24,6 +25,12 @@ Pourquoi composite : deux versions ont été essayées et écartées, chiffres �
 gardait que 34 % des camions (un seul poste mal placé invalide tout le camion).
 La vraisemblance composite est convergente, retrouve les vrais paramètres et
 utilise tous les camions ; un poste mal placé ne coûte que sa propre ligne.
+
+Pourquoi ε (2026-10-28) : sans lui, l'enquête seule poussait μ vers 0 (0,0004/min, contre
+0,06 pour les comptages seuls). Un poste « franchi » qu'aucun chemin plausible ne traverse
+(poste mal localisé : 69 % de couverture) se paie moins cher en étalant toutes les probabilités
+qu'en les gardant nettes. ε absorbe ces erreurs ; appris, il vaut ≈ 0,27 depuis deux départs
+différents, et μ redevient du même ordre selon les deux sources.
 """
 
 from __future__ import annotations

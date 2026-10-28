@@ -52,7 +52,7 @@ def construire_demande() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """(lieux, camions, postes).
 
     lieux   : pt, prov, noeud (lieu québécois) ou candidats [(frontière, km d'accès)] (hors Québec)
-    camions : id, o_pt, d_pt, n3 (trajets par an), cat, poste (interception au Québec, sinon None),
+    camions : id, o_pt, d_pt, n3 (trajets par an), t3 (tonnes par an), cat, poste (interception au Québec, sinon None),
               postes_franchis (tuple des postes QC franchis)
     postes  : code, libelle (« VERCHERES (A-30 EAST/EST: MONTREAL - SOREL) ») des postes du Québec
     """
@@ -71,7 +71,7 @@ def construire_demande() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     c["poste"] = c["dcs_code"].where(c["dcs_code"].str.startswith("QC"))
     franchis = charger_postes_franchis(c["id"])
     c["postes_franchis"] = c["id"].astype(str).map(franchis).map(lambda t: t if isinstance(t, tuple) else ())
-    camions = c[["id", "o_pt", "d_pt", "n3", "cat", "poste", "postes_franchis"]].reset_index(drop=True)
+    camions = c[["id", "o_pt", "d_pt", "n3", "t3", "cat", "poste", "postes_franchis"]].reset_index(drop=True)
     qc = df[df["dcs_code"].str.startswith("QC")]
     postes = qc.groupby("dcs_code")["wp_dcs"].first().str.upper().str.strip().reset_index()
     postes.columns = ["code", "libelle"]

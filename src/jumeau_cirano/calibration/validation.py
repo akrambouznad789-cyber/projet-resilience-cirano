@@ -5,7 +5,7 @@ Mesurer honnêtement : plis spatiaux pour les sections (blocs de 50 km entiers
 mis de côté, comme pour le RandomForest), plis par poste pour les camions
 (un poste entier mis de côté), métriques, et deux bases de comparaison.
 
-Bases de comparaison (tout-ou-rien ; seuls g et le fond local sont calés) :
+Bases de comparaison (tout-ou-rien ; seuls g, le fond local et ε sont calés) :
     B0  le routage du Volet 2 : une route par liaison (la meilleure), chemin le plus court en km
     B1  le réseau à plusieurs routes, chemin le plus rapide
 """
@@ -65,7 +65,8 @@ def metriques(modele: ModeleAffectation, art: Artefact, sections: np.ndarray, gr
     ecart = np.abs(ys - yo) / np.maximum(yo, 1)
     r = {"r2_log": float(1 - ((ly - lo) ** 2).sum() / ((lo - lo.mean()) ** 2).sum()),
          "erreur_mediane": float(np.median(ecart)), "part_30": float((ecart <= 0.3).mean()),
-         "nll_enquete": float(nll_enquete(p, art.enquete, torch.as_tensor(groupes.astype(float))))}
+         "nll_enquete": float(nll_enquete(p, art.enquete, torch.as_tensor(groupes.astype(float)),
+                                          modele.theta()["erreur_postes"]))}
     principal = chemin_principal(p, art.donnees.paire, art.donnees.n_paires)
     n = art.enquete.n.numpy()
     g = pd.DataFrame({"poste": art.enquete.poste, "paire": art.enquete.paire, "n": n})[groupes]
@@ -77,7 +78,7 @@ def metriques(modele: ModeleAffectation, art: Artefact, sections: np.ndarray, gr
 
 
 class ModeleFixe(ModeleAffectation):
-    """Base de comparaison : probabilités tout-ou-rien figées ; seuls g et le fond local se calent."""
+    """Base de comparaison : probabilités tout-ou-rien figées ; seuls g, le fond local et ε se calent."""
 
     def __init__(self, p_fixe: torch.Tensor, initiaux: dict[str, float], fond: dict[str, float],
                  frontieres: list[str]) -> None:

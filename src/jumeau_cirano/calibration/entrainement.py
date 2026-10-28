@@ -42,16 +42,21 @@ def perte(modele: ModeleAffectation, art: Artefact, sel: Selection, objectif: Ob
         total = total + objectif.poids_comptages * c
         parts["comptages"] = float(c.detach())
     if objectif.poids_enquete > 0:
-        e = nll_enquete(p, art.enquete, sel.groupes)
+        e = nll_enquete(p, art.enquete, sel.groupes, modele.theta()["erreur_postes"])
         total = total + objectif.poids_enquete * e
         parts["enquete"] = float(e.detach())
     return total, parts
 
 
 def entrainer(modele: ModeleAffectation, art: Artefact, sel: Selection, objectif: Objectif, cal: ParamCalibration,
-              iterations_adam: int | None = None, iterations_lbfgs: int | None = None) -> list[dict]:
-    """Cale `modele` en place ; renvoie l'historique (perte et termes) pour la courbe d'apprentissage."""
-    initiaux = {k: v.detach().clone() for k, v in modele.theta().items()}
+              iterations_adam: int | None = None, iterations_lbfgs: int | None = None,
+              ancre: ModeleAffectation | None = None) -> list[dict]:
+    """Cale `modele` en place ; renvoie l'historique (perte et termes) pour la courbe d'apprentissage.
+
+    `ancre` : modèle vers lequel tire le rappel (défaut : `modele` au départ). Un départ à chaud
+    (bootstrap) doit garder l'ancre de la calibration d'origine, sinon il cale une autre perte.
+    """
+    initiaux = {k: v.detach().clone() for k, v in (modele if ancre is None else ancre).theta().items()}
     params = [p for p in modele.parameters() if p.requires_grad]
     historique = []
     opt = torch.optim.Adam(params, lr=cal.pas_adam)

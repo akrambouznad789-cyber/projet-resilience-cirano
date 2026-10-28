@@ -136,6 +136,7 @@ class ParametresModele(Schema):
     beta_frontiere: float
     croissance: float
     fond_par_classe: dict[str, float]
+    erreur_postes: float
 
 
 class ParamCalibration(Schema):
