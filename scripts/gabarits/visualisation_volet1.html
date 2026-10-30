@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Volet 1 · Le trafic sur chaque liaison</title>
-<meta name="description" content="Résilience du réseau routier québécois, Volet 1 : comptages routiers, complétion des données, routage et trafic par liaison, sur une carte interactive.">
+<title>Module 1 · Estimation du trafic par liaison</title>
+<meta name="description" content="Résilience du réseau routier québécois, module 1 : comptages routiers, complétion des données, routage et trafic par liaison, sur une carte interactive.">
 <!-- Gabarit de scripts/visualisation_volet1.py : les données sont injectées dans
      la balise <script id="donnees">. La coque, le style et le moteur Canvas 2D de
      secours sont repris de scripts/gabarits/visualisation_volet2.html. -->
@@ -238,17 +238,17 @@ a.btn.principal:hover{filter:brightness(1.08)}
 <div class="app">
   <header class="barre">
     <div>
-      <span class="eyebrow">CIRANO · Volet 1 · terminé · mis à jour le <span id="date-gen"></span><span id="mention"></span></span>
-      <h1>Le trafic sur chaque liaison</h1>
+      <span class="eyebrow">CIRANO · Module 1 · terminé · mis à jour le <span id="date-gen"></span><span id="mention"></span></span>
+      <h1>Estimation du trafic par liaison</h1>
     </div>
     <div class="barre-actions">
       <button type="button" class="btn" id="btn-theme" onclick="basculerTheme()"></button>
       <a class="btn" href="https://github.com/akrambouznad789-cyber/projet-resilience-cirano">Code sur GitHub</a>
-      <a class="btn principal" id="btn-v2" href="#">Volet 2 : carte interactive →</a>
+      <a class="btn principal" id="btn-v2" href="#">Module 2 : carte interactive →</a>
     </div>
   </header>
 
-  <nav class="etapes" id="etapes" aria-label="Étapes des trois volets"></nav>
+  <nav class="etapes" id="etapes" aria-label="Étapes des trois modules"></nav>
 
   <main class="scene" id="scene">
     <div id="carte" class="carte" role="region" aria-label="Carte de l'étape courante"></div>
@@ -327,7 +327,7 @@ const ETAPES_V3 = [["Plusieurs routes", "459 routes, 307 liaisons"], ["Le modèl
                    ["Liaisons critiques", "classement"]];
 const URL_V3 = M.publique ? "../jumeau/" : "../jumeau/index.html";
 const ETAPES_V2 = [
-  ["Réseau du volet 1", "point de départ"], ["ENR brute", "114 734 camions"], ["Filtre Québec", "37 603 retenus"],
+  ["Réseau du module 1", "point de départ"], ["ENR brute", "114 734 camions"], ["Filtre Québec", "37 603 retenus"],
   ["Postes d'enquête", "où on les arrête"], ["Rattachement aux nœuds", "lieux → nœuds"], ["Routage sur le graphe", "chemin par camion"],
   ["$ par tonne", "calcul dans la page"], ["Actualisation $ 2026", "calcul dans la page"], ["Valeur par arc", "calcul dans la page"],
 ];
@@ -831,14 +831,14 @@ const champTrafic = k => (k === 4 ? (S.var4 === "cam" ? "c" : "d") + S.m : (S.va
 // ---------- Navigation commune aux deux volets ----------
 function rendreEtapes() {
   const nav = document.getElementById("etapes");
-  nav.innerHTML = `<p class="groupe-etapes v1"><span>Volet 1</span> Le trafic</p>` +
+  nav.innerHTML = `<p class="groupe-etapes v1"><span>Module 1</span> Estimation du trafic</p>` +
     ETAPES.map((e, i) => `<a class="etape v1" href="#etape=${i + 1}" ${i + 1 === S.etape ? 'aria-current="step"' : ""}>
       <b>${i + 1}</b><span>${esc(e.court)}<small>${esc(e.sur)}</small></span></a>`).join("") +
-    `<p class="groupe-etapes v2"><span>Volet 2</span> La valeur</p>` +
+    `<p class="groupe-etapes v2"><span>Module 2</span> Valorisation du fret</p>` +
     ETAPES_V2.map(([court, sur], i) => `<a class="etape v2" href="${M.url_v2}#etape=${i}"><b>${i}</b><span>${esc(court)}<small>${esc(sur)}</small></span></a>`).join("") +
-    `<p class="groupe-etapes v3"><span>Volet 3</span> Le jumeau</p>` +
+    `<p class="groupe-etapes v3"><span>Module 3</span> Jumeau numérique</p>` +
     ETAPES_V3.map(([court, sur], i) => `<a class="etape v3" href="${URL_V3}#etape=${i + 1}"><b>${i + 1}</b><span>${esc(court)}<small>${esc(sur)}</small></span></a>`).join("") +
-    `<p class="etapes-pied"><kbd>←</kbd> <kbd>→</kbd> pour changer d'étape. Survole la carte pour le détail, clique pour choisir.</p>`;
+    `<p class="etapes-pied"><kbd>←</kbd> <kbd>→</kbd> pour changer d'étape. Survoler la carte pour le détail, cliquer pour choisir.</p>`;
 }
 
 // ---------- Briques du panneau ----------
@@ -922,7 +922,7 @@ function contenu1() {
   if (S.couches.has("graphe")) h += legende("Graphe du projet", "Lignes droites entre les villes reliées : le tracé routier vient à l'étape 3.",
     [ligneLeg(trait(C.encre2, 1.6, 0.8), "Lien (paire de villes)", ARCS.length), ...TYPES_NOEUD.map(([t, lib, col]) => ligneLeg(rondLeg(col), lib, types[t]))]);
   if (S.couches.has("rtss")) h += legende("Réseau routier RTSS, par classe", "", CLASSES_RTSS.map(([c, lib], i) => ligneLeg(trait(C.rtss[c], [3, 2.6, 2, 1.8, 1.4][i]), lib, M.rtss_classes[c])));
-  h += note("Survole une section pour voir ses années mesurées ; clique-la pour afficher sa série 2016-2025.");
+  h += note("Survoler une section pour voir ses années mesurées ; cliquer pour afficher sa série 2016-2025.");
   return h;
 }
 function contenu2() {
@@ -938,7 +938,7 @@ function contenu2() {
   h += legende(`Étape la plus avancée utilisée (${cam ? "% camions" : "DJMA"})`, "Du plus fiable au plus incertain : la couleur dit jusqu'où la section a dû descendre dans la cascade.",
     methodes.map(([c, lib, col]) => ligneLeg(trait(col, 3.4), lib, cnt[c] || 0)));
   h += note(`<b>Le KNN géographique n'invente pas de station.</b> Il complète une section qui existe dans les données du MTMD mais n'a aucune mesure, avec la moyenne de ses 5 voisines pondérée par 1/distance², en privilégiant la même direction.`);
-  h += note("Clique une section pour comparer, année par année, ce qui a été mesuré et ce qui a été complété.");
+  h += note("Sélectionner une section pour comparer, année par année, ce qui a été mesuré et ce qui a été complété.");
   return h;
 }
 function carteArc3(a) {
@@ -962,7 +962,7 @@ function contenu3() {
     ${tuile(fmt1(M.mediane_km) + " km", "longueur médiane d'un tracé (arcs routés)")}${tuile(fmt(st.hors_quebec || 0), "tracés hors du territoire québécois")}</div>`;
   h += bloc("Couleur des arcs", segment("vue3", [["statut", "Statut du routage"], ["nseg", "Segments retenus"]], S.vue3));
   if (S.arc != null) h += carteArc3(parId.get(S.arc));
-  else h += note("<b>Clique un arc.</b> La carte montre son tracé OSRM, la ligne droite du graphe, les sections retenues (colorées selon leur DJMA) et, s'il fait 6 km ou plus, les zones de 3 km exclues autour de A et B.");
+  else h += note("<b>Sélectionner un arc.</b> La carte montre son tracé OSRM, la ligne droite du graphe, les sections retenues (colorées selon leur DJMA) et, s'il fait 6 km ou plus, les zones de 3 km exclues autour de A et B.");
   if (S.vue3 === "nseg") {
     const n = NSEG.map(([b], i) => ARCS.filter(a => a.nseg >= b && (i === NSEG.length - 1 || a.nseg < NSEG[i + 1][0])).length);
     h += legende("Segments de comptage retenus par arc", "", [...NSEG.map(([, lib], i) => ligneLeg(trait(C.bleu[i], 3.4), lib, n[i])), ligneLeg(trait(C.vide, 2), "Aucun", ARCS.filter(a => !a.nseg).length)]);
@@ -1026,7 +1026,7 @@ function contenu5() {
       [...libellesClasses(BORNES[p]).map((lib, i) => ligneLeg(trait(C.bleu[i], 1.6 + i * 0.6), lib, n[i])), ligneLeg(trait(C.pale, 2), "Sans valeur", sans)]);
   } else {
     if (S.arc != null) h += carteArc45(parId.get(S.arc), 5);
-    h += legende("Les 22 cas particuliers", "Clique un arc orange : son arc donneur s'affiche en vert.",
+    h += legende("Les 22 cas particuliers", "Sélectionner un arc orange : son arc donneur s'affiche en vert.",
       [ligneLeg(trait(C.orange, 4), "Aucun segment retenu : DJMA emprunté", comp.length), ligneLeg(trait(C.encre2, 4), "Tracé hors du Québec : sans valeur", st.hors_quebec || 0),
        ligneLeg(trait(C.pale, 2), "Mesuré directement", st.ok || 0)]);
     h += bloc("Arcs complétés et leur donneur", `<table class="tab"><thead><tr><th>Arc complété</th><th>Donneur</th></tr></thead><tbody>${
@@ -1038,7 +1038,7 @@ function contenu5() {
 
 function rendreLecture() {
   const k = S.etape, e = ETAPES[k - 1];
-  let h = `<div class="tete"><p class="eyebrow">Volet 1 · étape ${k} sur ${N}</p><h2>${esc(e.court)}</h2><p>${esc(e.intro)}</p></div>`;
+  let h = `<div class="tete"><p class="eyebrow">Module 1 · étape ${k} sur ${N}</p><h2>${esc(e.court)}</h2><p>${esc(e.intro)}</p></div>`;
   h += [contenu1, contenu2, contenu3, contenu4, contenu5][k - 1]();
   h += blocCadrage();
   h += `<button type="button" class="lien-texte" data-texte="1">Lire le texte complet de l'étape : méthode, figures et pseudo-code →</button>`;
@@ -1048,12 +1048,12 @@ function rendreLecture() {
 function navigationSuite() {
   const k = S.etape;
   const prec = k > 1 ? `<a href="#etape=${k - 1}">← ${esc(ETAPES[k - 2].court)}</a>` : "<span></span>";
-  const suiv = k < N ? `<a href="#etape=${k + 1}">${esc(ETAPES[k].court)} →</a>` : `<a href="${M.url_v2}#etape=0">Volet 2 : la carte interactive →</a>`;
+  const suiv = k < N ? `<a href="#etape=${k + 1}">${esc(ETAPES[k].court)} →</a>` : `<a href="${M.url_v2}#etape=0">Module 2 : la carte interactive →</a>`;
   return `<nav class="suite" aria-label="Étapes voisines">${prec}${suiv}</nav>`;
 }
 function rendreTexte() {
   const k = S.etape, e = ETAPES[k - 1];
-  document.getElementById("texte").innerHTML = `<div class="tete"><p class="eyebrow">Volet 1 · étape ${k} · texte complet</p><h2>${esc(e.court)}</h2><p>${esc(e.intro)}</p></div>
+  document.getElementById("texte").innerHTML = `<div class="tete"><p class="eyebrow">Module 1 · étape ${k} · texte complet</p><h2>${esc(e.court)}</h2><p>${esc(e.intro)}</p></div>
     <div class="md">${D.textes[k - 1]}</div>${navigationSuite()}`;
 }
 function choisirOnglet(o) {
@@ -1074,7 +1074,7 @@ function contenuBulle(f) {
     return `<strong>Section ${SR.id[i]}${SR.route[i] ? " · route " + esc(SR.route[i]) : ""}</strong><div class="note" style="margin:0 0 4px">${esc(SR.de[i])} → ${esc(SR.a[i])}</div>
       ${l("DJMA 2025", fmt(SR.djma[i][9]))}${l("% camions 2025", pctv(SR.cam[i][9]))}
       ${l("Années mesurées", `DJMA ${p.nd}/10 · camions ${p.nc}/10`)}${S.etape === 2 ? l("Complétion", esc(libMethode(S.vue2 === "cam" ? p.mc : p.md))) : ""}
-      <div class="note">Clique pour la série 2016-2025.</div>`;
+      <div class="note">Cliquer pour la série 2016-2025.</div>`;
   }
   if (id === "graphe") { const a = parId.get(p.id); return `<strong>${esc(nomArc(a))}</strong>${l("Vol d'oiseau", fmt1(p.vol) + " km")}${l("Paire retenue par", esc(SOURCES_LIEN[p.src] || p.src))}`; }
   if (id === "rtss") return `<strong>${p.r ? "Route " + esc(p.r) : "Sous-route"}</strong>${l("Classe", esc((CLASSES_RTSS.find(c => c[0] === p.cl) || [, p.cl])[1]))}`;
@@ -1090,7 +1090,7 @@ function contenuBulle(f) {
     else h += l(`${champ[0] === "c" ? "Camions/jour" : "DJMA"} · m${champ[1]}`, fmt(a[champ])) + l("Segments retenus", fmt(a.nseg));
     if (a.comp) h += `<div class="note">Emprunté à ${esc(nomArc(parId.get(a.don)))}.</div>`;
   }
-  return h + `<div class="note">Clique pour le détail.</div>`;
+  return h + `<div class="note">Cliquer pour le détail.</div>`;
 }
 const PRIORITE = ["noeuds", "segs", "sections", "arcs-hit", "graphe", "rtss"];
 function survoles(map, point) {

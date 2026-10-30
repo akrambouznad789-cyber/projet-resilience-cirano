@@ -1,4 +1,4 @@
-# Volet 3 · Le jumeau : fiche du modèle
+# Module 3 · Jumeau numérique : fiche du modèle
 
 Modèle d'affectation des camions sur le réseau routier québécois, calé sur des observations, puis utilisé pour simuler des fermetures de liaisons. Cette fiche suit le format des *model cards* : à quoi sert le modèle, sur quoi il a été calé, ce qu'il vaut sur des données mises de côté, et ce qu'il ne faut pas lui demander.
 
@@ -25,7 +25,7 @@ Modèle d'affectation des camions sur le réseau routier québécois, calé sur 
 | Débits de circulation 2025 (MTMD) | **cibles** : camions par jour mesurés | 680 sections mesurées en 2025, sur 3 648 portées par une route |
 | Enquête nationale en bordure de route 2006-2007 (MTQ, Transports Canada) | demande (origine, destination, marchandise) et **cibles** : postes franchis par chaque camion | 37 235 camions enquêtés, 20 484 paires de lieux, 257 952 itinéraires |
 
-Les valeurs imputées par le Volet 1 (RandomForest) ne servent jamais de cibles : on n'apprend pas nos propres estimations. Les données de l'ENR sont confidentielles (voir plus bas).
+Les valeurs imputées par le Module 1 (RandomForest) ne servent jamais de cibles : on n'apprend pas nos propres estimations. Les données de l'ENR sont confidentielles (voir plus bas).
 
 ## Le modèle
 
@@ -61,11 +61,11 @@ Validation croisée à 5 plis : blocs de sections de 50 km × postes d'enquête 
 
 | | R² en log | erreur médiane | part à ±30 % | NLL de l'enquête | poste retrouvé |
 |---|---|---|---|---|---|
-| B0 : routage du Volet 2 (plus court, une route) | **0,552** ± 0,09 | **0,442** | 0,344 | 2,183 | 0,491 |
+| B0 : routage du Module 2 (plus court, une route) | **0,552** ± 0,09 | **0,442** | 0,344 | 2,183 | 0,491 |
 | B1 : plus rapide sur le réseau à plusieurs routes | 0,544 ± 0,09 | 0,450 | 0,353 | 2,215 | **0,539** |
 | Modèle calé | 0,531 ± 0,11 | **0,442** | **0,354** | **2,032** | 0,468 |
 
-**Le modèle calé ne bat pas le routage du Volet 2 sur les comptages** (l'écart est inférieur à un écart type). Il gagne nettement sur la vraisemblance de l'enquête (−0,15 nat par camion). Son apport n'est pas de mieux prédire les débits : c'est une répartition calée entre itinéraires, sans laquelle aucun report de trafic ne peut être simulé (B0 et B1 envoient tout sur un seul chemin).
+**Le modèle calé ne bat pas le routage du Module 2 sur les comptages** (l'écart est inférieur à un écart type). Il gagne nettement sur la vraisemblance de l'enquête (−0,15 nat par camion). Son apport n'est pas de mieux prédire les débits : c'est une répartition calée entre itinéraires, sans laquelle aucun report de trafic ne peut être simulé (B0 et B1 envoient tout sur un seul chemin).
 
 ## Scénarios de résilience
 
@@ -85,7 +85,7 @@ Chaque liaison est fermée à tour de rôle (307 scénarios), puis chaque route 
 - **Postes d'enquête mal localisés** : 69 % de couverture, un seul nœud frontière par État (Lacolle notamment). C'est le premier levier d'amélioration, avant tout raffinement du modèle.
 - **Coupures** (27 liaisons) : surtout des artefacts du graphe à 307 liaisons (Bas-Saint-Laurent : l'A-20 et la R-132 sur les mêmes liaisons, ni R-204 ni traversiers).
 - **Les intervalles et la robustesse** ne couvrent que l'incertitude d'échantillonnage, pas celle de la structure du modèle. Un classement stable n'est pas un classement exact.
-- **Montants provisoires** : 90 $/h par camion et 3 000 $/t, à remplacer par le guide avantages-coûts du MTMD et les $/t du Volet 2. Une fermeture réelle dure des jours : les montants sont donnés par an de fermeture et par jour.
+- **Montants provisoires** : 90 $/h par camion et 3 000 $/t, à remplacer par le guide avantages-coûts du MTMD et les $/t du Module 2. Une fermeture réelle dure des jours : les montants sont donnés par an de fermeture et par jour.
 
 ## Confidentialité
 
