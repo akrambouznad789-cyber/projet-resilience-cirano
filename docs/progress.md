@@ -229,3 +229,20 @@ Branche `feature/demo-academique`. Demande : une version simple pour des univers
 - **Reports lointains** : 20 fermetures sur 307 ajoutent au moins 100 camions/j à la frontière Rouyn–Ontario, surtout autour de Valleyfield et Châteauguay ; 305 à 330 camions/j sur la 117 pour Saint-Hyacinthe–Drummondville. Les hors-Québec choisissent leur frontière avec un accès estimé à 1,2 × le vol d'oiseau, et le réseau ontarien n'est pas modélisé. Mention ajoutée aux limites ; le mécanisme exact n'a pas été retracé paire par paire.
 - **Liaisons frontalières en tête du classement** : 1 à 4 h de détour par camion, peut-être surestimées (peu de points frontières dans le graphe).
 - La mesure du temps perdu reste un coût composite (pénalités hors autoroute comprises) : un ordre de grandeur, pas des heures chronométrées.
+
+## Terrain ML · phase 0 · Clôture de la version de présentation (2026-11-16)
+
+Première étape d'une course en cinq phases qui prépare le jumeau à l'apprentissage automatique (atlas des données, tables d'apprentissage, calage plus rapide, carte des pistes). Un labo d'apprentissage automatique travaille en parallèle sur ce dépôt ; ses questions lui sont réservées et ses fichiers ne sont pas touchés d'ici.
+
+**Fait**
+- `CLAUDE.md` : section « Labo ML (session parallèle) », en commit séparé (`28c16bd`).
+- `tests/test_demo.py` : 4 lignes de plus de 120 caractères repliées. `ruff check` échouait : l'étape « Style » de la CI aurait échoué au premier push de la branche.
+- Les quatre pages régénérées par leurs scripts : Module 1, Module 2 (publique), Module 3 (publique et locale), version de présentation.
+
+**Chiffres**
+- 46 tests réussis ; `ruff check src tests` : 4 erreurs → 0 ; contrat `docs/api/openapi.json` inchangé après `jumeau openapi`.
+- Pages : dans les quatre fichiers, seule la date de génération change (2026-10-30 → 2026-11-16). Données, textes et scripts intégrés sont identiques à l'octet près.
+
+**Revue critique**
+- Les tests passaient, mais pas le style : la CI ne tourne qu'au push et cette branche n'a jamais été poussée. Avant chaque commit : `uv run ruff check src tests && uv run pytest`.
+- Une régénération identique prouve que les pages se reproduisent sur cette machine (mêmes artefacts locaux, mêmes versions de bibliothèques). Elle ne revalide pas les chiffres qu'elles affichent.
