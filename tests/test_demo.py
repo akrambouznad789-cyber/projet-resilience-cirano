@@ -23,8 +23,8 @@ def publiques() -> dict:
                 "tonnes_sur_liaison", "valeur_sur_liaison", "cout_perturbation"]
     trace = {"type": "LineString", "coordinates": [[-73.0, 45.0], [-72.0, 46.0]]}
     routes = [{"type": "Feature", "geometry": trace,
-               "properties": {"i": i, "ID_ROUTE": r, "arc": a, "rang": 1, "km": 10.0, "min": 8.0, "auto": 5.0, "nums": "A-20",
-                              "src": "rtss", "multi": 0, "schema": 0, "a": "x", "b": "y"}}
+               "properties": {"i": i, "ID_ROUTE": r, "arc": a, "rang": 1, "km": 10.0, "min": 8.0, "auto": 5.0,
+                              "nums": "A-20", "src": "rtss", "multi": 0, "schema": 0, "a": "x", "b": "y"}}
               for i, (r, a) in enumerate([("1-1", 1), ("2-1", 2), ("2-2", 2)])]
     return {
         "meta": {"genere_le": "2026-01-02", "publique": True, "n_liaisons": 2, "n_routes": 3, "n_sections_mesurees": 7},
@@ -34,7 +34,8 @@ def publiques() -> dict:
                    {"id": "2", "nom": "Petiteville", "type": "municipalite", "lon": -73.0, "lat": 45.0},
                    {"id": "F1", "nom": "Ontario", "type": "frontiere_canada", "lon": -79.0, "lat": 45.0},
                    {"id": "F2", "nom": "Nunavut", "type": "frontiere_canada", "lon": -70.0, "lat": 62.0}],
-        "liaisons": {"ID_ARC": [1, 2], "VILLE_A": ["Saint-Hyacinthe", "Noeud_Drum"], "VILLE_B": ["Drummondville", "Ontario"]},
+        "liaisons": {"ID_ARC": [1, 2], "VILLE_A": ["Saint-Hyacinthe", "Noeud_Drum"],
+                     "VILLE_B": ["Drummondville", "Ontario"]},
         "cale": {"flux": [100.0, 40.0, 60.0], "observations": {"camions_enquetes": 50},
                  "validation": {"modèle calé": {"erreur_mediane": {"moyenne": 0.44, "ecart_type": 0.1}}},
                  "parametres": {"mu": 0.08}, "ic95": {}, "metriques": {}, "objectif": {}, "sections": {}},
@@ -55,7 +56,8 @@ def test_liste_blanche(publiques: dict) -> None:
     sortie = demo.reduire(publiques)
     assert set(sortie) == {"meta", "fond", "routes", "noeuds", "flux", "liaisons"}
     texte = json.dumps(sortie, ensure_ascii=False)
-    for interdit in ("moteur", "prereglages", "parametres", "theta", "secret", "cout_perturbation", "valeur_sur_liaison", "ic95"):
+    for interdit in ("moteur", "prereglages", "parametres", "theta", "secret", "cout_perturbation",
+                     "valeur_sur_liaison", "ic95"):
         assert interdit not in texte
     assert set(sortie["routes"]["features"][0]["properties"]) == {"i", "arc", "km", "nums"}
 
@@ -96,7 +98,8 @@ def test_exemple_par_defaut(publiques: dict) -> None:
 
 def test_refuse_une_page_locale(tmp_path: Path) -> None:
     page = tmp_path / "index.html"
-    page.write_text('<script id="donnees" type="application/json">{"meta":{"publique":false}}</script>', encoding="utf-8")
+    page.write_text('<script id="donnees" type="application/json">{"meta":{"publique":false}}</script>',
+                    encoding="utf-8")
     with pytest.raises(ValueError, match="version publique"):
         demo.publiques(page)
 
