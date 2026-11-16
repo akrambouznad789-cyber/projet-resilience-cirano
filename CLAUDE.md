@@ -52,3 +52,10 @@ Volet 3, le jumeau (paquet `src/jumeau_cirano/`, environnement `uv`, Python 3.12
 ## Commandes Git
 - Avant tout travail : `git checkout -b feature/nom-agent`
 - Après validation : `git add . && git commit -m "message clair"`
+
+## Labo ML (session parallèle)
+- Un labo d'apprentissage automatique travaille sur ce dépôt depuis un worktree séparé, `~/projects/jumeau-labo`, sur des branches `feature/labo-NN-nom`. Ne jamais extraire, modifier, rebaser ni supprimer une branche `feature/labo-*`.
+- Ses fichiers : `labos/` (code des expériences), `docs/labos/` (pages publiques, CSV, figures), `scripts/visualisation_labos.py`, `scripts/gabarits/labo.html`. Ne pas les modifier depuis ici.
+- Les fichiers partagés (`README.md`, `docs/progress.md`, la documentation des modules, `pyproject.toml`, `uv.lock`) ne reçoivent les ajouts du labo qu'à sa fusion, par une PR qu'Akram fusionne lui-même.
+- Le labo a sa propre base MLflow et n'écrit jamais dans `data/` ni dans `outputs/` de ce dossier.
+- Une seule session publie à la fois : avant de pousser sur `main`, demander à Akram.
