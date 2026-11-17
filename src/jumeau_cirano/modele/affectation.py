@@ -30,7 +30,9 @@ locale ; un test vérifie que les deux donnent les mêmes flux.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
+from functools import cached_property
 
 import numpy as np
 import torch
@@ -43,6 +45,41 @@ def creux(lignes: np.ndarray, colonnes: np.ndarray, valeurs: np.ndarray, forme: 
     """Matrice creuse COO (float64)."""
     i = torch.as_tensor(np.vstack([lignes, colonnes]), dtype=torch.long)
     return torch.sparse_coo_tensor(i, torch.as_tensor(valeurs, dtype=torch.float64), forme).coalesce()
+
+
+class _ProduitCreux(torch.autograd.Function):
+    """y = A·x ; le gradient par rapport à x est Aᵀ·g, avec Aᵀ déjà convertie (A est une constante)."""
+
+    @staticmethod
+    def forward(ctx, x: torch.Tensor, a: torch.Tensor, at: torch.Tensor) -> torch.Tensor:  # noqa: ANN001
+        ctx.at = at
+        return torch.mv(a, x)
+
+    @staticmethod
+    def backward(ctx, g: torch.Tensor) -> tuple[torch.Tensor, None, None]:  # noqa: ANN001
+        return torch.mv(ctx.at, g), None, None
+
+
+class OperateurCreux:
+    """x ↦ A·x pour une matrice creuse constante A (incidence), stockée en CSR avec sa transposée.
+
+    Même produit que torch.sparse.mm(A, x), plus vite : en COO, la rétropropagation retransposait la
+    matrice à chaque évaluation, la moitié du temps d'un calage. Les zéros explicites sont retirés,
+    ce qui ne change aucun résultat (ajouter 0·x à une somme la laisse identique).
+    """
+
+    def __init__(self, a: torch.Tensor) -> None:
+        a = a.coalesce()
+        garde = a.values() != 0
+        a = torch.sparse_coo_tensor(a.indices()[:, garde], a.values()[garde], a.shape).coalesce()
+        self.forme = tuple(a.shape)
+        with warnings.catch_warnings():                   # « Sparse CSR tensor support is in beta state »
+            warnings.filterwarnings("ignore", message=".*Sparse CSR tensor support is in beta.*")
+            self.a = a.to_sparse_csr()
+            self.at = a.t().coalesce().to_sparse_csr()
+
+    def __call__(self, x: torch.Tensor) -> torch.Tensor:
+        return _ProduitCreux.apply(x, self.a, self.at)
 
 
 @dataclass
@@ -65,6 +102,16 @@ class Donnees:
     @property
     def n_paires(self) -> int:
         return int(self.n3.shape[0])
+
+    @cached_property
+    def vers_routes(self) -> OperateurCreux:
+        """Chemins → routes : chemin_routeᵀ·x (converti une fois, au premier usage)."""
+        return OperateurCreux(self.chemin_route.t())
+
+    @cached_property
+    def vers_sections(self) -> OperateurCreux:
+        """Routes → sections : route_sectionᵀ·x."""
+        return OperateurCreux(self.route_section.t())
 
 
 def softmax_par_groupe(u: torch.Tensor, groupe: torch.Tensor, n_groupes: int) -> torch.Tensor:
@@ -137,11 +184,11 @@ class ModeleAffectation(nn.Module):
     def flux_routes(self, d: Donnees, p: torch.Tensor) -> torch.Tensor:
         """Camions par jour (2025) sur chaque route."""
         volume = self.theta()["croissance"] * d.n3[d.paire] * p / 365.0
-        return torch.sparse.mm(d.chemin_route.t(), volume[:, None])[:, 0]
+        return d.vers_routes(volume)
 
     def camions_sections(self, d: Donnees, flux: torch.Tensor) -> torch.Tensor:
         """Camions par jour prédits sur chaque section (ENR affectée + fond local)."""
-        return torch.sparse.mm(d.route_section.t(), flux[:, None])[:, 0] + self.theta()["fond"][d.classe_section]
+        return d.vers_sections(flux) + self.theta()["fond"][d.classe_section]
 
     def forward(self, d: Donnees, masque: torch.Tensor | None = None) -> tuple[torch.Tensor, ...]:
         """(P par chemin, flux par route, camions par section)."""

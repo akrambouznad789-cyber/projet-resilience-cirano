@@ -37,6 +37,7 @@ Volets 1 et 2 (venv `~/.venvs/portfolio`) :
 
 Volet 3, le jumeau (paquet `src/jumeau_cirano/`, environnement `uv`, Python 3.12) :
 - `uv run jumeau reseau` → `uv run jumeau preparer` (ENR) → `uv run jumeau calibrer` → `uv run jumeau scenarios`
+- Calage sur l'échantillon (mise au point, ablations) : `uv run jumeau calibrer --echantillon` → `outputs/jumeau/echantillon/` (ENR, jamais publié) ; un essai hors production prend une config avec `publier: false`
 - Page : `uv run python scripts/visualisation_jumeau.py --publique`
 - API : `uv run jumeau exporter`, puis `JUMEAU_ARTEFACT=outputs/jumeau/service uv run jumeau api` ; contrat : `uv run jumeau openapi`
 - Tests : `uv run pytest` (réseaux synthétiques, jamais l'ENR)

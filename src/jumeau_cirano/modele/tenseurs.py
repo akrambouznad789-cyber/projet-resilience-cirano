@@ -36,13 +36,14 @@ différents, et μ redevient du même ordre selon les deux sources.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import torch
 
-from jumeau_cirano.modele.affectation import CLASSES, Donnees, creux
+from jumeau_cirano.modele.affectation import CLASSES, Donnees, OperateurCreux, creux
 
 
 @dataclass
@@ -56,6 +57,22 @@ class Enquete:
     n: torch.Tensor              # G : camions enquêtés du groupe
     poste: np.ndarray            # G : poste d'interception (ou None)
     paire: np.ndarray            # G : indice de paire
+
+    @cached_property
+    def produit_numerateur(self) -> OperateurCreux:
+        """p ↦ numerateur·p (converti une fois, au premier usage)."""
+        return OperateurCreux(self.numerateur)
+
+    @cached_property
+    def produit_denominateur(self) -> OperateurCreux:
+        """p ↦ denominateur·p."""
+        return OperateurCreux(self.denominateur)
+
+    @cached_property
+    def groupe_informatif(self) -> torch.Tensor:
+        """G : vrai si le groupe a au moins une ligne informative (constant : calculé une fois)."""
+        return torch.zeros(self.n.shape[0], dtype=torch.float64).index_add(
+            0, self.groupe, torch.ones(self.groupe.shape[0], dtype=torch.float64)).gt(0)
 
 
 @dataclass

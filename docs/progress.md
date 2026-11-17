@@ -207,3 +207,66 @@ Validation croisée (5 plis : blocs de 50 km × postes entiers, moyenne ± écar
 - L'image embarque GeoPandas et Shapely, dont l'API n'a pas besoin (dépendances principales du paquet). Plus lourde que nécessaire ; à séparer en extras si sa taille gêne.
 - Aucune authentification ni limite de débit : c'est à la passerelle de l'application officielle de les fournir. Des requêtes différentielles répétées (θ, fermetures) pourraient en principe renseigner sur la demande : l'API ne doit tourner qu'à l'intérieur de l'infrastructure du CIRANO.
 - Le premier appel avec un nouveau θ reconstruit un contexte (environ 1 s) ; les 8 derniers sont gardés en cache, sans limite de mémoire plus fine.
+
+## Terrain ML · phase 3 · Calage du Module 3 plus rapide (2026-11-17)
+
+Branche `feature/calage-rapide`, partie de `main`. But : rendre faisables les validations croisées et les ablations du Module 3, sans changer ni le modèle ni la perte. Référence : l'essai MLflow `e98fc7bb` du 2026-10-28 (calage complet « équilibre », 1 382 s). L'essai `bfff3e2d`, resté « RUNNING », appartient au labo : il n'est pas touché.
+
+**Tolérance acceptée (écrite avant d'optimiser)**
+- Évaluation, à θ égal : perte, gradient, probabilités des itinéraires, flux par route et camions par section à un écart relatif ≤ 1e-10. Tout est en float64 ; seul l'ordre des sommes peut changer.
+- Calage complet, même graine et mêmes itérations : chaque paramètre final à |Δ| ≤ 1e-6·|θ| + 1e-8 ; métriques de la validation croisée et finales à |Δ| ≤ 1e-6 ; bornes des intervalles du bootstrap à |Δ| ≤ 1e-6·|b| + 1e-8.
+- Une accélération qui dépasse la tolérance est retirée, même si elle fait gagner du temps.
+
+**Plan en pseudo-code (écrit avant tout script)**
+
+```
+1. profil               script jetable : chargement de l'artefact, une évaluation (avant + arrière),
+                        torch.profiler sur 20 évaluations ; chaque étape de `jumeau calibrer` chronométrée
+2. échantillon          modele/echantillon.py : sous-artefact du couloir Montréal–Québec de configs/reseau.yaml
+                          routes entièrement dans l'emprise ; paires dont TOUS les itinéraires n'empruntent
+                          que ces routes ; leurs itinéraires, groupes de camions et postes ; sections de ces routes
+                        → outputs/jumeau/artefact_echantillon/ (local : dérivé de l'ENR)
+                        `jumeau calibrer --echantillon` : résultats dans outputs/jumeau/echantillon/, jamais publiés
+3. référence            le code de `main`, exporté tel quel (git archive) hors du dépôt, lancé sur un dossier
+                        d'essai (outputs/jumeau/calage_rapide/<cas>/, artefact par lien symbolique) :
+                        les sorties de production et docs/jumeau/ ne bougent pas ; échantillon, puis Québec
+4. accélérer            l'implémentation seulement, d'après le profil (produits creux, structures constantes,
+                        chargement) ; même optimiseur, mêmes itérations, même graine
+5. comparer             même dossier d'essai, même base MLflow : essai accéléré contre essai de référence,
+                        échantillon puis Québec ; écarts contre la tolérance ; temps avant / après
+6. tests                parité de l'ancienne et de la nouvelle évaluation (perte, gradient) sur réseau
+                        synthétique ; sous-artefact cohérent ; uv run ruff check src tests && uv run pytest
+```
+
+**Fait**
+- Profil (Québec) : une évaluation de la perte, avant et arrière, coûtait 313 ms, dont 76 % dans `addmm`, c'est-à-dire les produits creux en COO. La moitié de ce temps partait dans leur rétropropagation, qui retransposait la matrice à chaque appel. Le chargement de l'artefact ne pèse que 3 s.
+- `modele/affectation.py` : `OperateurCreux`, le produit x ↦ A·x stocké en CSR, avec Aᵀ convertie une seule fois et une fonction autograd qui fait passer le gradient par elle ; les zéros explicites sont retirés. Il sert les trois produits chauds : flux par route, camions par section, probabilités des postes. Les matrices COO restent disponibles pour les scénarios, l'API et la page. Les groupes informatifs de l'enquête, constants, sont calculés une fois.
+- `modele/echantillon.py` et `jumeau calibrer --echantillon` : sous-artefact du couloir Montréal–Québec (258 routes, 2 271 paires, 13 712 itinéraires, 2 693 groupes de camions, 298 sections mesurées). Les résultats vont dans `outputs/jumeau/echantillon/` et ne sont jamais publiés. Une clé `publier` (vraie par défaut) dans la configuration du modèle sert aux essais hors production.
+- Référence : le code de `main`, exporté hors du dépôt (`git archive`), a tourné sur des dossiers d'essai (`outputs/jumeau/calage_rapide/`), chacun avec sa base MLflow. Les sorties de production et `docs/jumeau/` n'ont pas bougé.
+- 5 tests : opérateur creux, perte et gradient contre la formulation COO, flux et camions par section, sous-artefact. 42 tests sur la branche.
+
+**Chiffres**
+
+| | Référence (code de `main`) | Accéléré | Rapport |
+|---|---|---|---|
+| Une évaluation de la perte, Québec | 313 ms | 29 ms | 10,8 |
+| Une évaluation, base B0 | 238 ms | 13 ms | 18 |
+| Calage complet, échantillon (durée MLflow) | 56 s | 15 s | 3,6 |
+| Validation croisée, Québec | 885 s | 75 s | 11,8 |
+| Calage complet, Québec (durée MLflow) | 1 345 s | 127 s | 10,6 |
+| Calage complet, Québec (commande, à l'horloge) | 22 min 34 s | 2 min 15 s | 10,0 |
+
+- La référence est déterministe : l'essai d'aujourd'hui redonne à l'identique (écart nul) les 37 grandeurs de l'essai `e98fc7bb` du 2026-10-28.
+- **Critère 2, le calage de bout en bout : tenu.** Échantillon : 50 grandeurs comparées, le plus grand écart vaut 2,5e-5 fois sa tolérance. Québec : 71 grandeurs, le plus grand écart vaut 1,4e-2 fois sa tolérance (une borne du bootstrap de β pour la frontière F2, un paramètre non identifié qui vaut environ 2e-8).
+- **Critère 1, l'évaluation à θ égal : tenu, sauf pour le gradient au point calé.** Perte ≤ 2,6e-16, probabilités identiques, flux et camions par section ≤ 2e-14, tous les gradients à θ₀ ≤ 2,4e-12. À θ̂, le gradient s'écarte de 4,6e-9 en relatif au Québec et de 5e-10 sur l'échantillon, au-delà du seuil de 1e-10.
+
+**Ce que le point de contrôle a révélé**
+1. **Le critère 1 était mal posé pour le gradient au point calé.** À θ̂, le gradient vaut presque zéro (de 7e-9 à 3e-6 selon le paramètre) : c'est une somme de termes qui se compensent, et le moindre changement dans l'ordre des sommes y déplace l'arrondi relatif bien au-delà de 1e-10. Le calcul de référence ne tient pas ce critère contre lui-même : entre 1 et 4 threads, son gradient à θ̂ change de 1,4e-8 en relatif, plus que l'écart du nouveau calcul (4,6e-9). En absolu, tous ces écarts restent de l'ordre de 1e-16. Le critère n'a pas été réécrit après coup ; la décision de garder l'accélération repose sur le critère 2, mesuré de bout en bout et tenu avec au moins deux ordres de grandeur de marge.
+2. Sur l'échantillon, ε atteint sa borne de 0,5 : l'enquête n'y apporte plus d'information, car celle-ci tient surtout aux longs trajets qui franchissent plusieurs postes. L'échantillon sert à comparer deux calculs, pas à estimer le modèle.
+
+**Revue critique**
+- La règle écrite avant d'optimiser voulait qu'une accélération hors tolérance soit retirée. Le critère 1 est dépassé pour le gradient à θ̂, et l'accélération est gardée : c'est un écart à la règle. Il se justifie parce que le code de référence la dépasse lui-même, mais il reste un écart, soumis à validation. Un critère mieux posé aurait borné l'écart absolu du gradient, rapporté à la somme des valeurs absolues de ses termes.
+- Tout le gain vient d'un seul changement, les produits creux. Les autres opérations (copies, indexations : environ les trois quarts des 29 ms qui restent) n'ont pas été touchées. Avec une validation croisée en 75 s, le besoin de la phase est couvert.
+- `--echantillon` reprend l'emprise de `configs/reseau.yaml` ; un autre couloir demanderait une autre emprise. Les comptages du sous-artefact ne voient que la demande des paires gardées.
+- Les scénarios, l'API et la page passent aussi par le nouvel opérateur (leurs tests sont verts), mais la durée de `jumeau scenarios` (17 min) n'a pas été remesurée : elle sort du périmètre de la phase.
+- La CSR de PyTorch est encore en « bêta » (PyTorch l'annonce par un avertissement, rendu muet ici). Une version future pourrait en changer le comportement ; les tests de parité le détecteraient.
