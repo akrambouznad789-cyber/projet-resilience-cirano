@@ -22,6 +22,7 @@ Projet de recherche mené avec Polytechnique Montréal et le CIRANO, en collabor
 - **Module 2, en cours.** Une [carte interactive](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet2/carte_interactive.html) montre, étape par étape, comment une enquête menée auprès de 114 734 camions devient un montant en dollars par liaison.
 - **Module 3, le jumeau numérique.** Un [modèle d'affectation des camions](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/jumeau/), calé sur les comptages de 2025 et sur l'enquête, ferme chaque liaison à tour de rôle et mesure où se reporte le trafic. Il est livré comme un produit d'apprentissage automatique : paquet Python, tests, intégration continue, API et conteneur.
 - **Version de présentation.** Une [page courte](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/demo/), pour un public non spécialisé, résume la démarche en 4 étapes : le réseau, le trafic, la simulation d'une fermeture et les liaisons les plus critiques.
+- **Terrain pour l'apprentissage automatique.** Un [atlas des données](docs/donnees_ml.md) distingue, valeur par valeur, ce que le ministère publie de ce que le projet a complété. Des tables d'apprentissage reproductibles et un calage du Module 3 dix fois plus rapide préparent les [pistes de recherche](docs/pistes_ml.md) que ces données permettent.
 
 ## Trois modules successifs
 
@@ -99,6 +100,16 @@ Le modèle ne prédit pas mieux les débits que le routage simple ; son apport e
 
 **Côté ingénierie :** paquet `src/jumeau_cirano/` (configurations YAML validées, une responsabilité par module), 37 tests sur réseaux synthétiques dont la parité JavaScript / Python à 1e-6, intégration continue, suivi des essais dans MLflow, API FastAPI ([contrat OpenAPI](docs/api/openapi.json)) et image Docker testée par la CI. Les pages des trois modules partagent un thème sombre tiré d'une source unique de jetons de design.
 
+## Terrain pour l'apprentissage automatique
+
+*Novembre 2026.* Avant d'entraîner de nouveaux modèles sur ces données, il faut savoir lesquelles sont des mesures. L'[atlas des données](docs/donnees_ml.md) répond valeur par valeur : 47,7 % des DJMA et 16,0 % des % de camions sont publiés par le ministère, le reste a été complété par le Module 1, et 788 valeurs publiées ont même été remplacées par la complétion. Chaque cible possible y reçoit sa taille effective, comptée en blocs de 50 km, et son piège de fuite.
+
+| Brique | Ce qu'elle apporte |
+|---|---|
+| Tables d'apprentissage (`uv run jumeau tables`) | sections × années, nœuds et liens du graphe RTSS, en Parquet, avec la méthode de chaque valeur ; une cible est toujours une valeur publiée, et un test le garantit |
+| Calage plus rapide | le Module 3 se cale en 2 min 15 s au lieu de 22 min 34 s, sans changer ni le modèle ni la perte : chaque paramètre reste à un millionième près de l'essai de référence |
+| [Carte des pistes](docs/pistes_ml.md) | dix questions de recherche classées, avec leurs données, leur validation sans fuite et leur coût de calcul sur un portable |
+
 ## Outils, expliqués simplement
 
 | Outil | À quoi il sert dans ce projet |
@@ -124,8 +135,8 @@ Le modèle ne prédit pas mieux les débits que le routage simple ; son apport e
 ```
 ├── src/jumeau_cirano/                      Module 3 · le jumeau (paquet Python)
 │   ├── reseau/                              graphe RTSS, routes alternatives, sections, itinéraires
-│   ├── donnees/                             demande ENR, observations
-│   ├── modele/                              affectation (PyTorch) et artefact
+│   ├── donnees/                             demande ENR, observations, tables d'apprentissage
+│   ├── modele/                              affectation (PyTorch), artefact et son échantillon
 │   ├── calibration/                         pertes, entraînement, validation croisée, bootstrap
 │   ├── scenarios/                           fermetures, criticité, robustesse
 │   ├── interface/                           données du moteur JavaScript de la page
@@ -145,9 +156,11 @@ Le modèle ne prédit pas mieux les débits que le routage simple ; son apport e
 │   ├── visualisation_volet2.py              Module 2 · carte interactive (docs/volet2/)
 │   ├── visualisation_jumeau.py              Module 3 · page du jumeau (docs/jumeau/)
 │   ├── visualisation_demo.py                Version de présentation (docs/demo/)
+│   ├── atlas_donnees_ml.py                  Atlas des données pour l'apprentissage automatique
 │   ├── theme_pages.py                       Thème commun des pages (jetons de design)
 │   └── gabarits/                            Gabarits HTML, modules JavaScript, jetons du thème
-├── docs/                                  Une page par étape, la fiche du modèle, le contrat de l'API, le site des trois modules
+├── docs/                                  Une page par étape, la fiche du modèle, le contrat de l'API, le site des trois modules,
+│                                          l'atlas des données et la carte des pistes
 ├── figures/                               Cartes et graphiques
 ├── data/                                  Données d'entrée (MTQ) et résultats (GeoPackage)
 ├── qgis/                                  Projet QGIS livrable, chemins relatifs
@@ -187,6 +200,11 @@ uv run jumeau reseau && uv run jumeau preparer && uv run jumeau calibrer && uv r
 uv run python scripts/visualisation_jumeau.py --publique
 uv run python scripts/visualisation_demo.py       # version de présentation, tirée de la page publique
 uv run jumeau exporter                            # paquet de service, puis : docker build -t jumeau-cirano .
+
+# Terrain pour l'apprentissage automatique (après `jumeau reseau`)
+uv run python scripts/atlas_donnees_ml.py         # atlas : agrégats et figures, données publiques seulement
+uv run jumeau tables                              # tables d'apprentissage dans outputs/ml/ (données publiques)
+uv run jumeau calibrer --echantillon              # calage sur le couloir Montréal–Québec (ENR ; jamais publié)
 ```
 
 Sans accès à l'ENR, l'API se lance sur un réseau de démonstration : `uv run python -m jumeau_cirano.api.synthetique demo && JUMEAU_ARTEFACT=demo uv run jumeau api`.
@@ -216,6 +234,7 @@ This research project (Polytechnique Montréal and CIRANO, with Transport Canada
 - **Phase 2, in progress:** a national roadside truck survey (114,734 trucks, 2006-2007) is replayed on the network to estimate what each truck carries, then the annual value of goods on each link. An [interactive map](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet2/carte_interactive.html) walks through the method step by step. Dollar values are still provisional.
 
 - **Phase 3, the digital twin:** up to three alternative routes per link are found on the provincial road network, and a path-size logit route-choice model is calibrated with PyTorch on 2025 truck counts and on the survey (composite likelihood with a learned misclassification rate, spatial cross-validation, bootstrap intervals). It does not beat simple routing on counts (log R² 0.53 vs 0.55) but clearly wins on the survey likelihood, and it is what makes rerouting simulations possible. Every link is closed in turn to rank critical links (stable ranking, Kendall τ 0.994). The [twin page](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/jumeau/) runs the same model in the browser; a FastAPI service in a Docker image, tested in CI, exposes it to the official CIRANO digital twin. See the [model card](docs/jumeau.md).
+- **Groundwork for machine learning:** a [data atlas](docs/donnees_ml.md) separates, value by value, what the ministry publishes from what the project imputed; reproducible learning tables (`jumeau tables`) only ever use published values as targets; Module 3 calibration now runs ten times faster (2 min 15 s instead of 22 min 34 s) with the same model and loss; and a [research map](docs/pistes_ml.md) ranks ten leak-free research directions.
 
 Tools: Python (GeoPandas, Shapely, scikit-learn, NetworkX, PyTorch, MLflow, FastAPI), OSRM routing, QGIS, MapLibre and JavaScript, Docker, GitHub Actions, GitHub Pages.
 

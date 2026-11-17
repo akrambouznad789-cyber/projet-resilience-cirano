@@ -436,3 +436,20 @@ Branche `feature/ml-pistes`, posée sur `feature/ml-tables` et non sur `main` : 
 - La piste 10 dépend de données que le ministère n'a pas encore fournies ; toute nouvelle donnée passe d'abord par l'accord du Pr Trépanier.
 - La durée de `jumeau scenarios` date d'avant l'accélération : les coûts des pistes 6 et 9 sont probablement surestimés.
 - Aucune piste n'a été essayée, même sommairement. Leurs chances de succès ne sont pas évaluées ici.
+
+## Terrain ML · clôture · Intégration des cinq phases (2026-11-17)
+
+Branche `integration/terrain-ml`, partie de `main` : elle réunit, par fusions explicites, `feature/demo-academique` (phase 0), `feature/ml-pistes` (phases 1, 2 et 4, empilées) et `feature/calage-rapide` (phase 3). Rien n'est poussé ; `main` n'a pas bougé.
+
+**Fait**
+- Conflits résolus à la main : ce journal (entrées remises dans l'ordre des phases) et la section Pipeline du `CLAUDE.md` (lignes de la version de présentation gardées, ligne `--echantillon` ajoutée). Le reste a fusionné sans conflit.
+- README : une puce et une section « Terrain pour l'apprentissage automatique », l'organisation du dépôt, les commandes, le résumé anglais. La ligne du README qui compte les tests n'est pas modifiée : elle est réservée au labo.
+- `CLAUDE.md` : la carte des pistes dans l'architecture.
+
+**Chiffres**
+- 62 tests réussis sur la branche intégrée : 37 de `main`, 9 de la version de présentation, 11 des tables, 5 du calage. `ruff check src tests` propre ; contrat `docs/api/openapi.json` inchangé après `jumeau openapi` ; `uv sync --locked` sans changement : aucune dépendance ajoutée.
+
+**Revue critique**
+- La CI n'a pas tourné : rien n'a été poussé. La construction de l'image Docker n'est vérifiée que par elle (Docker est absent de WSL).
+- Le README annonce toujours 37 tests alors qu'il y en a 62 : correction laissée au labo, à qui cette ligne est réservée.
+- Les pages publiques n'ont pas été régénérées : aucune donnée qu'elles affichent n'a changé, et l'onglet « Méthode » du jumeau ne montre que des extraits que la phase 3 n'a pas touchés.

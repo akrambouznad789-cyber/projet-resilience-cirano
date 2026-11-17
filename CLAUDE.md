@@ -25,7 +25,7 @@ Chercheur principal : Akram Bouznad.
 - `/notebooks/` : Exploration et prototypage
 - `/qgis/` : Projets et styles QGIS
 - `/outputs/` : Exports finaux
-- `/docs/` : Documentation et notes de recherche ; `docs/jumeau.md` (fiche du modèle), `docs/progress.md` (journal), `docs/donnees_ml.md` (atlas des données pour l'apprentissage automatique)
+- `/docs/` : Documentation et notes de recherche ; `docs/jumeau.md` (fiche du modèle), `docs/progress.md` (journal), `docs/donnees_ml.md` (atlas des données pour l'apprentissage automatique), `docs/pistes_ml.md` (carte des pistes de recherche)
 - `/src/jumeau_cirano/`, `/configs/`, `/tests/` : le jumeau (Volet 3), ses configurations YAML et ses tests
 
 ## Pipeline
