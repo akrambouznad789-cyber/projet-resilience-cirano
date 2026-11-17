@@ -207,3 +207,51 @@ Validation croisée (5 plis : blocs de 50 km × postes entiers, moyenne ± écar
 - L'image embarque GeoPandas et Shapely, dont l'API n'a pas besoin (dépendances principales du paquet). Plus lourde que nécessaire ; à séparer en extras si sa taille gêne.
 - Aucune authentification ni limite de débit : c'est à la passerelle de l'application officielle de les fournir. Des requêtes différentielles répétées (θ, fermetures) pourraient en principe renseigner sur la demande : l'API ne doit tourner qu'à l'intérieur de l'infrastructure du CIRANO.
 - Le premier appel avec un nouveau θ reconstruit un contexte (environ 1 s) ; les 8 derniers sont gardés en cache, sans limite de mémoire plus fine.
+
+## Terrain ML · phase 1 · Atlas des données pour l'apprentissage automatique (2026-11-16)
+
+Deuxième étape d'une course en cinq phases qui prépare le jumeau à l'apprentissage automatique : clôture de la version de présentation, atlas des données, tables d'apprentissage, calage plus rapide, carte des pistes. Un labo d'apprentissage automatique travaille en parallèle sur ce dépôt. Ses questions lui sont réservées : aucun modèle n'est entraîné ici, et l'atlas ne mesure ni la dynamique des séries, ni le lien entre une cible et ses variables, ni la ressemblance entre sections voisines.
+
+**Plan en pseudo-code (écrit avant tout script)**
+
+```
+1. inventaire()        chaque fichier de data/ et chaque sortie publique : couches, lignes, champs, CRS, taille,
+                       empreinte SHA-256, suivi par git ou non, commande de régénération
+2. sous-agents         un par famille de données, en parallèle, en lecture seule, scripts jetables hors dépôt :
+                       A comptages bruts · B complétion (mesuré / complété, valeur par valeur) · C RTSS et graphe
+                       D liaisons, sorties du Module 1, réseau à plusieurs routes · E ENR (par le code seulement)
+                       F provenance, licences, git
+3. scripts/atlas_donnees_ml.py    recalcule de façon indépendante chaque agrégat cité dans l'atlas
+     series()          fichier brut → format long (section × année × mesure) ; mesuré = valeur présente
+                       dans le fichier du MTQ
+     methode()         valeur absente du brut → interpolation (entre deux mesures), extrapolation (au-delà),
+                       forêt aléatoire (aucun % de camions mesuré), KNN + IDW (aucun DJMA mesuré)
+     blocs()           bloc de 50 km = (⌊x / 50 km⌋, ⌊y / 50 km⌋) du centroïde en EPSG:32198, exactement
+                       comme scripts/validation_spatiale_randomforest.py (contrôle : 149 blocs)
+     taille_effective()  par cible : valeurs, sections, blocs occupés
+     figures()         couverture temporelle (mesuré / complété, par année) et spatiale (par bloc)
+     → docs/donnees_ml/agregats.json et figures/ml_*.png : agrégats seulement
+4. docs/donnees_ml.md  rédigé à partir de agregats.json ; les chiffres des sous-agents sont confrontés au script
+5. contrôles           uv run pytest, ruff, chaque chiffre relu contre sa source, aucun fichier de l'ENR ouvert
+```
+
+**Fait**
+- Six audits en lecture seule, un par famille de données, menés en parallèle par des sous-agents : comptages publiés, complétion, RTSS et graphe, liaisons et sorties du Module 1, ENR (par la lecture du code seulement), provenance et licences.
+- `scripts/atlas_donnees_ml.py` recalcule chaque agrégat de façon indépendante, à partir des fichiers publics : `docs/donnees_ml/agregats.json` et deux figures de couverture (`figures/ml_couverture_temporelle.png`, `figures/ml_couverture_spatiale.png`). Il échoue si la définition des blocs ne redonne plus les 149 blocs de la validation spatiale.
+- `docs/donnees_ml.md` : trois règles de lecture, le statut de chaque valeur (publiée ou complétée, et par quelle méthode), une fiche par jeu de données, les cibles possibles avec leur taille effective et leur piège de fuite, les écarts relevés avec la documentation existante.
+
+**Chiffres**
+- Valeurs publiées par le MTQ : 37 344 DJMA sur 78 230 (47,7 %) et 12 498 % de camions (16,0 %). Le reste est complété : 41,5 % des DJMA par KNN + IDW, dans 3 247 sections sans aucun DJMA.
+- 788 % de camions publiés ont été remplacés par la complétion, dans 455 sections sans DJMA.
+- La forêt aléatoire du Module 1 est entraînée et validée sur 36 660 cibles, dont 68,1 % sont elles-mêmes complétées.
+- Taille effective : 182 blocs de 50 km pour toutes les sections, 159 pour le DJMA publié, 149 pour le % de camions publié, 88 pour les 680 sections de calage du Module 3.
+- Graphe RTSS : 7 326 sections sur 7 823 se rattachent à un lien ; les 1 244 sections étiquetées en 2025 longent 8 391 liens, dans 113 blocs.
+- Relecture : 349 nombres dans la page. 310 se retrouvent tels quels dans `agregats.json` ; les 39 autres (pourcentages dérivés, volumes de l'ENR déjà publiés, chiffres du journal) ont été vérifiés un par un. 37 tests réussis, `ruff` propre.
+
+**Revue critique**
+- « Mesuré » est un abus de langage, hérité des phases précédentes. La fiche du jeu sur Données Québec dit que ces débits viennent d'une méthode statistique d'estimation. Un modèle évalué contre eux mesure son accord avec l'estimation du ministère, pas avec un comptage.
+- Deux constats touchent le Module 1 déjà publié : des valeurs publiées écrasées par le KNN, et une forêt aléatoire validée contre des cibles aux deux tiers complétées. Ni le script de complétion ni ses pages ne sont modifiés ici : l'atlas consigne les écarts, la correction revient au labo qui reprend cette complétion.
+- Le recoupement a servi. Un rapport d'audit donnait 26 blocs pour les sections de calage ; le script et deux autres rapports en donnent 88. Un autre annonçait 21 fichiers non suivis dans `data/processed/` ; il y en a 18. Aucun chiffre d'un rapport n'est entré dans la page sans être recalculé.
+- La copie des données du MTQ n'a pas de date de téléchargement, alors que la source est mise à jour chaque jour. Les empreintes SHA-256 de `agregats.json` figent au moins ce qui a été audité.
+- Le script n'a pas de test automatique et la CI ne le lance pas. Il dépend de `reseau_multi_routes.gpkg`, qui n'est pas dans git.
+- La page n'est liée depuis aucune autre : le README n'est pas modifié sur cette branche, pour ne pas entrer en conflit avec la branche de la version de présentation. Lien à ajouter après la fusion.

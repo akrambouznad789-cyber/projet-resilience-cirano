@@ -1,0 +1,955 @@
+{
+  "genere_le": "2026-11-16",
+  "fichiers": {
+    "data/raw/DebitCirculation.gpkg": {
+      "octets": 31047680,
+      "sha256": "baf712b491992a8caaec9d176db808c19ac36f421e61a2805002a98c419a4679",
+      "suivi_par_git": true,
+      "couches": {
+        "circulation_routier": {
+          "lignes": 7823,
+          "champs": 109,
+          "geometrie": "LineString",
+          "crs_declare": true
+        }
+      }
+    },
+    "data/raw/ReseauRoutier_RTSS.gpkg": {
+      "octets": 24543232,
+      "sha256": "768890656fc33e59c8328359b1274ba91a5151f8707f422c08a4831e6dd2ec3c",
+      "suivi_par_git": true,
+      "couches": {
+        "bgr_v_sous_route_res_sup_act": {
+          "lignes": 12567,
+          "champs": 32,
+          "geometrie": "LineString",
+          "crs_declare": true
+        }
+      }
+    },
+    "data/raw/reseau_arcs.gpkg": {
+      "octets": 225280,
+      "sha256": "f373874084e7cabbb03fdb8500b19520c65b58af225870aa7e1cd5c7a215275b",
+      "suivi_par_git": true,
+      "couches": {
+        "arcs": {
+          "lignes": 307,
+          "champs": 9,
+          "geometrie": "LineString",
+          "crs_declare": false
+        },
+        "noeuds": {
+          "lignes": 229,
+          "champs": 6,
+          "geometrie": "Point",
+          "crs_declare": false
+        }
+      }
+    },
+    "data/processed/debits_completes.gpkg": {
+      "octets": 32935936,
+      "sha256": "51dd30ee461ea52171d5eaba0b76df288c0ba19523deeb419a813ba67cd51641",
+      "suivi_par_git": true,
+      "couches": {
+        "debits_completes": {
+          "lignes": 7823,
+          "champs": 113,
+          "geometrie": "MultiLineString",
+          "crs_declare": true
+        }
+      }
+    },
+    "data/processed/graphe_routier.gpkg": {
+      "octets": 34992128,
+      "sha256": "e0991effad3e9ab0a69d47cdf01028cb4504706414d7b59d00dd80eec09e823b",
+      "suivi_par_git": true,
+      "couches": {
+        "arcs_enrichis": {
+          "lignes": 307,
+          "champs": 21,
+          "geometrie": "LineString",
+          "crs_declare": true
+        },
+        "trajets_segments": {
+          "lignes": 3306,
+          "champs": 8,
+          "geometrie": "MultiLineString",
+          "crs_declare": true
+        },
+        "trace_osrm": {
+          "lignes": 307,
+          "champs": 4,
+          "geometrie": "LineString",
+          "crs_declare": true
+        }
+      }
+    },
+    "data/processed/graphe_routier_djma.gpkg": {
+      "octets": 1019904,
+      "sha256": "b358b6146174e78217adc02acb117f8b88790f92a5411d228ac464f19d7dc16e",
+      "suivi_par_git": true,
+      "couches": {
+        "arcs_enrichis_djma": {
+          "lignes": 307,
+          "champs": 40,
+          "geometrie": "LineString",
+          "crs_declare": true
+        }
+      }
+    },
+    "data/processed/reseau_multi_routes.gpkg": {
+      "octets": 58703872,
+      "sha256": "c16fa9e1d8dc45b21292c81e0d5fc87a2aa6bf0aa4f0e0ad51d3fee359eac4ad",
+      "suivi_par_git": false,
+      "couches": {
+        "liens_rtss": {
+          "lignes": 22655,
+          "champs": 12,
+          "geometrie": "LineString",
+          "crs_declare": true
+        },
+        "noeuds_rtss": {
+          "lignes": 16460,
+          "champs": 3,
+          "geometrie": "Point",
+          "crs_declare": true
+        },
+        "acces": {
+          "lignes": 668,
+          "champs": 3,
+          "geometrie": "LineString",
+          "crs_declare": true
+        },
+        "controle_liaisons": {
+          "lignes": 307,
+          "champs": 16,
+          "geometrie": "Unknown",
+          "crs_declare": true
+        },
+        "routes": {
+          "lignes": 459,
+          "champs": 24,
+          "geometrie": "Unknown",
+          "crs_declare": true
+        },
+        "sections": {
+          "lignes": 7823,
+          "champs": 15,
+          "geometrie": "MultiLineString",
+          "crs_declare": true
+        },
+        "routes_liens": {
+          "lignes": 10412,
+          "champs": 2,
+          "geometrie": null,
+          "crs_declare": false
+        },
+        "routes_sections": {
+          "lignes": 5415,
+          "champs": 3,
+          "geometrie": null,
+          "crs_declare": false
+        }
+      }
+    },
+    "data/processed/reseau_multi_routes_echantillon.gpkg": {
+      "octets": 34426880,
+      "sha256": "816ccba1bb2d8be964f9fb95559e55be135ef7d5dc3ad993222230d9306598bc",
+      "suivi_par_git": false,
+      "couches": {
+        "liens_rtss": {
+          "lignes": 13820,
+          "champs": 12,
+          "geometrie": "LineString",
+          "crs_declare": true
+        },
+        "noeuds_rtss": {
+          "lignes": 9822,
+          "champs": 3,
+          "geometrie": "Point",
+          "crs_declare": true
+        },
+        "acces": {
+          "lignes": 426,
+          "champs": 3,
+          "geometrie": "LineString",
+          "crs_declare": true
+        },
+        "controle_liaisons": {
+          "lignes": 182,
+          "champs": 16,
+          "geometrie": "Unknown",
+          "crs_declare": true
+        },
+        "routes": {
+          "lignes": 268,
+          "champs": 24,
+          "geometrie": "Unknown",
+          "crs_declare": true
+        },
+        "sections": {
+          "lignes": 7823,
+          "champs": 15,
+          "geometrie": "MultiLineString",
+          "crs_declare": true
+        },
+        "routes_liens": {
+          "lignes": 5756,
+          "champs": 2,
+          "geometrie": null,
+          "crs_declare": false
+        },
+        "routes_sections": {
+          "lignes": 3232,
+          "champs": 3,
+          "geometrie": null,
+          "crs_declare": false
+        }
+      }
+    }
+  },
+  "comptages": {
+    "sections": 7823,
+    "annees": [
+      2016,
+      2025
+    ],
+    "valeurs_presentes": {
+      "djma": {
+        "2025": 3882,
+        "2024": 3923,
+        "2023": 3710,
+        "2022": 3429,
+        "2021": 3409,
+        "2020": 3644,
+        "2019": 3873,
+        "2018": 3853,
+        "2017": 3826,
+        "2016": 3795
+      },
+      "djme": {
+        "2025": 3882,
+        "2024": 3923,
+        "2023": 3710,
+        "2022": 3429,
+        "2021": 1489,
+        "2020": 1326,
+        "2019": 3873,
+        "2018": 3853,
+        "2017": 3826,
+        "2016": 3794
+      },
+      "djmh": {
+        "2025": 3882,
+        "2024": 3923,
+        "2023": 3710,
+        "2022": 3429,
+        "2021": 1489,
+        "2020": 1326,
+        "2019": 3873,
+        "2018": 3853,
+        "2017": 3826,
+        "2016": 3794
+      },
+      "cam": {
+        "2025": 1451,
+        "2024": 1606,
+        "2023": 1368,
+        "2022": 1190,
+        "2021": 1168,
+        "2020": 929,
+        "2019": 1232,
+        "2018": 1210,
+        "2017": 1141,
+        "2016": 1203
+      }
+    },
+    "valeurs_presentes_total": {
+      "djma": 37344,
+      "djme": 33105,
+      "djmh": 33105,
+      "cam": 12498
+    },
+    "statut_par_valeur": {
+      "djma": {
+        "2016": {
+          "mesure": 3795,
+          "interpolation": 0,
+          "extrapolation": 781,
+          "foret_aleatoire": 0,
+          "knn_idw": 3247
+        },
+        "2017": {
+          "mesure": 3826,
+          "interpolation": 127,
+          "extrapolation": 623,
+          "foret_aleatoire": 0,
+          "knn_idw": 3247
+        },
+        "2018": {
+          "mesure": 3853,
+          "interpolation": 194,
+          "extrapolation": 529,
+          "foret_aleatoire": 0,
+          "knn_idw": 3247
+        },
+        "2019": {
+          "mesure": 3873,
+          "interpolation": 210,
+          "extrapolation": 493,
+          "foret_aleatoire": 0,
+          "knn_idw": 3247
+        },
+        "2020": {
+          "mesure": 3644,
+          "interpolation": 384,
+          "extrapolation": 548,
+          "foret_aleatoire": 0,
+          "knn_idw": 3247
+        },
+        "2021": {
+          "mesure": 3409,
+          "interpolation": 591,
+          "extrapolation": 576,
+          "foret_aleatoire": 0,
+          "knn_idw": 3247
+        },
+        "2022": {
+          "mesure": 3429,
+          "interpolation": 589,
+          "extrapolation": 558,
+          "foret_aleatoire": 0,
+          "knn_idw": 3247
+        },
+        "2023": {
+          "mesure": 3710,
+          "interpolation": 303,
+          "extrapolation": 563,
+          "foret_aleatoire": 0,
+          "knn_idw": 3247
+        },
+        "2024": {
+          "mesure": 3923,
+          "interpolation": 88,
+          "extrapolation": 565,
+          "foret_aleatoire": 0,
+          "knn_idw": 3247
+        },
+        "2025": {
+          "mesure": 3882,
+          "interpolation": 0,
+          "extrapolation": 694,
+          "foret_aleatoire": 0,
+          "knn_idw": 3247
+        }
+      },
+      "cam": {
+        "2016": {
+          "mesure": 1203,
+          "interpolation": 0,
+          "extrapolation": 2463,
+          "foret_aleatoire": 910,
+          "knn_idw": 3247
+        },
+        "2017": {
+          "mesure": 1141,
+          "interpolation": 774,
+          "extrapolation": 1751,
+          "foret_aleatoire": 910,
+          "knn_idw": 3247
+        },
+        "2018": {
+          "mesure": 1210,
+          "interpolation": 1332,
+          "extrapolation": 1124,
+          "foret_aleatoire": 910,
+          "knn_idw": 3247
+        },
+        "2019": {
+          "mesure": 1232,
+          "interpolation": 1465,
+          "extrapolation": 969,
+          "foret_aleatoire": 910,
+          "knn_idw": 3247
+        },
+        "2020": {
+          "mesure": 929,
+          "interpolation": 1781,
+          "extrapolation": 956,
+          "foret_aleatoire": 910,
+          "knn_idw": 3247
+        },
+        "2021": {
+          "mesure": 1168,
+          "interpolation": 1709,
+          "extrapolation": 935,
+          "foret_aleatoire": 910,
+          "knn_idw": 3101
+        },
+        "2022": {
+          "mesure": 1190,
+          "interpolation": 1670,
+          "extrapolation": 951,
+          "foret_aleatoire": 910,
+          "knn_idw": 3102
+        },
+        "2023": {
+          "mesure": 1368,
+          "interpolation": 1482,
+          "extrapolation": 976,
+          "foret_aleatoire": 910,
+          "knn_idw": 3087
+        },
+        "2024": {
+          "mesure": 1606,
+          "interpolation": 738,
+          "extrapolation": 1499,
+          "foret_aleatoire": 910,
+          "knn_idw": 3070
+        },
+        "2025": {
+          "mesure": 1451,
+          "interpolation": 0,
+          "extrapolation": 2385,
+          "foret_aleatoire": 910,
+          "knn_idw": 3077
+        }
+      }
+    },
+    "statut_total": {
+      "djma": {
+        "mesure": 37344,
+        "interpolation": 2486,
+        "extrapolation": 5930,
+        "foret_aleatoire": 0,
+        "knn_idw": 32470
+      },
+      "cam": {
+        "mesure": 12498,
+        "interpolation": 10951,
+        "extrapolation": 14009,
+        "foret_aleatoire": 9100,
+        "knn_idw": 31672
+      }
+    },
+    "sections_par_nombre_d_annees_mesurees": {
+      "djma": {
+        "0": 3247,
+        "1": 342,
+        "2": 160,
+        "3": 112,
+        "4": 120,
+        "5": 99,
+        "6": 97,
+        "7": 169,
+        "8": 403,
+        "9": 358,
+        "10": 2716
+      },
+      "cam": {
+        "0": 3702,
+        "1": 979,
+        "2": 914,
+        "3": 1060,
+        "4": 642,
+        "5": 157,
+        "6": 52,
+        "7": 46,
+        "8": 47,
+        "9": 92,
+        "10": 132
+      }
+    },
+    "methode_par_section": {
+      "complet / complet": 132,
+      "complet / extrapolation": 1488,
+      "complet / interpolation": 544,
+      "complet / mice": 552,
+      "extrapolation / extrapolation": 905,
+      "extrapolation / interpolation": 2,
+      "extrapolation / mice": 217,
+      "geo_knn / geo_knn": 3247,
+      "interpolation / extrapolation": 519,
+      "interpolation / interpolation": 76,
+      "interpolation / mice": 141
+    },
+    "integrite": {
+      "djma": {
+        "valeurs_mesurees": 37344,
+        "mesurees_modifiees_par_la_completion": 0,
+        "ecart_max_sur_valeur_mesuree": 0.0,
+        "valeurs_encore_manquantes": 0,
+        "n_original_coherent": true,
+        "sections_completes_coherentes": true,
+        "completees_negatives": 0,
+        "completees_nulles": 14,
+        "completees_superieures_a_100": null,
+        "mesurees_nulles": 0
+      },
+      "cam": {
+        "valeurs_mesurees": 12498,
+        "mesurees_modifiees_par_la_completion": 788,
+        "ecart_max_sur_valeur_mesuree": 76.0,
+        "valeurs_encore_manquantes": 0,
+        "n_original_coherent": true,
+        "sections_completes_coherentes": true,
+        "completees_negatives": 0,
+        "completees_nulles": 133,
+        "completees_superieures_a_100": 0,
+        "mesurees_nulles": 1
+      }
+    },
+    "extrapolation_par_recopie": {
+      "djma": 3078,
+      "cam": 6453
+    },
+    "distribution_des_valeurs_publiees": {
+      "djma": {
+        "min": 10.0,
+        "centile_1": 130.0,
+        "mediane": 3500.0,
+        "centile_99": 132000.0,
+        "max": 199000.0
+      },
+      "djme": {
+        "min": 10.0,
+        "centile_1": 150.0,
+        "mediane": 4100.0,
+        "centile_99": 143959.99999999913,
+        "max": 238000.0
+      },
+      "djmh": {
+        "min": 10.0,
+        "centile_1": 100.0,
+        "mediane": 3100.0,
+        "centile_99": 128000.0,
+        "max": 188000.0
+      },
+      "cam": {
+        "min": 0.0,
+        "centile_1": 2.2197,
+        "mediane": 10.1,
+        "centile_99": 36.3,
+        "max": 86.9
+      }
+    },
+    "djma_multiples_de_10": 0.9998,
+    "djma_multiples_de_100": 0.6373,
+    "trentieme_heure_presente": 3680,
+    "geometries": {
+      "LineString": 6303,
+      "MultiLineString": 1520
+    },
+    "longueur_des_sections_m": {
+      "min": 13.7,
+      "mediane": 1288.5,
+      "max": 174028.3
+    },
+    "debut_des_sections": [
+      "1987-05-27",
+      "2026-05-25"
+    ],
+    "index": {
+      "index_agreg": {
+        "O": 4840,
+        "N": 2983
+      },
+      "index_sectn": {
+        "N": 7128,
+        "O": 695
+      },
+      "index_donnees": {
+        "N": 7128,
+        "O": 695
+      }
+    },
+    "doublons": {
+      "ide_sectn_trafc": 0,
+      "num_sectn_trafc": 0,
+      "objectid": 0,
+      "geometrie": 0
+    }
+  },
+  "blocs": {
+    "cote_km": 50,
+    "crs": "EPSG:32198",
+    "definition": "floor(x / 50 km)_floor(y / 50 km) du centroïde de la géométrie"
+  },
+  "cibles": {
+    "toutes_les_sections": {
+      "valeurs": 7823,
+      "sections": 7823,
+      "blocs": 182,
+      "sections_par_bloc_min": 1,
+      "sections_par_bloc_mediane": 8.0,
+      "sections_par_bloc_max": 1003,
+      "part_dans_les_10_blocs_les_plus_denses": 0.5585
+    },
+    "djma_publie": {
+      "valeurs": 37344,
+      "sections": 4576,
+      "blocs": 159,
+      "sections_par_bloc_min": 1,
+      "sections_par_bloc_mediane": 9.0,
+      "sections_par_bloc_max": 354,
+      "part_dans_les_10_blocs_les_plus_denses": 0.4255
+    },
+    "pct_camions_publie": {
+      "valeurs": 12498,
+      "sections": 4121,
+      "blocs": 149,
+      "sections_par_bloc_min": 1,
+      "sections_par_bloc_mediane": 8.0,
+      "sections_par_bloc_max": 377,
+      "part_dans_les_10_blocs_les_plus_denses": 0.4538
+    },
+    "djma_et_pct_camions_meme_annee": {
+      "valeurs": 11693,
+      "sections": 3666,
+      "blocs": 149,
+      "sections_par_bloc_min": 1,
+      "sections_par_bloc_mediane": 8.0,
+      "sections_par_bloc_max": 290,
+      "part_dans_les_10_blocs_les_plus_denses": 0.407
+    },
+    "djma_2025": {
+      "valeurs": 3882,
+      "sections": 3882,
+      "blocs": 155,
+      "sections_par_bloc_min": 1,
+      "sections_par_bloc_mediane": 8.0,
+      "sections_par_bloc_max": 289,
+      "part_dans_les_10_blocs_les_plus_denses": 0.4201
+    },
+    "pct_camions_2025": {
+      "valeurs": 1451,
+      "sections": 1451,
+      "blocs": 118,
+      "sections_par_bloc_min": 1,
+      "sections_par_bloc_mediane": 5.0,
+      "sections_par_bloc_max": 119,
+      "part_dans_les_10_blocs_les_plus_denses": 0.4804
+    },
+    "djma_et_pct_camions_2025": {
+      "valeurs": 1279,
+      "sections": 1279,
+      "blocs": 118,
+      "sections_par_bloc_min": 1,
+      "sections_par_bloc_mediane": 5.0,
+      "sections_par_bloc_max": 94,
+      "part_dans_les_10_blocs_les_plus_denses": 0.43
+    },
+    "sections_de_calage_module_3": {
+      "valeurs": 680,
+      "sections": 680,
+      "blocs": 88,
+      "sections_par_bloc_min": 1,
+      "sections_par_bloc_mediane": 4.0,
+      "sections_par_bloc_max": 56,
+      "part_dans_les_10_blocs_les_plus_denses": 0.4691
+    },
+    "validation_foret_aleatoire": {
+      "valeurs": 36660,
+      "sections": 3666,
+      "blocs": 149,
+      "sections_par_bloc_min": 1,
+      "sections_par_bloc_mediane": 8.0,
+      "sections_par_bloc_max": 290,
+      "part_dans_les_10_blocs_les_plus_denses": 0.407,
+      "cibles_publiees": 11700,
+      "cibles_completees": 24960,
+      "djma_publies": 29618,
+      "djma_completes": 7042
+    },
+    "pct_camions_publie_sans_djma": {
+      "sections": 455,
+      "valeurs": 798,
+      "valeurs_remplacees_par_la_completion": 788,
+      "ecart_absolu_median_points": 4.1,
+      "ecart_absolu_max_points": 76.0,
+      "blocs": 27
+    }
+  },
+  "rtss": {
+    "lignes": 12567,
+    "km": 32243.2,
+    "routes_numerotees": 1066,
+    "par_classe": {
+      "Accès aux ressources": {
+        "lignes": 156,
+        "km": 1181.3
+      },
+      "Accès aux ressources et aux localités isolées": {
+        "lignes": 69,
+        "km": 1159.5
+      },
+      "Autoroute": {
+        "lignes": 4222,
+        "km": 6576.4
+      },
+      "Collectrice": {
+        "lignes": 1963,
+        "km": 7792.1
+      },
+      "Local 1": {
+        "lignes": 18,
+        "km": 36.3
+      },
+      "Local 2": {
+        "lignes": 25,
+        "km": 39.6
+      },
+      "Local 3": {
+        "lignes": 15,
+        "km": 23.3
+      },
+      "Nationale": {
+        "lignes": 2859,
+        "km": 9086.8
+      },
+      "Régionale": {
+        "lignes": 1581,
+        "km": 5585.2
+      },
+      "Sans classe": {
+        "lignes": 1659,
+        "km": 762.7
+      }
+    },
+    "par_statut": {
+      "A": {
+        "lignes": 12113,
+        "km": 31847.7
+      },
+      "F": {
+        "lignes": 139,
+        "km": 30.9
+      },
+      "R": {
+        "lignes": 42,
+        "km": 71.0
+      },
+      "T": {
+        "lignes": 273,
+        "km": 293.7
+      }
+    },
+    "par_cote_de_chaussee": {
+      "0": {
+        "lignes": 6695,
+        "km": 3199.0
+      },
+      "1": {
+        "lignes": 31,
+        "km": 7.5
+      },
+      "2": {
+        "lignes": 4,
+        "km": 2.7
+      },
+      "C": {
+        "lignes": 4096,
+        "km": 23284.8
+      },
+      "D": {
+        "lignes": 868,
+        "km": 2874.6
+      },
+      "G": {
+        "lignes": 873,
+        "km": 2874.6
+      }
+    },
+    "ecart_median_longueur_declaree_m": 1.25
+  },
+  "graphe_rtss": {
+    "quebec": {
+      "liens": 22655,
+      "noeuds": 16460,
+      "km": 31315.6,
+      "liens_estimes_raccords": 173,
+      "km_estimes_raccords": 401.5,
+      "connecteurs_d_acces": 668,
+      "noeuds_de_liaison_raccordes": 229,
+      "connecteurs_de_plus_de_8_km": 36,
+      "connecteur_le_plus_long_km": 1197.5,
+      "degre_des_noeuds": {
+        "3": 10817,
+        "2": 4045,
+        "4": 904,
+        "1": 582,
+        "5": 101,
+        "6": 11
+      },
+      "par_classe": {
+        "00": {
+          "liens": 1567,
+          "km": 714.7
+        },
+        "10": {
+          "liens": 10269,
+          "km": 6503.1
+        },
+        "20": {
+          "liens": 5089,
+          "km": 8996.5
+        },
+        "30": {
+          "liens": 2657,
+          "km": 5578.0
+        },
+        "40": {
+          "liens": 2728,
+          "km": 7559.2
+        },
+        "60": {
+          "liens": 93,
+          "km": 718.6
+        },
+        "70": {
+          "liens": 79,
+          "km": 844.2
+        },
+        "MU": {
+          "liens": 173,
+          "km": 401.5
+        }
+      },
+      "blocs_occupes": 187,
+      "km_par_bloc_mediane": 73.5,
+      "km_par_bloc_max": 1584.1
+    },
+    "echantillon": {
+      "liens": 13820,
+      "noeuds": 9822,
+      "km": 12351.3,
+      "liens_estimes_raccords": 97,
+      "km_estimes_raccords": 248.5,
+      "connecteurs_d_acces": 426,
+      "noeuds_de_liaison_raccordes": 120,
+      "connecteurs_de_plus_de_8_km": 1,
+      "connecteur_le_plus_long_km": 10.4,
+      "degre_des_noeuds": {
+        "3": 6874,
+        "2": 2007,
+        "4": 606,
+        "1": 276,
+        "5": 50,
+        "6": 9
+      },
+      "par_classe": {
+        "00": {
+          "liens": 913,
+          "km": 116.5
+        },
+        "10": {
+          "liens": 7927,
+          "km": 4762.7
+        },
+        "20": {
+          "liens": 2143,
+          "km": 2124.0
+        },
+        "30": {
+          "liens": 1496,
+          "km": 2527.3
+        },
+        "40": {
+          "liens": 1238,
+          "km": 2495.2
+        },
+        "60": {
+          "liens": 2,
+          "km": 25.0
+        },
+        "70": {
+          "liens": 4,
+          "km": 52.0
+        },
+        "MU": {
+          "liens": 97,
+          "km": 248.5
+        }
+      },
+      "blocs_occupes": 25,
+      "km_par_bloc_mediane": 408.2,
+      "km_par_bloc_max": 1481.1
+    }
+  },
+  "liaisons": {
+    "liaisons": 307,
+    "noeuds_dans_la_couche": 229,
+    "noeuds_relies_par_une_liaison": 207,
+    "noeuds_par_type": {
+      "municipalite": 207,
+      "noeud_intermediaire": 11,
+      "frontiere_canada": 7,
+      "frontiere_usa": 4
+    },
+    "noms_de_noeuds_mal_encodes": 52,
+    "statut_module_1": {
+      "ok": 285,
+      "aucun_djma": 19,
+      "hors_quebec": 3
+    },
+    "liaisons_completees_par_emprunt": 19,
+    "rattachements_liaison_section": 3306,
+    "sections_distinctes_module_1": 2648,
+    "sections_sur_plusieurs_liaisons_module_1": 596,
+    "provenance_2025_module_1": {
+      "djma": {
+        "sections_publiees_en_2025": 1214,
+        "liaisons_toutes_sections_publiees": 70,
+        "liaisons_aucune_section_publiee": 10,
+        "liaisons_une_partie": 205
+      },
+      "pct_camions": {
+        "sections_publiees_en_2025": 536,
+        "liaisons_toutes_sections_publiees": 12,
+        "liaisons_aucune_section_publiee": 68,
+        "liaisons_une_partie": 205
+      }
+    },
+    "blocs_des_liaisons": 90,
+    "blocs_des_liaisons_ok": 84,
+    "routes": 459,
+    "routes_par_source": {
+      "rtss": 404,
+      "osrm": 55
+    },
+    "routes_par_rang": {
+      "1": 307,
+      "2": 111,
+      "3": 41
+    },
+    "liaisons_a_plusieurs_routes": 111,
+    "rattachements_route_section": 5415,
+    "sections_sur_une_route": 3648,
+    "sections_sur_plusieurs_routes": 1268,
+    "sections_sur_plusieurs_liaisons": 1014,
+    "routes_sans_section": 26,
+    "routes_avec_section_de_calage": 359,
+    "sections_observees": 1279,
+    "sections_de_calage": 680,
+    "routage_par_liaison": {
+      "rtss": 254,
+      "osrm": 53
+    }
+  },
+  "rattachement_sections_liens": {
+    "tampon_m": 30.0,
+    "liens_hors_troncons_estimes": 22482,
+    "liens_avec_section": 21870,
+    "part_des_km_avec_section": 0.9797,
+    "sections_rattachees": 7326,
+    "sections_non_rattachees": 497,
+    "liens_par_section_mediane": 5.0,
+    "liens_par_section_max": 109,
+    "sections_par_lien_mediane": 2.0,
+    "sections_par_lien_max": 21,
+    "sections_rattachees_djma_2025": 3759,
+    "sections_rattachees_djma_et_pct_camions_2025": 1244,
+    "blocs_des_sections_rattachees_djma_et_pct_camions_2025": 113,
+    "liens_portant_une_section_djma_et_pct_camions_2025": 8391
+  }
+}

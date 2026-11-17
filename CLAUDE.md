@@ -25,7 +25,7 @@ Chercheur principal : Akram Bouznad.
 - `/notebooks/` : Exploration et prototypage
 - `/qgis/` : Projets et styles QGIS
 - `/outputs/` : Exports finaux
-- `/docs/` : Documentation et notes de recherche ; `docs/jumeau.md` (fiche du modèle), `docs/progress.md` (journal)
+- `/docs/` : Documentation et notes de recherche ; `docs/jumeau.md` (fiche du modèle), `docs/progress.md` (journal), `docs/donnees_ml.md` (atlas des données pour l'apprentissage automatique)
 - `/src/jumeau_cirano/`, `/configs/`, `/tests/` : le jumeau (Volet 3), ses configurations YAML et ses tests
 
 ## Pipeline
@@ -41,6 +41,7 @@ Volet 3, le jumeau (paquet `src/jumeau_cirano/`, environnement `uv`, Python 3.12
 - API : `uv run jumeau exporter`, puis `JUMEAU_ARTEFACT=outputs/jumeau/service uv run jumeau api` ; contrat : `uv run jumeau openapi`
 - Tests : `uv run pytest` (réseaux synthétiques, jamais l'ENR)
 - Thème des pages : `scripts/gabarits/theme/jetons.json` → `python scripts/theme_pages.py`
+- Atlas des données pour le ML : `uv run python scripts/atlas_donnees_ml.py` → `docs/donnees_ml/agregats.json`, `figures/ml_*.png` (après `jumeau reseau` ; ni ENR ni modèle)
 
 ## Gestion du contexte
 - Utiliser `/compact` régulièrement entre les agents
