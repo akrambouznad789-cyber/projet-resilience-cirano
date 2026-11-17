@@ -281,6 +281,8 @@ const VIDE = { type: "FeatureCollection", features: [] };
 
 // Couleurs des données (le fond reste neutre ; la couleur porte la donnée)
 const C = PALETTE;   // couleurs des données : scripts/gabarits/theme/jetons.json
+// Contour sombre des nœuds dans les deux thèmes : un nœud clair reste visible même posé sur une liaison claire
+const CONTOUR_NOEUD = THEME === "sombre" ? C.terre : C.encre2;
 const TYPES_NOEUD = [["municipalite", "Municipalité", C.noeud], ["noeud_intermediaire", "Nœud intermédiaire", C.vert],
                      ["frontiere", "Point frontière (province, État)", C.orange]];
 const CLASSES_RTSS = [["auto", "Autoroute"], ["nat", "Nationale"], ["reg", "Régionale"], ["col", "Collectrice"], ["autre", "Autre ou sans classe"]];
@@ -319,7 +321,7 @@ const mediane = v => { const s = v.filter(x => x != null).sort((a, b) => a - b);
 // ---------- Étapes ----------
 const ETAPES = M.etapes.map((e, i) => ({ ...e, vue: ["QC", "SUD", "QC", "QC", "QC"][i] }));
 const N = ETAPES.length;
-const VUES = { QC: [[-80.2, 44.6], [-56.8, 53.9]], SUD: [[-79.6, 44.9], [-64.8, 49.4]], MTL: [[-74.3, 45.22], [-73.15, 45.82]] };
+const VUES = { QC: [[-80.2, 44.6], [-56.8, 53.9]], SUD: [[-79.6, 44.9], [-64.8, 49.4]] };
 // Même liste que ETAPES dans scripts/gabarits/visualisation_volet2.html
 // Étapes du Volet 3 : le jumeau (docs/jumeau/, ou outputs/jumeau/ pour la version complète)
 const ETAPES_V3 = [["Plusieurs routes", "459 routes, 307 liaisons"], ["Le modèle", "logit à taille de chemin"],
@@ -337,7 +339,7 @@ const S = {
   couches: new Set(["graphe", "rtss", "sections"]),
   vue1: "djma", vue2: "djma", vue3: "statut",
   var4: "djma", m: 4, vue4: "valeur",
-  var5: "djma", vue5: "trafic",
+  var5: "djma", vue5: "trafic", rep5: "graphe",
   section: null, arc: null,
 };
 
@@ -720,11 +722,14 @@ function construireCouches(map) {
   map.addLayer({ id: "arcs", type: "line", source: "arcs", layout: rond, paint: { "line-color": C.reseau, "line-width": 1.5, "line-opacity": 1 } });
   map.addLayer({ id: "arcs-hit", type: "line", source: "arcs", paint: { "line-color": "#000", "line-opacity": 0, "line-width": 12 } });
 
+  // Nœuds : plus petits à mesure qu'on zoome, pour laisser voir les liaisons ; noeuds-hit (invisible) garde le survol facile
   map.addSource("noeuds", { type: "geojson", data: noeudsGeojson() });
+  const tailleNoeud = (muni, autre) => ["match", ["get", "type"], "municipalite", muni, autre];
   map.addLayer({ id: "noeuds", type: "circle", source: "noeuds", paint: {
-    "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, ["match", ["get", "type"], "municipalite", 2.2, 3.4], 9, ["match", ["get", "type"], "municipalite", 4.5, 6]],
+    "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, tailleNoeud(2.6, 3.6), 8, tailleNoeud(2, 2.8), 11, tailleNoeud(1.6, 2.2)],
     "circle-color": ["match", ["get", "type"], "municipalite", C.noeud, "noeud_intermediaire", C.vert, C.orange],
-    "circle-stroke-color": C.encre2, "circle-stroke-width": 1 } });
+    "circle-stroke-color": CONTOUR_NOEUD, "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 0.8, 11, 1.2] } });
+  map.addLayer({ id: "noeuds-hit", type: "circle", source: "noeuds", paint: { "circle-radius": 7, "circle-color": "#000", "circle-opacity": 0 } });
 
   map.addControl(new MOTEUR.NavigationControl({ showCompass: false }), "top-right");
   map.addControl(new MOTEUR.ScaleControl({ unit: "metric" }), "bottom-left");
@@ -767,12 +772,26 @@ function cerclesGeojson(id) {
   return { type: "FeatureCollection", features: [a.ida, a.idb].map(i => noeudParId.get(i)).filter(Boolean).map(disque) };
 }
 
+// Liaisons en ligne droite entre leurs deux nœuds (géométrie du graphe, mêmes identifiants que les tracés) :
+// c'est le résultat du module, affiché à l'étape 5 ; les étapes 3 et 4 gardent le tracé routier.
+const GEOM_GRAPHE = new Map(D.graphe.features.map(f => [f.properties.id, f.geometry]));
+const ARCS_GRAPHE = { type: "FeatureCollection",
+  features: D.arcs.features.map(f => ({ ...f, geometry: GEOM_GRAPHE.get(f.properties.id) || f.geometry })) };
+let geomArcs = "trace";
+function geometrieArcs(map, mode) {
+  if (mode === geomArcs) return;
+  map.getSource("arcs").setData(mode === "graphe" ? ARCS_GRAPHE : D.arcs);
+  geomArcs = mode;
+}
+const enGraphe = () => S.etape === 5 && S.rep5 === "graphe";
+
 // ---------- Application d'une étape sur la carte ----------
 const COUCHES = ["rtss", "graphe", "graphe-sel", "section-sel", "sections", "segs-fond", "segs", "cercles-fond", "cercles",
-                 "arcs-sel", "arcs-don", "arcs", "arcs-hit", "noeuds"];
+                 "arcs-sel", "arcs-don", "arcs", "arcs-hit", "noeuds", "noeuds-hit"];
 function appliquerEtape(map) {
   const k = S.etape, on = new Set();
   const arc = S.arc != null ? parId.get(S.arc) : null;
+  geometrieArcs(map, enGraphe() ? "graphe" : "trace");
   if (k === 1) {
     if (S.couches.has("rtss")) on.add("rtss");
     if (S.couches.has("graphe")) { on.add("graphe"); on.add("noeuds"); }
@@ -800,7 +819,7 @@ function appliquerEtape(map) {
   } else {
     ["rtss", "arcs-sel", "arcs", "arcs-hit", "noeuds"].forEach(c => on.add(c));
     if (k === 5) on.add("arcs-don");
-    map.setPaintProperty("rtss", "line-opacity", 0.4);
+    map.setPaintProperty("rtss", "line-opacity", enGraphe() ? 0.2 : 0.4);
     map.setPaintProperty("arcs", "line-opacity", 1);
     if (k === 4 && S.vue4 === "ecart") {
       map.setPaintProperty("arcs", "line-color", exprClasses("ecart", BORNES_ECART, C.or, C.pale));
@@ -817,6 +836,7 @@ function appliquerEtape(map) {
       if (k === 4) map.setPaintProperty("arcs", "line-opacity", ["case", ["==", ["get", "comp"], true], 0.35, 1]);
     }
   }
+  if (on.has("noeuds")) on.add("noeuds-hit");
   COUCHES.forEach(id => map.setLayoutProperty(id, "visibility", on.has(id) ? "visible" : "none"));
   map.setFilter("section-sel", ["==", ["get", "i"], S.section ?? -1]);
   map.setFilter("arcs-sel", ["==", ["get", "id"], S.arc ?? -1]);
@@ -847,7 +867,7 @@ const segment = (cle, options, actif) => `<div class="segment" role="group">${op
   `<button type="button" data-cle="${cle}" data-val="${v}" aria-pressed="${String(v) === String(actif)}">${esc(l)}</button>`).join("")}</div>`;
 const ligneLeg = (forme, lib, n = "") => `<div class="leg">${forme}<span>${lib}</span><span class="n">${n === "" ? "" : fmt(n)}</span></div>`;
 const trait = (couleur, l = 3, op = 1) => `<svg viewBox="0 0 30 12" aria-hidden="true"><line x1="2" y1="6" x2="28" y2="6" stroke="${couleur}" stroke-width="${l}" stroke-opacity="${op}" stroke-linecap="round"/></svg>`;
-const rondLeg = (couleur, r = 4.5) => `<svg viewBox="0 0 30 12" aria-hidden="true"><circle cx="15" cy="6" r="${r}" fill="${couleur}" stroke="${C.encre2}" stroke-width="1"/></svg>`;
+const rondLeg = (couleur, r = 4.5) => `<svg viewBox="0 0 30 12" aria-hidden="true"><circle cx="15" cy="6" r="${r}" fill="${couleur}" stroke="${CONTOUR_NOEUD}" stroke-width="1"/></svg>`;
 const legende = (titre, sous, lignes) => `<div class="legende"><h3>${titre}</h3>${sous ? `<p class="sous">${sous}</p>` : ""}${lignes.join("")}</div>`;
 const bloc = (titre, contenu, sous = "") => `<div class="bloc"><h3>${titre}</h3>${sous ? `<p class="sous">${sous}</p>` : ""}${contenu}</div>`;
 const note = (texte, cls = "") => `<p class="note ${cls}">${texte}</p>`;
@@ -861,11 +881,6 @@ function listeBarres(lignes, couleur) {
   return `<div class="liste-barres">${lignes.map(l => `<div class="lb" ${l.attr || ""}><span class="nom" title="${esc(l.nom)}">${esc(l.nom)}</span>
     <span class="piste"><i style="width:${100 * (l.v || 0) / max}%;background:${l.couleur || couleur}"></i></span><span class="val">${l.lib}</span></div>`).join("")}</div>`;
 }
-function blocCadrage() {
-  return bloc("Cadrer la carte", `<div class="segment" role="group">${[["QC", "Tout le Québec"], ["SUD", "Sud du Québec"], ["MTL", "Grand Montréal"]].map(([v, l]) =>
-    `<button type="button" data-cadrer="${v}" aria-pressed="false">${l}</button>`).join("")}</div>`);
-}
-
 // Série 2016-2025 d'une section : point plein = mesuré par le MTQ, point vide = complété
 function miniGraphe(vals, masque, titre, couleur, unite) {
   const A = SR.annees, W = 380, H = 104, g = 40, d = 8, t = 10, b = 20;
@@ -1017,7 +1032,10 @@ function contenu5() {
   let h = `<div class="tuiles">${tuile(`${fmt(ARCS.length - (st.hors_quebec || 0))} / ${fmt(ARCS.length)}`, "arcs avec un trafic (99 %)")}
     ${tuile(fmt(st.ok || 0), "mesurés directement par leurs segments")}${tuile(fmt(comp.length), "empruntés à l'arc voisin le plus proche (0 km)")}
     ${tuile(fmt(st.hors_quebec || 0), "sans valeur : tracé hors du Québec")}</div>`;
-  h += bloc("Afficher", segment("vue5", [["trafic", "Trafic final (m4)"], ["cas", "Les 22 cas particuliers"]], S.vue5));
+  h += bloc("Afficher", segment("vue5", [["trafic", "Trafic final (m4)"], ["cas", "Les 22 cas particuliers"]], S.vue5) +
+    segment("rep5", [["graphe", "Graphe (résultat)"], ["trace", "Tracés routiers"]], S.rep5));
+  if (S.rep5 === "graphe") h += note("<b>Le résultat du module.</b> Chaque liaison du graphe, une ligne droite entre deux nœuds, porte son trafic. " +
+    "Les Modules 2 et 3 partent de ce graphe ; le tracé routier n'a servi qu'à rattacher les sections de comptage (étape 3).");
   if (S.vue5 === "trafic") {
     h += bloc("Variable", segment("var5", [["djma", "DJMA (véh./jour)"], ["cam", "Camions par jour"]], S.var5));
     const p = S.var5 === "cam" ? "c" : "d", { n, sans } = compter(ARCS.map(a => a[p + "4"]), BORNES[p]);
@@ -1040,7 +1058,6 @@ function rendreLecture() {
   const k = S.etape, e = ETAPES[k - 1];
   let h = `<div class="tete"><p class="eyebrow">Module 1 · étape ${k} sur ${N}</p><h2>${esc(e.court)}</h2><p>${esc(e.intro)}</p></div>`;
   h += [contenu1, contenu2, contenu3, contenu4, contenu5][k - 1]();
-  h += blocCadrage();
   h += `<button type="button" class="lien-texte" data-texte="1">Lire le texte complet de l'étape : méthode, figures et pseudo-code →</button>`;
   h += navigationSuite();
   document.getElementById("lecture").innerHTML = h;
@@ -1068,7 +1085,7 @@ function choisirOnglet(o) {
 function contenuBulle(f) {
   const p = f.properties, l = (a, b) => `<div class="l"><span>${a}</span><span>${b}</span></div>`;
   const id = f.layer.id;
-  if (id === "noeuds") return `<strong>${esc(p.nom)}</strong>${l("Type", esc((TYPES_NOEUD.find(t => t[0] === p.type) || [, p.type])[1]))}${l("Liens", fmt(p.nb))}`;
+  if (id === "noeuds-hit") return `<strong>${esc(p.nom)}</strong>${l("Type", esc((TYPES_NOEUD.find(t => t[0] === p.type) || [, p.type])[1]))}${l("Liens", fmt(p.nb))}`;
   if (id === "sections") {
     const i = p.i;
     return `<strong>Section ${SR.id[i]}${SR.route[i] ? " · route " + esc(SR.route[i]) : ""}</strong><div class="note" style="margin:0 0 4px">${esc(SR.de[i])} → ${esc(SR.a[i])}</div>
@@ -1092,10 +1109,10 @@ function contenuBulle(f) {
   }
   return h + `<div class="note">Cliquer pour le détail.</div>`;
 }
-const PRIORITE = ["noeuds", "segs", "sections", "arcs-hit", "graphe", "rtss"];
+const PRIORITE = ["noeuds-hit", "segs", "sections", "arcs-hit", "graphe", "rtss"];
 function survoles(map, point) {
   const k = S.etape;
-  const couches = { 1: ["noeuds", "sections", "graphe", "rtss"], 2: ["sections"], 3: ["noeuds", "segs", "arcs-hit"], 4: ["noeuds", "arcs-hit"], 5: ["noeuds", "arcs-hit"] }[k]
+  const couches = { 1: ["noeuds-hit", "sections", "graphe", "rtss"], 2: ["sections"], 3: ["noeuds-hit", "segs", "arcs-hit"], 4: ["noeuds-hit", "arcs-hit"], 5: ["noeuds-hit", "arcs-hit"] }[k]
     .filter(c => map.getLayoutProperty(c, "visibility") !== "none");
   const f = couches.length ? map.queryRenderedFeatures(point, { layers: couches }) : [];
   return f.sort((a, b) => PRIORITE.indexOf(a.layer.id) - PRIORITE.indexOf(b.layer.id));
@@ -1159,7 +1176,6 @@ function brancherPanneau() {
     if (!b) return;
     if (b.dataset.cle) { const v = b.dataset.val; S[b.dataset.cle] = /^\d+$/.test(v) ? +v : v; toutRafraichir(); }
     else if (b.dataset.couche) { const c = b.dataset.couche; S.couches.has(c) ? S.couches.delete(c) : S.couches.add(c); toutRafraichir(); }
-    else if (b.dataset.cadrer) { carte?._pret && carte.fitBounds(VUES[b.dataset.cadrer], { padding: 24, duration: 700 }); }
     else if (b.dataset.texte) { choisirOnglet("texte"); document.getElementById("texte").scrollTop = 0; }
     else if (b.dataset.fermer) { S[b.dataset.fermer] = null; toutRafraichir(); }
     else if (b.dataset.arc) choisirArc(+b.dataset.arc, false);
