@@ -10,11 +10,13 @@ La complétion se fait en cascade, du plus fiable au plus incertain.
 
 ### 1. Interpolation / extrapolation temporelle
 
-Les trous internes (un an manquant entouré de valeurs connues) sont comblés par interpolation linéaire. Aux deux extrémités de la plage manquante, chaque bord prolonge son propre **gradient local** — une régression sur les 3 points connus les plus proches de ce bord — plutôt qu'une tendance unique calculée sur toute la plage connue : si le début et la fin de la série n'évoluent pas dans le même sens, un bord ne doit pas hériter de la pente de l'autre.
+Les trous internes (un an manquant entouré de valeurs connues) sont comblés par interpolation linéaire. Aux deux extrémités de la plage manquante, chaque bord prolonge son propre **gradient local** — une régression sur les 3 points connus les plus proches de ce bord — plutôt qu'une tendance unique calculée sur toute la plage connue : si le début et la fin de la série n'évoluent pas dans le même sens, un bord ne doit pas hériter de la pente de l'autre. Ce prolongement est **borné** : une valeur extrapolée ne sort jamais de l'intervalle des valeurs mesurées sur la section, entre la plus petite et la plus grande.
 
-![Interpolation et extrapolation — gradient local par bord](../figures/extrapolation_gradient.png)
+![Extrapolation aux bords — gradient local, borné à l'intervalle mesuré](../figures/extrapolation_gradient.png)
 
-Exemple réel (segment #28787) : entre 2017 et 2022, le DJMA chute d'abord fortement (8 700 → 6 200) puis remonte légèrement (5 300 → 5 900). Une régression globale unique sur ces 6 points aurait extrapolé une pente moyenne descendante sur toute la plage — 2016 estimé à 9 007, 2025 à 3 247 — en contradiction avec la reprise observée en fin de série. En prolongeant plutôt le gradient propre à chaque bord (2017-2019 pour 2016, 2020-2022 pour 2023-2025), 2016 est estimé à 10 300 (cohérent avec la chute qui précède) et 2025 à 6 933 (cohérent avec la reprise qui suit).
+Exemple réel (section 28787, à gauche) : entre 2017 et 2022, le DJMA chute d'abord fortement (8 700 → 6 200) puis remonte légèrement (5 300 → 5 900). Une régression globale unique sur ces 6 points aurait extrapolé une pente moyenne descendante sur toute la plage — 2016 estimé à 9 007, 2025 à 3 247 — en contradiction avec la reprise observée en fin de série. Le gradient propre à chaque bord (2017-2019 pour 2016, 2020-2022 pour 2023-2025) donne 6 933 en 2025, cohérent avec la reprise et compris dans l'intervalle mesuré. Pour 2016, il donnerait 10 300, au-dessus de toute valeur mesurée sur la section : la valeur retenue est le maximum mesuré, 8 700.
+
+Le défaut que la borne corrige (section 33889, rue St-Onge, route 132, à droite) : le ministère y a mesuré 9,2 % de camions en 2017 et 6,0 % en 2018, puis plus rien. Prolongée telle quelle, la pente de ces deux points (−3,2 points par an) donnait 2,8 % en 2019, puis 0 % de 2020 à 2025 : aucun camion sur une route où le ministère en compte. La série s'arrête désormais à la plus petite valeur mesurée, 6,0 %. Avant ce correctif (17 novembre 2026), 53 sections recevaient au moins une année à 0 % de camions, et 7 un DJMA de 0, alors que le ministère y avait mesuré des valeurs positives ; d'autres séries montaient au-dessus de tout ce qui avait été mesuré. La borne joue pour 2 200 sections (% de camions) et 551 sections (DJMA). Avant d'écrire son fichier, le script de complétion vérifie maintenant qu'aucune valeur complétée n'est nulle sur une section mesurée, qu'aucune valeur extrapolée ne sort de l'intervalle mesuré et qu'aucune valeur publiée n'est modifiée.
 
 ### 2. RandomForest (IterativeImputer, MICE)
 
@@ -43,13 +45,15 @@ Ce signal se voit en séparant les prédictions par type de route, le "subset" l
 
 Le second chiffre est la mesure honnête de ce que le modèle sait faire dans une zone sans segment voisin connu : sur les autoroutes, il retrouvait surtout ses voisins. Les % de camions complétés par le RandomForest restent donc des estimations fragiles ; c'est l'une des raisons pour lesquelles le modèle d'affectation du Volet 3 ne se cale que sur des valeurs **mesurées**.
 
+*Ces R² ont été mesurés avant le correctif du 17 novembre 2026 (extrapolation bornée, % de camions publiés conservés), qui modifie un peu les données d'entraînement du RandomForest ; ils n'ont pas été recalculés depuis.*
+
 ### 3. KNN géographique + IDW
 
-En dernier recours, pour les segments sans aucune mesure d'aucune année, complétion par pondération inverse à la distance (IDW, poids = 1/distance²) sur les 5 stations voisines les plus proches, avec priorité aux voisins de même direction (`index_agreg`, nord/ouest).
+En dernier recours, pour les segments sans aucune mesure de DJMA d'aucune année, complétion par pondération inverse à la distance (IDW, poids = 1/distance²) sur les 5 stations voisines les plus proches, avec priorité aux voisins de même direction (`index_agreg`, nord/ouest). Le % de camions n'est emprunté aux voisines que si la section n'en a aucune mesure non plus : 455 sections sans DJMA ont un % de camions publié et gardent leur propre série, complétée à l'étape 1. Avant le 17 novembre 2026, les voisines l'écrasaient : 788 valeurs publiées étaient remplacées.
 
 ![Complétion géographique — KNN + IDW](../figures/knn_geographique.png)
 
-Exemple réel (segment #30014) : ses 5 voisins pondérés vont de 1 520 à 14 015 véh./jour selon leur distance — le plus proche (2 421 véh./jour, à ~1 km) pèse 43 % de l'estimation finale, le plus éloigné (14 015 véh./jour, à ~4,3 km) seulement 14 %. La valeur résultante (5 302 véh./jour) est une moyenne pondérée par cette proximité, pas une simple moyenne des 5.
+Exemple réel (segment #30014) : ses 5 voisins pondérés vont de 1 520 à 14 015 véh./jour selon leur distance — le plus proche (2 421 véh./jour, à ~1 km) pèse 43 % de l'estimation finale, le plus éloigné (14 015 véh./jour, à ~4,3 km) seulement 14 %. La valeur résultante (5 340 véh./jour) est une moyenne pondérée par cette proximité, pas une simple moyenne des 5.
 
 **Important — à ne pas confondre avec la complétion géographique des arcs ([Méthodes](methodes.md)) :** ce KNN comble les trous temporels d'une station de comptage MTQ qui *existe déjà* dans `DebitCirculation.gpkg`, en lui empruntant la série d'une station voisine. Il n'invente jamais une station là où le MTQ n'en a posé aucune. Certains arcs du réseau n'ont d'ailleurs, après le routage et son filtrage, aucun segment propre : ces arcs-là sont traités en aval, une fois le DJMA agrégé par arc : voir « Complétion géographique des échecs » dans [Méthodes](methodes.md), qui leur emprunte le DJMA de l'arc valide le plus proche plutôt que d'inventer une station.
 

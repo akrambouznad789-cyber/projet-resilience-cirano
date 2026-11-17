@@ -29,11 +29,27 @@ ReseauRoutier_RTSS) et localisation géographique — R² = 0,306 en validation
 croisée. Ces features restent internes au modèle, DJME/DJMH ne sont pas
 modifiés dans la sortie.
 
+BORNAGE DE L'EXTRAPOLATION (2026-11-17)
+---------------------------------------
+Prolongée sur jusqu'à 8 ans à partir de 2 ou 3 années connues, la droite du
+gradient local pouvait tomber à 0 (53 sections recevaient un % de camions de 0,
+7 un DJMA de 0, alors que le MTQ y avait mesuré des valeurs positives) ou
+s'envoler au-dessus de tout ce qui avait été mesuré. Une valeur extrapolée est
+désormais bornée à l'intervalle [min, max] des valeurs mesurées sur la section :
+la tendance locale est gardée tant qu'elle reste dans cet intervalle. L'ancienne
+règle (plancher à 0 seulement) reste disponible : _extrapoler_extremites_detail(
+..., borner=False). controler_completion() vérifie ces règles avant l'écriture.
+
+Le même jour : une section sans DJMA publié mais avec un % de camions publié
+(455 sections) garde sa propre série de % camions ; la phase 2 n'emprunte plus
+aux voisines que son DJMA (avant : 788 valeurs publiées remplacées).
+
 MÉTHODES
 ---------------------------
 Phase 1 — Complétion temporelle (≥ 1 valeur connue par métrique) :
   - Trous internes     → interpolation linéaire
-  - Extrémités         → régression linéaire locale par bord (gradient propre à chaque bord)
+  - Extrémités         → régression linéaire locale par bord (gradient propre à chaque bord),
+                         bornée à l'intervalle des valeurs mesurées sur la section
   S'applique à DJMA ET %cam indépendamment.
 
 MICE — pour segments avec DJMA connu mais 0 valeur %cam :
@@ -43,6 +59,7 @@ MICE — pour segments avec DJMA connu mais 0 valeur %cam :
 Phase 2 — Complétion géographique (0 valeur DJMA) :
   - KNN spatial k=5, priorité même index_agreg (N ou O)
   - IDW (inverse distance weighting, poids = 1/distance²)
+  - %cam emprunté aux voisines seulement si la section n'a aucun %cam publié
 
 ENTRÉE
 ------
@@ -51,6 +68,8 @@ ENTRÉE
 SORTIE
 ------
   data/processed/debits_completes.gpkg
+  --echantillon : sections de l'emprise de l'échantillon (configs/reseau.yaml)
+                  → outputs/module1/echantillon/debits_completes.gpkg
 
 CHAMPS PRODUITS
 ---------------
@@ -61,6 +80,8 @@ CHAMPS PRODUITS
   methode_cam                : "complet" | "interpolation" | "extrapolation" | "mice" | "geo_knn"
   n_djma_original            : nb valeurs DJMA avant complétion
   n_cam_original             : nb valeurs %cam avant complétion
+  n_bornees_djma             : nb années DJMA extrapolées ramenées dans l'intervalle mesuré
+  n_bornees_cam              : nb années %cam extrapolées ramenées dans l'intervalle mesuré
 """
 
 import re
@@ -87,6 +108,8 @@ INPUT_FILE  = RACINE / "data" / "raw" / "DebitCirculation.gpkg"
 RTSS_FILE   = RACINE / "data" / "raw" / "ReseauRoutier_RTSS.gpkg"
 OUTPUT_FILE = RACINE / "data" / "processed" / "debits_completes.gpkg"
 OUTPUT_LAYER = "debits_completes"
+SORTIE_ECHANTILLON    = RACINE / "outputs" / "module1" / "echantillon" / "debits_completes.gpkg"
+FICHIER_CONFIG_RESEAU = RACINE / "configs" / "reseau.yaml"   # emprise de l'échantillon (clé « echantillon »)
 
 # Années couvertes : annee_1 = 2025, annee_10 = 2016
 ANNEES   = list(range(2025, 2015, -1))   # [2025, 2024, ..., 2016]
@@ -130,7 +153,8 @@ def _interpoler_trous(vals: np.ndarray) -> np.ndarray:
     return s.values.astype(float)
 
 
-def _extrapoler_extremites(vals: np.ndarray, annees: list[int]) -> np.ndarray:
+def _extrapoler_extremites_detail(vals: np.ndarray, annees: list[int],
+                                  borner: bool = True) -> tuple[np.ndarray, np.ndarray]:
     """
     Extrapole les valeurs manquantes aux extrémités temporelles.
 
@@ -139,55 +163,77 @@ def _extrapoler_extremites(vals: np.ndarray, annees: list[int]) -> np.ndarray:
     qu'une régression unique sur toute la plage connue : si la tendance
     diffère entre le début et la fin de la plage connue, un bord ne doit
     pas hériter du gradient de l'autre.
+
+    borner=True (règle en vigueur) : chaque valeur extrapolée est ramenée dans
+    l'intervalle [min, max] des valeurs connues de la section. Prolongée sur
+    plusieurs années à partir de 2 ou 3 points, une droite peut sinon tomber à 0
+    ou s'envoler. borner=False reproduit l'ancienne règle (plancher à 0 seul).
+
+    Retourne la série complétée et le masque des années bornées (même ordre que
+    `annees`).
     """
     mask_ok = ~np.isnan(vals)
+    bornees = np.zeros(len(vals), dtype=bool)
     if mask_ok.sum() < 2:
         val_unique = vals[mask_ok][0] if mask_ok.sum() == 1 else np.nan
         result = vals.copy()
         result[np.isnan(result)] = val_unique
-        return result
+        return result, bornees
 
     annees_arr = np.array(annees)
     ordre      = np.argsort(annees_arr)      # ordre chronologique croissant
     annees_c   = annees_arr[ordre]
     vals_c     = vals[ordre]
     ok_c       = mask_ok[ordre]
+    bas, haut  = float(np.nanmin(vals_c)), float(np.nanmax(vals_c))
 
     idx_connus = np.where(ok_c)[0]
     i_premier, i_dernier = idx_connus[0], idx_connus[-1]
-    result_c = vals_c.copy()
+    result_c  = vals_c.copy()
+    bornees_c = np.zeros(len(vals_c), dtype=bool)
+
+    def prolonger(fenetre: np.ndarray, manquants: np.ndarray) -> None:
+        reg  = LinearRegression().fit(annees_c[fenetre].reshape(-1, 1), vals_c[fenetre])
+        pred = reg.predict(annees_c[manquants].reshape(-1, 1))
+        if borner:
+            bornees_c[manquants] = (pred < bas) | (pred > haut)
+            result_c[manquants]  = np.clip(pred, bas, haut)
+        else:
+            result_c[manquants]  = np.maximum(pred, 0.0)
 
     if i_premier > 0:
-        fenetre   = idx_connus[:FENETRE_GRADIENT]         # gradient qui vient juste après le trou
-        reg       = LinearRegression().fit(annees_c[fenetre].reshape(-1, 1), vals_c[fenetre])
-        manquants = np.arange(0, i_premier)
-        result_c[manquants] = np.maximum(reg.predict(annees_c[manquants].reshape(-1, 1)), 0.0)
-
+        prolonger(idx_connus[:FENETRE_GRADIENT], np.arange(0, i_premier))                # gradient juste après le trou
     if i_dernier < len(vals_c) - 1:
-        fenetre   = idx_connus[-FENETRE_GRADIENT:]        # gradient présent juste avant le trou
-        reg       = LinearRegression().fit(annees_c[fenetre].reshape(-1, 1), vals_c[fenetre])
-        manquants = np.arange(i_dernier + 1, len(vals_c))
-        result_c[manquants] = np.maximum(reg.predict(annees_c[manquants].reshape(-1, 1)), 0.0)
+        prolonger(idx_connus[-FENETRE_GRADIENT:], np.arange(i_dernier + 1, len(vals_c)))  # gradient juste avant le trou
 
     result = np.empty_like(vals_c)
-    result[ordre] = result_c
-    return result
+    result[ordre]  = result_c
+    bornees[ordre] = bornees_c
+    return result, bornees
 
 
-def _completer_serie(vals: np.ndarray, annees: list[int]) -> tuple[np.ndarray, str]:
+def _extrapoler_extremites(vals: np.ndarray, annees: list[int]) -> np.ndarray:
+    """Série complétée aux extrémités par le gradient local borné (voir _extrapoler_extremites_detail)."""
+    return _extrapoler_extremites_detail(vals, annees)[0]
+
+
+def _completer_serie(vals: np.ndarray, annees: list[int]) -> tuple[np.ndarray, str, int]:
+    """Complétion temporelle d'une série : (valeurs, méthode, nombre d'années bornées)."""
     n_ok = int(np.sum(~np.isnan(vals)))
     if n_ok == N_ANNEES:
-        return vals.copy(), "complet"
+        return vals.copy(), "complet", 0
     if n_ok == 0:
-        return vals.copy(), "geo_knn"
+        return vals.copy(), "geo_knn", 0
 
     v       = _interpoler_trous(vals)
     methode = "interpolation"
+    n_bornees = 0
     if np.isnan(v).any():
-        v       = _extrapoler_extremites(v, annees)
-        methode = "extrapolation"
+        v, bornees = _extrapoler_extremites_detail(v, annees)
+        methode    = "extrapolation"
+        n_bornees  = int(bornees.sum())
 
-    return v, methode
+    return v, methode, n_bornees
 
 
 # ============================================================
@@ -275,30 +321,40 @@ def phase1_temporelle(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
     methodes_djma = []
     methodes_cam  = []
+    bornees_djma  = []
+    bornees_cam   = []
 
     for idx, row in gdf.iterrows():
-        v_djma, m_djma = _completer_serie(_serie_vers_array(row, DJMA_COLS), ANNEES)
+        v_djma, m_djma, b_djma = _completer_serie(_serie_vers_array(row, DJMA_COLS), ANNEES)
         for j, col in enumerate(DJMA_COLS):
             gdf.at[idx, col] = v_djma[j]
         methodes_djma.append(m_djma)
+        bornees_djma.append(b_djma)
 
         v_cam = _serie_vers_array(row, CAM_COLS)
         n_cam = int(np.sum(~np.isnan(v_cam)))
         if n_cam == 0 and row["n_djma_original"] > 0:
             methodes_cam.append("mice")
+            bornees_cam.append(0)
         else:
-            v_cam_c, m_cam = _completer_serie(v_cam, ANNEES)
+            v_cam_c, m_cam, b_cam = _completer_serie(v_cam, ANNEES)
             for j, col in enumerate(CAM_COLS):
                 gdf.at[idx, col] = v_cam_c[j]
             methodes_cam.append(m_cam)
+            bornees_cam.append(b_cam)
 
-    gdf["methode_djma"] = methodes_djma
-    gdf["methode_cam"]  = methodes_cam
+    gdf["methode_djma"]   = methodes_djma
+    gdf["methode_cam"]    = methodes_cam
+    gdf["n_bornees_djma"] = bornees_djma
+    gdf["n_bornees_cam"]  = bornees_cam
 
     print(f"  DJMA complet          : {(gdf['methode_djma']=='complet').sum():>5}")
     print(f"  DJMA interpolé        : {(gdf['methode_djma']=='interpolation').sum():>5}")
-    print(f"  DJMA extrapolé        : {(gdf['methode_djma']=='extrapolation').sum():>5}")
+    print(f"  DJMA extrapolé        : {(gdf['methode_djma']=='extrapolation').sum():>5}"
+          f"  (dont {(gdf['n_bornees_djma'] > 0).sum()} bornées à l'intervalle mesuré)")
     print(f"  DJMA → Phase 2 (KNN)  : {(gdf['methode_djma']=='geo_knn').sum():>5}")
+    print(f"  %cam extrapolé        : {(gdf['methode_cam']=='extrapolation').sum():>5}"
+          f"  (dont {(gdf['n_bornees_cam'] > 0).sum()} bornées à l'intervalle mesuré)")
     print(f"  %cam → MICE           : {(gdf['methode_cam']=='mice').sum():>5}")
     return gdf
 
@@ -478,6 +534,12 @@ def phase2_geographique(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     idx_cibles   = gdf.index[mask_knn].tolist()
     arbre        = cKDTree(coords_src)
 
+    # Une section sans DJMA publié peut avoir un % camions publié (455 sections) : sa série
+    # de % camions, complétée en phase 1 à partir de ses propres mesures, est gardée.
+    # Avant le 2026-11-17, les voisines l'écrasaient (788 valeurs publiées remplacées).
+    cam_publie = gdf["n_cam_original"] > 0
+    n_cam_gardes = int((mask_knn & cam_publie).sum())
+
     n_traites = 0
     for coord, type_cible, idx_seg in zip(coords_cible, types_cibles, idx_cibles):
         idx_voisins, poids, _ = voisins_ponderes(coord, type_cible, coords_src, types_src, src_idx, arbre)
@@ -485,37 +547,113 @@ def phase2_geographique(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         for col in DJMA_COLS:
             vals = gdf.loc[idx_voisins, col].values.astype(float)
             gdf.at[idx_seg, col] = round(float(np.dot(poids, vals)), 0)
-        for col in CAM_COLS:
-            vals = gdf.loc[idx_voisins, col].values.astype(float)
-            gdf.at[idx_seg, col] = round(float(np.dot(poids, vals)), 1)
-
         gdf.at[idx_seg, "methode_djma"] = "geo_knn"
-        gdf.at[idx_seg, "methode_cam"]  = "geo_knn"
+        if not cam_publie.at[idx_seg]:
+            for col in CAM_COLS:
+                vals = gdf.loc[idx_voisins, col].values.astype(float)
+                gdf.at[idx_seg, col] = round(float(np.dot(poids, vals)), 1)
+            gdf.at[idx_seg, "methode_cam"] = "geo_knn"
         n_traites += 1
         if n_traites % 500 == 0:
             print(f"  ...{n_traites}/{mask_knn.sum()} segments traités")
 
-    print(f"  Complétion géographique terminée : {n_traites} segments.")
+    print(f"  Complétion géographique terminée : {n_traites} segments "
+          f"({n_cam_gardes} gardent leur propre % camions publié).")
     return gdf
+
+
+# ============================================================
+# CONTRÔLES — RÈGLES QUE TOUTE VALEUR COMPLÉTÉE DOIT RESPECTER
+# ============================================================
+
+def controler_completion(gdf: gpd.GeoDataFrame, brut: pd.DataFrame) -> None:
+    """
+    Vérifie la sortie avant l'écriture ; lève une ValueError si une règle est violée.
+
+    `brut` : valeurs DJMA et %cam du fichier du MTQ avant complétion (mêmes lignes,
+    colonnes DJMA_COLS + CAM_COLS).
+
+      1. plus aucune valeur manquante ;
+      2. DJMA > 0 et %cam dans [0, 100] ;
+      3. les valeurs publiées par le MTQ restent intactes ;
+      4. aucune valeur complétée ≤ 0 sur une section où le MTQ a mesuré une valeur > 0 ;
+      5. sections interpolées ou extrapolées : chaque valeur complétée reste dans
+         l'intervalle [min, max] des valeurs mesurées sur la section.
+    """
+    print("\n[Contrôles] Règles de la complétion...")
+    ids = gdf["ide_sectn_trafc"].to_numpy()
+    erreurs: list[str] = []
+
+    def signaler(nom: str, regle: str, lignes: np.ndarray) -> None:
+        if lignes.any():
+            exemples = ", ".join(str(x) for x in ids[lignes][:5])
+            erreurs.append(f"{nom} : {regle} — {int(lignes.sum())} sections (ex. {exemples})")
+
+    for nom, cols, suffixe in (("DJMA", DJMA_COLS, "djma"), ("%cam", CAM_COLS, "cam")):
+        v = gdf[cols].to_numpy(dtype=float)
+        b = brut[cols].to_numpy(dtype=float)
+        complete = np.isnan(b)
+
+        signaler(nom, "valeurs manquantes", np.isnan(v).any(axis=1))
+        if suffixe == "djma":
+            signaler(nom, "DJMA ≤ 0", (v <= 0).any(axis=1))
+        else:
+            signaler(nom, "% camions hors de [0, 100]", ((v < 0) | (v > 100)).any(axis=1))
+        signaler(nom, "valeur publiée modifiée", (~complete & (np.abs(v - b) > 1e-6)).any(axis=1))
+        mesure_positive = (np.nan_to_num(b, nan=0.0) > 0).any(axis=1)
+        signaler(nom, "valeur complétée ≤ 0 malgré une mesure > 0",
+                 (complete & (v <= 0)).any(axis=1) & mesure_positive)
+        bas, haut = np.nanmin(b, axis=1), np.nanmax(b, axis=1)       # NaN si rien de mesuré
+        hors = complete & ((v < bas[:, None] - 1e-9) | (v > haut[:, None] + 1e-9))
+        temporelle = gdf[f"methode_{suffixe}"].isin(["interpolation", "extrapolation"]).to_numpy()
+        signaler(nom, "valeur complétée hors de l'intervalle mesuré", hors.any(axis=1) & temporelle)
+
+        n_bornees = gdf[f"n_bornees_{suffixe}"]
+        print(f"  {nom:5s}: {int(n_bornees.sum())} valeurs extrapolées bornées à l'intervalle mesuré "
+              f"({int((n_bornees > 0).sum())} sections)")
+    if erreurs:
+        raise ValueError("Complétion refusée :\n  " + "\n  ".join(erreurs))
+    print("  Toutes les règles sont respectées.")
 
 
 # ============================================================
 # MAIN
 # ============================================================
 
+def filtrer_echantillon(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Sections dont le centroïde tombe dans l'emprise de l'échantillon (configs/reseau.yaml)."""
+    import yaml
+    e = yaml.safe_load(FICHIER_CONFIG_RESEAU.read_text(encoding="utf-8"))["echantillon"]
+    centres = gdf.to_crs(CRS_PROJETE).geometry.centroid.to_crs("EPSG:4326")
+    dedans = centres.x.between(e["lon_min"], e["lon_max"]) & centres.y.between(e["lat_min"], e["lat_max"])
+    print(f"  Échantillon « {e['nom']} » : {int(dedans.sum())} sections sur {len(gdf)}")
+    return gdf[dedans.to_numpy()].reset_index(drop=True)
+
+
 def main() -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description="Complétion des données de débit (Module 1).")
+    parser.add_argument("--echantillon", action="store_true",
+                        help="emprise de l'échantillon seulement ; sortie dans outputs/module1/echantillon/")
+    args = parser.parse_args()
+    sortie = SORTIE_ECHANTILLON if args.echantillon else OUTPUT_FILE
+
     print("=" * 60)
-    print("completer_debits_v2.py")
+    print("completion_donnees_randomforest.py")
     print("Complétion des données de débit — CIRANO")
     print("=" * 60)
 
     print(f"\nChargement : {INPUT_FILE}")
     gdf = gpd.read_file(INPUT_FILE)
     print(f"  {len(gdf)} segments chargés")
+    if args.echantillon:
+        gdf = filtrer_echantillon(gdf)
+    brut = gdf[DJMA_COLS + CAM_COLS].apply(pd.to_numeric, errors="coerce")
 
     gdf = phase1_temporelle(gdf)
     gdf = mice_cam(gdf)
     gdf = phase2_geographique(gdf)
+    controler_completion(gdf, brut)
     gdf = reconstruire_champs_texte(gdf)
 
     print("\n[Bilan final]")
@@ -529,9 +667,9 @@ def main() -> None:
     print(f"\n  Segments avec DJMA encore incomplets : {djma_restants}")
     print(f"  Segments avec %cam encore incomplets : {cam_restants}")
 
-    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    gdf.to_file(OUTPUT_FILE, layer=OUTPUT_LAYER, driver="GPKG")
-    print(f"\nSortie écrite : {OUTPUT_FILE}  (layer: {OUTPUT_LAYER})")
+    sortie.parent.mkdir(parents=True, exist_ok=True)
+    gdf.to_file(sortie, layer=OUTPUT_LAYER, driver="GPKG")
+    print(f"\nSortie écrite : {sortie}  (layer: {OUTPUT_LAYER})")
     print("=" * 60)
 
 

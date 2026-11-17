@@ -8,7 +8,7 @@ Génère 7 figures dans figures/ :
   - reseau_routier.png         : réseau routier MTQ (RTSS), coloré par type de route
   - comptage_routier.png       : stations de comptage MTQ, colorées par complétude DJMA
   - comptage_completude.png    : complétude DJMA vs %camion (colonnes empilées)
-  - extrapolation_gradient.png : étape 1 (interpolation/extrapolation), segment réel
+  - extrapolation_gradient.png : étape 1 (interpolation/extrapolation bornée), deux sections réelles
   - knn_geographique.png       : étape 3 (KNN + IDW), segment réel et ses voisins
   - evolution_completion.png   : synthèse — % complet après chaque étape de la cascade
 
@@ -30,8 +30,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 from scipy.spatial import cKDTree
-from sklearn.linear_model import LinearRegression
 
 from completion_donnees_randomforest import (
     ANNEES,
@@ -40,7 +40,8 @@ from completion_donnees_randomforest import (
     DJMA_COLS,
     FENETRE_GRADIENT,
     K_VOISINS,
-    _extrapoler_extremites,
+    _extrapoler_extremites_detail,
+    _interpoler_trous,
     mice_cam,
     phase1_temporelle,
     phase2_geographique,
@@ -94,8 +95,10 @@ appliquer_style()
 # Segments réels choisis pour illustrer chaque étape de la cascade (cf. exploration
 # data/processed/debits_completes.gpkg) :
 #   - extrapolation : tendances locales de signe opposé aux deux bords (bon test du gradient local)
+#   - zéro camion   : 2 mesures de % camions en baisse ; l'ancienne règle tombait à 0 de 2020 à 2025
 #   - geo_knn       : 5 voisins de même index_agreg, distance médiane — carte lisible à un zoom raisonnable
 ID_SEGMENT_EXTRAPOLATION = 28787
+ID_SEGMENT_ZERO_CAMIONS  = 33889
 ID_SEGMENT_KNN            = 30014
 
 # Gabarit commun aux 3 cartes, pour qu'elles soient superposables
@@ -324,82 +327,102 @@ def figure_comptage_completude(stats: dict) -> None:
 # FIGURE — Interpolation / extrapolation (gradient local par bord)
 # ============================================================
 
-def figure_extrapolation_gradient() -> None:
-    """Étape 1 de la cascade, sur un vrai segment : gradient local par bord.
+def _panneau_extrapolation(ax, ligne: pd.Series, cols: list[str], titre: str, djma: bool) -> None:
+    """Une section réelle : mesures du MTQ, extrapolation retenue (gradient local borné à
+    l'intervalle mesuré) et ancienne règle (même gradient, plancher à 0 seulement)."""
+    vals_brut = pd.to_numeric(ligne[cols], errors="coerce").values.astype(float)
+    ordre     = np.argsort(np.array(ANNEES))            # ordre chronologique croissant
+    x         = np.array(ANNEES)[ordre]
+    y         = vals_brut[ordre]
+    connues   = ~np.isnan(y)
+    serie     = _interpoler_trous(vals_brut)            # même enchaînement que _completer_serie
+    nouvelle  = _extrapoler_extremites_detail(serie, list(ANNEES))[0][ordre]
+    ancienne  = _extrapoler_extremites_detail(serie, list(ANNEES), borner=False)[0][ordre]
+    idx_ok    = np.where(connues)[0]
+    i0, i1    = idx_ok[0], idx_ok[-1]
+    rangs     = np.arange(len(x))
+    bords     = (rangs < i0) | (rangs > i1)               # années extrapolées
+    differe   = bords & ~np.isclose(ancienne, nouvelle)
+    lib = (lambda v: f"{v:,.0f}".replace(",", " ")) if djma else (lambda v: f"{v:.1f} %".replace(".", ","))
 
-    Compare, point par point, l'ancienne méthode (une régression unique sur
-    toute la plage connue) à l'implémentation actuelle (_extrapoler_extremites,
-    une régression LOCALE par bord) sur un segment réel où les deux bords ont
-    des tendances de signe opposé — le cas où l'ancienne méthode se trompait.
-    """
-    raw = gpd.read_file(PATH_DEBITS)
-    ligne = raw.loc[raw["ide_sectn_trafc"] == ID_SEGMENT_EXTRAPOLATION].iloc[0]
-    vals_brut = pd.to_numeric(ligne[DJMA_COLS], errors="coerce").values.astype(float)
+    bas, haut = np.nanmin(y), np.nanmax(y)
+    ax.axhspan(bas, haut, facecolor=BLEU_NOEUD, alpha=0.10, linewidth=0, zorder=0)
+    sommet = max(np.nanmax(ancienne), np.nanmax(nouvelle)) * 1.16
+    if djma:                                             # fenêtres des 3 points du gradient local
+        for fenetre in (idx_ok[:FENETRE_GRADIENT], idx_ok[-FENETRE_GRADIENT:]):
+            ax.axvspan(x[fenetre[0]] - 0.4, x[fenetre[-1]] + 0.4, facecolor="none",
+                       edgecolor=BLEU_NOEUD, linewidth=1, linestyle=(0, (2, 2)), zorder=1)
+            ax.text((x[fenetre[0]] + x[fenetre[-1]]) / 2, sommet * 0.97, "pente sur 3 points", fontsize=8,
+                    color=ENCRE_2, ha="center", va="top")
 
-    annees_arr = np.array(ANNEES)
-    ordre      = np.argsort(annees_arr)          # ordre chronologique croissant
-    annees_c   = annees_arr[ordre]
-    vals_c     = vals_brut[ordre]
-    mask_ok    = ~np.isnan(vals_c)
-    idx_ok     = np.where(mask_ok)[0]
-    manquants  = ~mask_ok
+    for bord in (rangs[:i0 + 1], rangs[i1:]):
+        if len(bord) > 1:
+            ax.plot(x[bord], ancienne[bord], color=SAUMON, lw=1.5, linestyle=(0, (4, 3)), zorder=2)
+            ax.plot(x[bord], nouvelle[bord], color=BLEU_NOEUD, lw=2, zorder=3)
+    ax.plot(x[differe], ancienne[differe], linestyle="none", marker="o", markersize=8,
+            markerfacecolor=SURFACE, markeredgecolor=SAUMON, markeredgewidth=1.8, zorder=4)
+    ax.plot(x[bords], nouvelle[bords], linestyle="none", marker="D", markersize=8,
+            markerfacecolor=BLEU_NOEUD, markeredgecolor=SURFACE, markeredgewidth=1.3, zorder=5)
+    ax.plot(x[connues], y[connues], color=ENCRE, lw=2, marker="o", markersize=8,
+            markerfacecolor=ENCRE, markeredgecolor=SURFACE, markeredgewidth=1.3, zorder=6)
 
-    nouvelle_c = _extrapoler_extremites(vals_brut, list(ANNEES))[ordre]
+    # Étiquettes aux deux années extrêmes ; l'ancienne valeur du côté opposé à la nouvelle
+    for j in [k for k in (0, len(x) - 1) if bords[k]]:
+        dessus = not differe[j] or nouvelle[j] >= ancienne[j]
+        ax.annotate(lib(nouvelle[j]), (x[j], nouvelle[j]), textcoords="offset points",
+                    xytext=(0, 10 if dessus else -17), ha="center", fontsize=9, fontweight="bold", color=ENCRE)
+        if differe[j] and ancienne[j] > 0:
+            ax.annotate(lib(ancienne[j]), (x[j], ancienne[j]), textcoords="offset points",
+                        xytext=(0, -17 if dessus else 10), ha="center", fontsize=8.5, color=ENCRE_2)
+    zeros = np.where(bords & (ancienne <= 0))[0]
+    if len(zeros):
+        ax.annotate(f"ancienne règle : 0 de {x[zeros[0]]} à {x[zeros[-1]]}", ((x[zeros[0]] + x[zeros[-1]]) / 2, 0),
+                    textcoords="offset points", xytext=(0, 8), ha="center", fontsize=8.5, color=ENCRE_2)
+    ax.text(x[-1] + 0.45, (bas + haut) / 2, "intervalle\nmesuré", fontsize=8, color=ENCRE_2,
+            va="center", ha="left", linespacing=1.1)
 
-    reg_globale = LinearRegression().fit(annees_c[mask_ok].reshape(-1, 1), vals_c[mask_ok])
-    ancienne_c  = reg_globale.predict(annees_c.reshape(-1, 1))
-
-    fig, ax = plt.subplots(figsize=(8, 5.5))
-
-    for fenetre in (idx_ok[:FENETRE_GRADIENT], idx_ok[-FENETRE_GRADIENT:]):
-        x0, x1 = annees_c[fenetre[0]] - 0.4, annees_c[fenetre[-1]] + 0.4
-        ax.axvspan(x0, x1, facecolor=BLEU_NOEUD, alpha=0.18, zorder=0)
-        ax.axvspan(x0, x1, facecolor="none", edgecolor=BLEU_NOEUD, linewidth=1.4, zorder=1)
-
-    ax.plot(annees_c, ancienne_c, color=MUET, linewidth=1, linestyle="--", alpha=0.5, zorder=1)
-    ax.plot(annees_c[manquants], ancienne_c[manquants], color=MUET, linewidth=0, zorder=2,
-           marker="^", markersize=8, markerfacecolor=MUET, markeredgecolor=SURFACE, markeredgewidth=1.3)
-
-    ax.plot(annees_c[:idx_ok[0] + 1], nouvelle_c[:idx_ok[0] + 1], color=SAUMON, linewidth=1.8, zorder=2)
-    ax.plot(annees_c[idx_ok[-1]:], nouvelle_c[idx_ok[-1]:], color=SAUMON, linewidth=1.8, zorder=2)
-    ax.plot(annees_c[manquants], nouvelle_c[manquants], color=SAUMON, linewidth=0, zorder=4,
-           marker="D", markersize=8, markerfacecolor=SAUMON, markeredgecolor=SURFACE, markeredgewidth=1.3)
-
-    ax.plot(annees_c[mask_ok], vals_c[mask_ok], color=ENCRE, linewidth=2, zorder=3,
-           marker="o", markersize=8, markerfacecolor=ENCRE, markeredgecolor=SURFACE, markeredgewidth=1.3)
-
-    for xi, yi in zip(annees_c[manquants], nouvelle_c[manquants]):
-        ax.annotate(f"{yi:,.0f}".replace(",", " "), (xi, yi), textcoords="offset points",
-                   xytext=(0, 11), ha="center", fontsize=8.5, fontweight="bold", color=ENCRE, zorder=5)
-    for xi, yi in zip(annees_c[manquants], ancienne_c[manquants]):
-        ax.annotate(f"{yi:,.0f}".replace(",", " "), (xi, yi), textcoords="offset points",
-                   xytext=(0, -15), ha="center", fontsize=8, color=MUET, zorder=5)
-
-    fig.suptitle("Interpolation / extrapolation — gradient local par bord", fontsize=13,
-               fontweight="bold", color=ENCRE, y=0.99)
-    ax.set_title(f"Segment réel #{ID_SEGMENT_EXTRAPOLATION} · DJMA (véh./jour)",
-               fontsize=10, color=ENCRE_2, pad=10)
-    ax.set_xticks(annees_c)
-    ax.set_xticklabels(annees_c, fontsize=9, color=ENCRE_2)
-    ax.set_ylabel("DJMA (véh./jour)", fontsize=9.5, color=ENCRE_2)
+    ax.set_title(titre, fontsize=10, color=ENCRE_2, pad=10)
+    ax.set_xlim(x[0] - 0.6, x[-1] + 1.6)
+    ax.set_ylim(-0.025 * sommet, sommet)                 # un point posé sur 0 reste entier
+    ax.set_xticks(x)
+    ax.set_xticklabels(x, fontsize=8.5, color=ENCRE_2)
+    ax.tick_params(axis="both", length=0, labelsize=8.5, labelcolor=ENCRE_2)
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(
+        (lambda v, _: f"{v:,.0f}".replace(",", " ")) if djma else (lambda v, _: f"{v:.0f} %")))
     ax.yaxis.grid(True, color=GRILLE, linewidth=1, zorder=0)
     ax.set_axisbelow(True)
-    ax.tick_params(axis="both", length=0)
     for spine in ax.spines.values():
         spine.set_visible(False)
 
-    legende_carte(ax, [
-        Line2D([0], [0], color=ENCRE, lw=2, marker="o", markersize=7, label="Connu"),
-        Line2D([0], [0], color=MUET, lw=1, linestyle="--", marker="^", markersize=7,
-              label="Régression globale"),
-        Line2D([0], [0], color=SAUMON, lw=1.8, marker="D", markersize=7,
-              label="Gradient local (méthode retenue)"),
-    ], loc="lower center")
 
-    fig.tight_layout(rect=(0, 0, 1, 0.94))
+def figure_extrapolation_gradient() -> None:
+    """Étape 1 de la cascade, sur deux sections réelles : gradient local par bord, borné.
+
+    À gauche, le DJMA d'une section aux tendances de signe opposé aux deux bords
+    (le gradient local de chaque bord, borné à l'intervalle mesuré). À droite, le
+    défaut relevé le 2026-11-17 : sur 2 mesures de % de camions, l'ancienne règle
+    tombait à 0 de 2020 à 2025 ; la règle retenue s'arrête à la plus petite mesure.
+    """
+    raw = gpd.read_file(PATH_DEBITS, ignore_geometry=True).set_index("ide_sectn_trafc")
+    fig, (ax_g, ax_d) = plt.subplots(1, 2, figsize=(13, 5.4))
+    _panneau_extrapolation(ax_g, raw.loc[ID_SEGMENT_EXTRAPOLATION], DJMA_COLS, djma=True,
+                           titre=f"Section {ID_SEGMENT_EXTRAPOLATION} (rue Forget, route 362) · DJMA (véh./jour)")
+    _panneau_extrapolation(ax_d, raw.loc[ID_SEGMENT_ZERO_CAMIONS], CAM_COLS, djma=False,
+                           titre=f"Section {ID_SEGMENT_ZERO_CAMIONS} (rue St-Onge, route 132) · % de camions")
+
+    fig.suptitle("Extrapolation aux bords : gradient local, borné à l'intervalle mesuré", fontsize=13,
+                 fontweight="bold", color=ENCRE, y=0.985)
+    fig.legend(handles=[
+        Line2D([0], [0], color=ENCRE, lw=2, marker="o", markersize=7, label="Mesuré par le MTQ"),
+        Line2D([0], [0], color=BLEU_NOEUD, lw=2, marker="D", markersize=7, label="Règle retenue : gradient local borné"),
+        Line2D([0], [0], color=SAUMON, lw=1.5, linestyle=(0, (4, 3)), marker="o", markersize=7,
+               markerfacecolor=SURFACE, markeredgecolor=SAUMON, label="Ancienne règle : plancher à 0 seulement"),
+        Patch(facecolor=BLEU_NOEUD, alpha=0.10, edgecolor="none", label="Intervalle des valeurs mesurées"),
+    ], loc="lower center", ncol=4, frameon=False, fontsize=9.5)
+    fig.tight_layout(rect=(0, 0.06, 1, 0.95))
     fig.savefig(FIG_DIR / "extrapolation_gradient.png", dpi=150)
     plt.close(fig)
-    print(f"  extrapolation_gradient.png (segment {ID_SEGMENT_EXTRAPOLATION})")
+    print(f"  extrapolation_gradient.png (sections {ID_SEGMENT_EXTRAPOLATION} et {ID_SEGMENT_ZERO_CAMIONS})")
 
 
 # ============================================================

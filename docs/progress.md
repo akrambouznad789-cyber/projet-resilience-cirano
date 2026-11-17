@@ -457,3 +457,41 @@ Branche `integration/terrain-ml`, partie de `main` : elle réunit, par fusions e
 **Décisions d'Akram (2026-11-17)**
 - Publication : fusion de `integration/terrain-ml` dans `main`, puis envoi de `main` et des cinq branches.
 - Calage rapide : l'accélération est gardée malgré le critère 1 manqué au point calé (voir la phase 3) ; la décision repose sur le calage de bout en bout.
+
+## Retours du directeur de recherche sur le Module 1 (2026-11-17)
+
+Branche `feature/retours-prof-module1`, partie de `main` (`d98455e`). Quatre retours sur la page du Module 1 : une section avec 2 ou 3 comptages finit à 0 camion après extrapolation (« le genre de faute qui passe entre les mailles de la complétion ») ; le bloc « Cadrer la carte » encombre le panneau ; les nœuds doivent rapetisser quand on zoome ; l'étape finale doit montrer le graphe avec ses données, puisque c'est le livrable du module.
+
+**Diagnostic**
+- `_extrapoler_extremites` prolongeait sur jusqu'à 8 ans la droite ajustée sur les 3 années connues les plus proches, puis la tronquait à 0. % de camions : 53 sections recevaient au moins une année à 0, dont 19 en 2025 ; DJMA : 7 sections, dont 1 en 2025. Toutes avaient des mesures positives du ministère, qui ne publie jamais 0 pour le DJMA et une seule fois pour le % de camions. Exemple : section 33889 (route 132), 9,2 % en 2017, 6,0 % en 2018, puis 0 de 2020 à 2025.
+- Le 0 n'est que le cas extrême : en 2025, l'extrapolation du % de camions sortait de l'intervalle mesuré de sa section dans 1 730 cas (742 en dessous, 988 au-dessus), du DJMA dans 304 cas.
+- Trouvé en écrivant les contrôles : la phase KNN réécrivait aussi le % de camions des 455 sections sans DJMA qui en ont un publié, soit 788 valeurs mesurées remplacées (l'atlas l'avait relevé, sans correction).
+- Trouvé en relisant la page : la tuile « (0 km) » et la phrase « il touche l'arc complété dans les 19 cas » sont fausses pour Gatineau – Ontario-Sud, qui emprunte à Lachute – Thurso (39 km) depuis le correctif du 28 octobre ; `methodes.md` donnait déjà les bonnes distances.
+
+**Fait**
+- Page : étape 5 en mode graphe par défaut (ligne droite entre les deux nœuds, mêmes 307 identifiants que les tracés), bouton « Représentation : Graphe (résultat) | Tracés routiers » ; nœuds de rayon décroissant avec le zoom (2,6/3,6 px au zoom 4 → 1,6/2,2 px au zoom 11), contour sombre, couche de survol invisible ; bloc de cadrage retiré ; étape 2 : libellé de l'extrapolation bornée et années bornées dans la fiche d'une section ; tuile et note des 19 emprunts corrigées.
+- Complétion (`98e0116`) : une valeur extrapolée est ramenée dans l'intervalle [min, max] mesuré de sa section (ancienne règle gardée en option, `borner=False`) ; colonnes `n_bornees_djma`, `n_bornees_cam` ; `controler_completion()` refuse une sortie avec une valeur manquante, un DJMA ≤ 0, un % de camions hors de [0, 100], une valeur complétée nulle sur une section mesurée ou une extrapolation hors de l'intervalle mesuré ; option `--echantillon`.
+- KNN (`b293509`, commit séparé) : les sections qui ont un % de camions publié gardent leur propre série ; le contrôle vérifie qu'aucune valeur publiée n'est modifiée.
+- `scripts/actualiser_valeurs_liaisons.py` : reporte les valeurs 2025 sur les liaisons sans refaire le routage OSRM. Contrôle : avec l'ancien fichier complété, il redonne le graphe à l'identique (0 écart sur 285 liaisons et 3 306 rattachements ; fichier réécrit identique, couche par couche).
+- Figure `extrapolation_gradient.png` redessinée (sections 28787 et 33889, avec l'ancienne règle) ; couleurs vérifiées au validateur (bleu et saumon séparés pour les daltoniens).
+- Données régénérées : complétion (échantillon de 4 720 sections, puis tout le Québec en 1 min 26 s), valeurs des liaisons, m1-m4, figures m1-m4 (sans la validation croisée de la forêt, réservée au labo 1), `jumeau reseau`, `jumeau tables`, atlas, pages des Modules 1 et 2.
+- Anciennes données archivées hors Git dans `archives_locales/donnees_avant_bornage_2026-11-17/` (le labo 1 en a besoin pour reproduire 0,306 et 0,187 ; elles restent aussi dans l'historique Git).
+
+**Chiffres**
+- Bornées : 2 200 sections de % de camions (7 653 valeurs) et 551 de DJMA (2 102 valeurs). Valeurs complétées nulles : 0 pour le DJMA ; 9 pour le % de camions, qui recopient le 0 publié par le ministère sur la section 30625 (route 111).
+- % de camions, par section : extrapolation 2 912 → 3 367, KNN 3 247 → 2 792 ; par valeur : KNN 31 672 → 27 920. Valeurs publiées écrasées : 788 → 0.
+- 255 liaisons sur 307 et 2 128 rattachements sur 3 306 changent de valeur ; rattachements, statuts et donneurs identiques.
+- 285 liaisons mesurées : médianes m1 11 947 → 11 899, m2 14 318 → 14 123, m3 et m4 inchangées ; maximum de m4 185 912 → 179 122 (Laval – Ville de Mont-Royal).
+- Camions par jour (m4) : 165 liaisons sur 304 changent, écart médian −0,8 %, total −0,9 % ; 36 changent de plus de 10 %. Stanstead – Vermont et Cowansville – Vermont : 0 → 186. Joliette – Lavaltrie : 2 423 → 4 747 (le % publié de 19 % n'est plus écrasé). Sherbrooke – Cookshire : 1 299 → 274 (m4 bascule sur un autre segment).
+- Module 3 : dans `reseau_multi_routes.gpkg`, seules les colonnes de valeurs complétées changent ; `observee`, `camions_obs` et `classe`, seules lues par le calage, sont identiques : pas de nouveau calage.
+- 72 tests réussis (62 + 10 de la complétion) ; `ruff check src tests` propre.
+
+**Revue critique**
+- La borne est choisie par principe, pas mesurée : savoir si elle prédit mieux que le gradient libre ou qu'une simple recopie est la question du labo 3 (backtest de l'extrapolation), qui peut tester les deux règles.
+- Elle aplatit les tendances réelles : une section mesurée en 2017 ne monte plus au-delà de son maximum, même si le trafic a crû depuis.
+- Les R² de la forêt aléatoire (0,306 ; 0,187) datent d'avant le correctif et n'ont pas été recalculés (labo 1).
+- m4 reste fragile pour les camions : il retient le % d'un seul segment, et un petit changement de DJMA peut faire basculer ce segment (Sherbrooke – Cookshire).
+- Le rapport d'équipe (hors Git) et le portfolio CPCS décrivent encore l'ancienne règle.
+
+**Décision d'Akram (2026-11-17)**
+- Publication : fusion de `feature/retours-prof-module1` dans `main` telle quelle, correction du KNN comprise, puis envoi de `main` et de la branche.

@@ -39,13 +39,13 @@ Le fichier complété ne marque la méthode que par section (`methode_djma`, `me
 | Statut de la valeur | DJMA | % de camions |
 |---|---|---|
 | Publiée par le MTQ | 37 344 (47,7 %) | 12 498 (16,0 %) |
-| Interpolation, entre deux années publiées | 2 486 (3,2 %) | 10 951 (14,0 %) |
-| Extrapolation, avant la première ou après la dernière année publiée | 5 930 (7,6 %) | 14 009 (17,9 %) |
+| Interpolation, entre deux années publiées | 2 486 (3,2 %) | 11 128 (14,2 %) |
+| Extrapolation, avant la première ou après la dernière année publiée | 5 930 (7,6 %) | 17 584 (22,5 %) |
 | Forêt aléatoire, section sans aucun % de camions | sans objet | 9 100 (11,6 %) |
-| KNN + IDW, section sans aucun DJMA | 32 470 (41,5 %) | 31 672 (40,5 %) |
+| KNN + IDW, section sans aucun DJMA (et, pour le % de camions, sans aucun % publié) | 32 470 (41,5 %) | 27 920 (35,7 %) |
 | **Total** (7 823 sections × 10 ans) | **78 230** | **78 230** |
 
-Parmi les extrapolations, 3 078 valeurs de DJMA et 6 453 valeurs de % de camions ne prolongent aucune pente : la section n'a qu'une année publiée, et cette valeur est recopiée sur les neuf autres.
+Parmi les extrapolations, 3 078 valeurs de DJMA et 8 811 valeurs de % de camions ne prolongent aucune pente : la section n'a qu'une année publiée, et cette valeur est recopiée sur les neuf autres.
 
 ![Valeurs publiées par le MTQ et valeurs complétées par le Module 1, par année](../figures/ml_couverture_temporelle.png)
 
@@ -58,7 +58,7 @@ Le détail par année et par méthode est dans `agregats.json` (`comptages.statu
 
 ### Quatre pièges trouvés par l'audit
 
-**Des valeurs publiées ont été écrasées.** 455 sections n'ont aucun DJMA, mais le ministère y publie 798 valeurs de % de camions, de 2021 à 2025. Le script de complétion traite toute section sans DJMA par KNN + IDW, et réécrit aussi son % de camions : 788 de ces valeurs publiées ont été remplacées par celles des voisins (écart médian de 4,1 points, maximal de 76). Le fichier complété n'est donc pas un sur-ensemble du fichier du ministère. Une cible doit toujours être lue dans le fichier brut.
+**Des valeurs publiées étaient écrasées (corrigé le 17 novembre 2026).** 455 sections n'ont aucun DJMA, mais le ministère y publie 798 valeurs de % de camions, de 2021 à 2025. Le script de complétion traitait toute section sans DJMA par KNN + IDW, et réécrivait aussi son % de camions : 788 de ces valeurs publiées étaient remplacées par celles des voisins (écart médian de 4,1 points, maximal de 76). Depuis le correctif, ces sections gardent leur propre série de % de camions, et le script vérifie avant d'écrire qu'aucune valeur publiée n'est modifiée. Une cible se lit tout de même dans le fichier brut : le fichier complété ne dit pas, valeur par valeur, ce qui est mesuré.
 
 **Les champs texte du fichier complété ne distinguent plus rien.** Les chaînes `annee_en_cours` à `annee10` y sont reconstruites avec les valeurs complétées. Le Module 3 évite ce piège : `donnees/observations.py` définit une section *observée* à partir du fichier brut seulement.
 
@@ -90,10 +90,10 @@ Le bloc d'une géométrie est `⌊x / 50 km⌋_⌊y / 50 km⌋`, pour son centro
 
 | | |
 |---|---|
-| **Schéma** | Mêmes champs que le fichier publié, valeurs en nombres, plus `methode_djma`, `methode_cam`, `n_djma_original`, `n_cam_original`, par section. |
-| **Méthode par section** | DJMA : complet 2 716, interpolation 736, extrapolation 1 124, KNN + IDW 3 247. % de camions : complet 132, interpolation 622, extrapolation 2 912, forêt aléatoire 910, KNN + IDW 3 247. |
-| **Intégrité** | Aucune valeur manquante, aucune valeur négative, aucun % de camions au-dessus de 100. Les 37 344 DJMA publiés sont conservés à l'identique. 788 % de camions publiés sont remplacés (voir plus haut). |
-| **Anomalies** | 14 DJMA et 133 % de camions complétés valent 0 : extrapolations tronquées à zéro. |
+| **Schéma** | Mêmes champs que le fichier publié, valeurs en nombres, plus `methode_djma`, `methode_cam`, `n_djma_original`, `n_cam_original`, `n_bornees_djma`, `n_bornees_cam`, par section. |
+| **Méthode par section** | DJMA : complet 2 716, interpolation 736, extrapolation 1 124, KNN + IDW 3 247. % de camions : complet 132, interpolation 622, extrapolation 3 367, forêt aléatoire 910, KNN + IDW 2 792. |
+| **Intégrité** | Aucune valeur manquante, aucune valeur négative, aucun % de camions au-dessus de 100. Les 37 344 DJMA et les 12 498 % de camions publiés sont conservés à l'identique (avant le 17 novembre 2026, 788 % de camions publiés étaient remplacés : voir plus haut). |
+| **Anomalies** | Avant le 17 novembre 2026, 14 DJMA et 133 % de camions complétés valaient 0 : des extrapolations tronquées à zéro. L'extrapolation est désormais bornée à l'intervalle mesuré de chaque section ; les 9 valeurs nulles restantes recopient l'unique mesure de la section 30625 (route 111), où le ministère publie lui-même 0 % de camions en 2017. |
 | **Régénération** | `python scripts/completion_donnees_randomforest.py`, venv `portfolio`, graine fixée (`random_state=42`). Les anciennes versions `debits_completes_v1.gpkg` et `_v2.gpkg`, non suivies, ont une autre empreinte : à ne pas utiliser. |
 
 ### Réseau routier RTSS
@@ -166,11 +166,11 @@ La taille effective est le nombre de blocs de 50 km qu'occupent les exemples. Le
 
 | Cible | Tâche | Exemples | Taille effective | Piège de fuite propre à la cible |
 |---|---|---|---|---|
-| % de camions d'une section | régression | 12 498 valeurs, 4 121 sections | 149 blocs | Les dix années d'une section se ressemblent : découper par section, puis par bloc. Lire la cible dans le fichier brut, car 788 valeurs publiées sont écrasées dans le fichier complété. |
+| % de camions d'une section | régression | 12 498 valeurs, 4 121 sections | 149 blocs | Les dix années d'une section se ressemblent : découper par section, puis par bloc. Lire la cible dans le fichier brut : jusqu'au 17 novembre 2026, 788 valeurs publiées étaient écrasées dans le fichier complété. |
 | DJMA d'une section | régression, complétion spatiale | 37 344 valeurs, 4 576 sections | 159 blocs | DJME et DJMH sortent de la même estimation du ministère que le DJMA : ce sont des cibles sœurs, pas des variables indépendantes. |
 | Camions par jour en 2025 (DJMA × % de camions) | régression, calage du Module 3 | 1 279 sections, dont 680 sur une route | 118 blocs ; 88 pour le calage | Une section peut compter sur plusieurs routes et plusieurs liaisons (1 268 et 1 014 sections) : découper par bloc, jamais par route. |
-| Série d'une section | complétion temporelle, prévision | 2 716 séries complètes de DJMA, 132 de % de camions | 159 et 149 blocs au plus | Découpage chronologique obligatoire. Les 3 078 DJMA et 6 453 % de camions recopiés d'une seule année ne sont pas des points de série. |
-| Valeur publiée suspecte | détection d'anomalies | 37 344 DJMA, sans étiquette | sans objet | Sans étiquette, l'évaluation passe par des anomalies injectées. Les zéros du fichier complété (14 et 133) sont des artefacts de l'extrapolation, pas des anomalies du trafic. |
+| Série d'une section | complétion temporelle, prévision | 2 716 séries complètes de DJMA, 132 de % de camions | 159 et 149 blocs au plus | Découpage chronologique obligatoire. Les 3 078 DJMA et 8 811 % de camions recopiés d'une seule année ne sont pas des points de série. |
+| Valeur publiée suspecte | détection d'anomalies | 37 344 DJMA, sans étiquette | sans objet | Sans étiquette, l'évaluation passe par des anomalies injectées. Les zéros de l'ancien fichier complété (14 et 133) étaient des artefacts de l'extrapolation, pas des anomalies du trafic ; le 0 % publié de la section 30625 en est peut-être une. |
 | Trafic d'une liaison (m1 à m4) | régression | 285 liaisons | 84 blocs | La cible agrège des valeurs en partie complétées (12 liaisons seulement ont tous leurs % de camions publiés). 19 liaisons recopient leur voisine. 596 sections sont partagées entre liaisons. |
 | Attribut d'un lien du graphe RTSS | apprentissage sur graphe | 22 482 liens réels ; 1 244 sections étiquetées en 2025, qui longent 8 391 liens | 113 blocs | Une section étiquette 5 liens en médiane : un découpage par lien met la même étiquette des deux côtés. Les 173 liens estimés et les connecteurs d'accès sont des hypothèses. Les deux chaussées d'une route reçoivent le même total. |
 | Choix d'itinéraire, demande entre lieux (ENR) | choix discret, estimation de matrice | volumes publiés : 37 235 camions, 20 484 paires de lieux | 49 postes localisés | Les camions d'un même poste et d'une même paire de lieux partagent leurs itinéraires : découper par poste entier, comme la validation actuelle. L'enquête date de 2006-2007. |
@@ -199,7 +199,7 @@ Le DJMA (`djma_…`) et le % de camions (`pct_camions_…`) ont chacun six colon
 | `_complete` | valeur du fichier complété, jamais vide ; à n'employer qu'en variable, avec sa méthode |
 | `_mesure` | vrai si la valeur est publiée |
 | `_methode` | `mesure`, `interpolation`, `extrapolation`, `recopie` (une seule année publiée), `foret_aleatoire` ou `knn_idw` |
-| `_ecrase` | vrai si la valeur publiée a été remplacée dans le fichier complété (788 % de camions) |
+| `_ecrase` | vrai si la valeur publiée a été remplacée dans le fichier complété (aucune depuis le 17 novembre 2026 ; 788 % de camions auparavant) |
 | `_n_mesures` | nombre d'années publiées dans la section |
 
 `camions_cible` est le produit des deux cibles, là où elles sont publiées la même année. `djme` et `djmh` ne portent que des valeurs publiées : le Module 1 ne les complète pas.
@@ -239,7 +239,7 @@ groupes = ex["bloc_50km"]                # GroupKFold : des blocs entiers mis de
 |---|---|
 | Sections ; blocs de 50 km | 7 823 ; 182 |
 | Cibles de DJMA | 37 344 |
-| Cibles de % de camions ; valeurs écrasées par la complétion | 12 498 ; 788 |
+| Cibles de % de camions ; valeurs écrasées par la complétion | 12 498 ; 0 (788 avant le 17 novembre 2026) |
 | Blocs des sections de la validation spatiale | 149 |
 | Sections rattachées au graphe | 7 326 |
 | Liens longés par une section | 21 870 |
@@ -255,7 +255,7 @@ Un labo d'apprentissage automatique préenregistre ses hypothèses sur ces même
 ## Écarts relevés avec la documentation existante
 
 - `docs/donnees.md` parle de « 7 823 stations de comptage réel ». Ce sont 7 823 sections ; 4 576 ont au moins un DJMA publié, et ce DJMA est estimé à la source.
-- `docs/completion.md` décrit le KNN + IDW comme le dernier recours « pour les segments sans aucune mesure d'aucune année ». Le script l'applique à toute section sans DJMA, ce qui écrase 788 % de camions publiés.
+- `docs/completion.md` décrivait le KNN + IDW comme le dernier recours « pour les segments sans aucune mesure d'aucune année ». Le script l'appliquait à toute section sans DJMA, ce qui écrasait 788 % de camions publiés. Corrigé le 17 novembre 2026 : le script et la page concordent.
 - `docs/completion.md` appelle « validation honnête » une comparaison à des cibles complétées à 68,1 %. Le passage aux blocs spatiaux n'a pas changé ces cibles.
 - Le README et `docs/donnees.md` annoncent 207 nœuds : c'est le nombre de nœuds reliés ; la couche en contient 229.
 
