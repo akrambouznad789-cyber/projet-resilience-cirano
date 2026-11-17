@@ -453,3 +453,7 @@ Branche `integration/terrain-ml`, partie de `main` : elle réunit, par fusions e
 - La CI n'a pas tourné : rien n'a été poussé. La construction de l'image Docker n'est vérifiée que par elle (Docker est absent de WSL).
 - Le README annonce toujours 37 tests alors qu'il y en a 62 : correction laissée au labo, à qui cette ligne est réservée.
 - Les pages publiques n'ont pas été régénérées : aucune donnée qu'elles affichent n'a changé, et l'onglet « Méthode » du jumeau ne montre que des extraits que la phase 3 n'a pas touchés.
+
+**Décisions d'Akram (2026-11-17)**
+- Publication : fusion de `integration/terrain-ml` dans `main`, puis envoi de `main` et des cinq branches.
+- Calage rapide : l'accélération est gardée malgré le critère 1 manqué au point calé (voir la phase 3) ; la décision repose sur le calage de bout en bout.
