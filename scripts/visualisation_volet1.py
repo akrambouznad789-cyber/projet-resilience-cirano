@@ -16,7 +16,8 @@ Pseudo-code
 4. segments_par_arc()    sections de comptage retenues par arc, avec la valeur utilisée
 5. couche_noeuds()       229 nœuds (municipalités, nœuds intermédiaires, frontières)
 6. couche_sections()     7 823 sections de comptage : méthode de complétion, nombre
-                         d'années mesurées et séries 2016-2025 (mesuré / complété)
+                         d'années mesurées, d'années extrapolées bornées et séries
+                         2016-2025 (mesuré / complété)
 7. couche_rtss()         12 567 sous-routes RTSS fusionnées par route et par classe
 8. textes_etapes()       rendu des 5 pages docs/*.md (API Markdown de GitHub)
 9. exporter()            JSON injecté dans scripts/gabarits/visualisation_volet1.html
@@ -177,7 +178,8 @@ def couche_sections() -> tuple[dict, dict]:
     cols_c = [f"val_cam_annee_{rang[a]}" for a in ANNEES]
     comp = gpd.read_file(FICHIER_COMPLETS, columns=["ide_sectn_trafc", "des_debut_sous_route", "des_fin_sous_route",
                                                     "rtss_debut", "methode_djma", "methode_cam",
-                                                    "n_djma_original", "n_cam_original"] + cols_d + cols_c)
+                                                    "n_djma_original", "n_cam_original",
+                                                    "n_bornees_djma", "n_bornees_cam"] + cols_d + cols_c)
     brut = gpd.read_file(FICHIER_BRUT, columns=["ide_sectn_trafc"] + cols_d + cols_c, ignore_geometry=True)
     assert (comp["ide_sectn_trafc"].to_numpy() == brut["ide_sectn_trafc"].to_numpy()).all(), "ordre des sections différent"
 
@@ -206,6 +208,7 @@ def couche_sections() -> tuple[dict, dict]:
         "i": np.arange(len(geo)),
         "md": geo["methode_djma"].map(CODES_METHODE), "mc": geo["methode_cam"].map(CODES_METHODE),
         "nd": geo["n_djma_original"].astype(int), "nc": geo["n_cam_original"].astype(int),
+        "bd": geo["n_bornees_djma"].astype(int), "bc": geo["n_bornees_cam"].astype(int),
     }))
     return geojson(gpd.GeoDataFrame(tableau, geometry=geo.geometry, crs=CRS_WGS84), list(tableau.columns), 4), series
 
@@ -269,6 +272,8 @@ def main() -> None:
         "n_cam_complet": sum(f["properties"]["nc"] == 10 for f in sp),
         "methodes_djma": {k: int(v) for k, v in pd.Series([f["properties"]["md"] for f in sp]).value_counts().items()},
         "methodes_cam": {k: int(v) for k, v in pd.Series([f["properties"]["mc"] for f in sp]).value_counts().items()},
+        "bornees_djma": sum(f["properties"]["bd"] > 0 for f in sp),
+        "bornees_cam": sum(f["properties"]["bc"] > 0 for f in sp),
         "statuts": arcs["statut"].value_counts().to_dict(),
         "n_rattachements": int(arcs["n_segs_djma"].fillna(0).sum()),
         "mediane_segs": float(arcs.loc[arcs["statut"] == "ok", "n_segs_djma"].median()),

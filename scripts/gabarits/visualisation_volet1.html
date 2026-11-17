@@ -290,7 +290,7 @@ const MESURE = [[0, "Aucune année mesurée", C.div[0]], [1, "1 à 4 années", C
 const METHODES = [
   ["c", "Complète : 10 années mesurées", C.methodes.c],
   ["i", "Interpolation : trous internes comblés", C.methodes.i],
-  ["e", "Extrapolation : bords prolongés (gradient local)", C.methodes.e],
+  ["e", "Extrapolation : gradient local, borné aux valeurs mesurées", C.methodes.e],
   ["m", "RandomForest (MICE) : % camions prédit", C.vert],
   ["g", "KNN géographique : aucune mesure, 5 voisines", C.orange],
 ];
@@ -913,7 +913,8 @@ function carteSection(i) {
     ${miniGraphe(SR.cam[i], SR.mc[i], "Part de camions", C.vert, "%")}
     <div class="cle-points"><span><i class="plein"></i>mesuré par le MTQ</span><span><i></i>complété par la cascade</span></div>
     <div class="kv"><span>Complétion du DJMA</span><span>${esc(libMethode(f.md))}</span>
-      <span>Complétion du % camions</span><span>${esc(libMethode(f.mc))}</span></div>
+      <span>Complétion du % camions</span><span>${esc(libMethode(f.mc))}</span>
+      ${f.bd || f.bc ? `<span>Années ramenées dans l'intervalle mesuré</span><span>DJMA ${f.bd} · % camions ${f.bc}</span>` : ""}</div>
     <button type="button" class="ferme" data-fermer="section">Retirer la sélection</button></div>`;
 }
 
@@ -952,6 +953,9 @@ function contenu2() {
   if (S.section != null) h += carteSection(S.section);
   h += legende(`Étape la plus avancée utilisée (${cam ? "% camions" : "DJMA"})`, "Du plus fiable au plus incertain : la couleur dit jusqu'où la section a dû descendre dans la cascade.",
     methodes.map(([c, lib, col]) => ligneLeg(trait(col, 3.4), lib, cnt[c] || 0)));
+  h += note(`<b>Extrapolation bornée.</b> Une année prolongée ne sort jamais de l'intervalle des valeurs mesurées sur la section : ` +
+    `${fmt(cam ? M.bornees_cam : M.bornees_djma)} sections ont au moins une année ramenée dans cet intervalle (${cam ? "% camions" : "DJMA"}). ` +
+    `Sans cette borne, une baisse mesurée sur 2 ou 3 ans pouvait atteindre 0.`);
   h += note(`<b>Le KNN géographique n'invente pas de station.</b> Il complète une section qui existe dans les données du MTMD mais n'a aucune mesure, avec la moyenne de ses 5 voisines pondérée par 1/distance², en privilégiant la même direction.`);
   h += note("Sélectionner une section pour comparer, année par année, ce qui a été mesuré et ce qui a été complété.");
   return h;
