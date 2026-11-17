@@ -207,3 +207,42 @@ Validation croisée (5 plis : blocs de 50 km × postes entiers, moyenne ± écar
 - L'image embarque GeoPandas et Shapely, dont l'API n'a pas besoin (dépendances principales du paquet). Plus lourde que nécessaire ; à séparer en extras si sa taille gêne.
 - Aucune authentification ni limite de débit : c'est à la passerelle de l'application officielle de les fournir. Des requêtes différentielles répétées (θ, fermetures) pourraient en principe renseigner sur la demande : l'API ne doit tourner qu'à l'intérieur de l'infrastructure du CIRANO.
 - Le premier appel avec un nouveau θ reconstruit un contexte (environ 1 s) ; les 8 derniers sont gardés en cache, sans limite de mémoire plus fine.
+
+## Version de présentation et normalisation des noms (2026-10-30)
+
+Branche `feature/demo-academique`. Demande : une version simple pour des universitaires non spécialisés, à côté de la version technique, et des titres plus rigoureux.
+
+**Fait**
+- `scripts/visualisation_demo.py` + `scripts/gabarits/demo.html` → `docs/demo/index.html` (1,6 Mo) : 4 étapes, une seule commande (choisir une liaison), résultats par jour de fermeture. Seule entrée : le JSON de `docs/jumeau/index.html`, filtré par liste blanche ; rien de nouveau n'est publié et le script ne lit ni l'artefact ni l'ENR.
+- Mesure de la version de présentation : le temps sur le meilleur itinéraire restant (`delta_heures_meilleur`). Dollars retirés (hypothèses provisoires).
+- Noms publics : Module 1 (Estimation du trafic par liaison), Module 2 (Valorisation économique du fret), Module 3 (Jumeau numérique et analyse de résilience). « Module » plutôt que « Axe », qui se confondrait avec « axe routier ». Chemins, URL, fichiers et variables gardent `volet`.
+- Tutoiement retiré des trois pages techniques. Trois captures du README refaites.
+
+**Chiffres**
+- 46 tests (9 nouveaux, sur données synthétiques).
+- Texte visible, listes déroulantes exclues : 423 mots contre 1 655 pour la page technique du jumeau, soit 26 %.
+- 307 liaisons passées une à une dans la page : 614 chiffres identiques à `criticite_équilibre.csv`, 27 messages de prudence, aucune erreur en console (MapLibre), aucun débordement à 390 px.
+- Pages techniques régénérées : données identiques à `main`, hormis les dates de génération.
+
+**Revue critique**
+- **Liaisons sans itinéraire** : 27 liaisons non classées, car leurs heures n'incluent pas les camions sans chemin. Il ne faut pas les lire comme peu critiques. Certaines sont une vraie dépendance (138 sur la Côte-Nord), d'autres un effet du graphe (Lévis–Rivière-du-Loup).
+- **Reports lointains** : 20 fermetures sur 307 ajoutent au moins 100 camions/j à la frontière Rouyn–Ontario, surtout autour de Valleyfield et Châteauguay ; 305 à 330 camions/j sur la 117 pour Saint-Hyacinthe–Drummondville. Les hors-Québec choisissent leur frontière avec un accès estimé à 1,2 × le vol d'oiseau, et le réseau ontarien n'est pas modélisé. Mention ajoutée aux limites ; le mécanisme exact n'a pas été retracé paire par paire.
+- **Liaisons frontalières en tête du classement** : 1 à 4 h de détour par camion, peut-être surestimées (peu de points frontières dans le graphe).
+- La mesure du temps perdu reste un coût composite (pénalités hors autoroute comprises) : un ordre de grandeur, pas des heures chronométrées.
+
+## Terrain ML · phase 0 · Clôture de la version de présentation (2026-11-16)
+
+Première étape d'une course en cinq phases qui prépare le jumeau à l'apprentissage automatique (atlas des données, tables d'apprentissage, calage plus rapide, carte des pistes). Un labo d'apprentissage automatique travaille en parallèle sur ce dépôt ; ses questions lui sont réservées et ses fichiers ne sont pas touchés d'ici.
+
+**Fait**
+- `CLAUDE.md` : section « Labo ML (session parallèle) », en commit séparé (`28c16bd`).
+- `tests/test_demo.py` : 4 lignes de plus de 120 caractères repliées. `ruff check` échouait : l'étape « Style » de la CI aurait échoué au premier push de la branche.
+- Les quatre pages régénérées par leurs scripts : Module 1, Module 2 (publique), Module 3 (publique et locale), version de présentation.
+
+**Chiffres**
+- 46 tests réussis ; `ruff check src tests` : 4 erreurs → 0 ; contrat `docs/api/openapi.json` inchangé après `jumeau openapi`.
+- Pages : dans les quatre fichiers, seule la date de génération change (2026-10-30 → 2026-11-16). Données, textes et scripts intégrés sont identiques à l'octet près.
+
+**Revue critique**
+- Les tests passaient, mais pas le style : la CI ne tourne qu'au push et cette branche n'a jamais été poussée. Avant chaque commit : `uv run ruff check src tests && uv run pytest`.
+- Une régénération identique prouve que les pages se reproduisent sur cette machine (mêmes artefacts locaux, mêmes versions de bibliothèques). Elle ne revalide pas les chiffres qu'elles affichent.

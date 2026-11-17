@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Résilience du réseau routier</title>
+<meta name="description" content="Simulation de la fermeture de liaisons routières au Québec et de ses effets sur le transport de marchandises.">
+<!-- Gabarit de scripts/visualisation_demo.py : thème, moteur Canvas et données sont injectés aux marqueurs. -->
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>/*__THEME_JS__*/</script>
+<style>
+/*__THEME_CSS__*/
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
+p,ul{margin:0}
+button{font:inherit;color:inherit}
+a{color:inherit}
+select{color:var(--ink);background:var(--card)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- Grille ---------- */
+.app{display:grid;height:100vh;grid-template-columns:minmax(0,1fr) 430px;grid-template-rows:68px minmax(0,1fr);grid-template-areas:"barre barre" "scene panneau"}
+.barre{grid-area:barre;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 20px;border-bottom:1px solid var(--rule);background:var(--card)}
+.barre .auteur{display:block;font-size:.8rem;color:var(--muted);line-height:1.3}
+.barre h1{font-size:1.35rem;line-height:1.2}
+.actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.btn{border:1px solid var(--rule);background:var(--card);border-radius:999px;padding:6px 14px;font-size:.85rem;font-weight:700;cursor:pointer;text-decoration:none;white-space:nowrap}
+a.btn:hover,button.btn:hover{background:var(--panel)}
+
+/* ---------- Carte ---------- */
+.scene{grid-area:scene;position:relative;min-width:0;min-height:0;overflow:hidden;background:var(--water)}
+.carte{position:absolute;inset:0;overflow:hidden}
+.chargement{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink2);z-index:5;pointer-events:none}
+.infobulle{position:absolute;z-index:6;pointer-events:none;background:var(--card);border:1px solid var(--rule);border-radius:8px;padding:9px 12px;box-shadow:0 6px 18px var(--shadow);max-width:300px;font-size:.86rem;line-height:1.4}
+.infobulle strong{display:block;font-family:var(--display);font-weight:400;font-size:.96rem;line-height:1.25;margin-bottom:3px}
+.infobulle .l{display:flex;justify-content:space-between;gap:14px}
+.infobulle .l span:first-child{color:var(--muted)}
+.infobulle .l span:last-child{font-variant-numeric:tabular-nums;text-align:right}
+.etiq-ville{pointer-events:none}
+.etiq-ville span{display:block;margin-left:6px;font-size:12px;font-weight:700;color:var(--ink2);text-shadow:0 0 3px var(--land),0 0 3px var(--land),0 0 2px var(--land);white-space:nowrap}
+.etiq-ville.fr span{font-weight:400;font-style:italic;color:var(--muted)}
+.maplibregl-ctrl-attrib{font-size:10px}
+.mc-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+.mc-coin{position:absolute;z-index:3;display:flex;flex-direction:column;gap:6px;margin:10px;align-items:flex-start}
+.mc-top-right{top:0;right:0;align-items:flex-end} .mc-bottom-left{bottom:0;left:0} .mc-bottom-right{bottom:0;right:0;align-items:flex-end}
+.mc-nav{display:flex;flex-direction:column;background:var(--ctrl-bg);border-radius:4px;box-shadow:0 0 0 1px var(--ctrl-rule);overflow:hidden}
+.mc-nav button{width:29px;height:29px;border:0;background:var(--ctrl-bg);font-size:17px;line-height:1;cursor:pointer;color:var(--ctrl-ink)}
+.mc-nav button+button{border-top:1px solid var(--ctrl-rule)}
+.mc-nav button:hover{background:var(--hover)}
+.mc-echelle{border:2px solid var(--ctrl-ink);border-top:0;background:color-mix(in srgb,var(--ctrl-bg) 80%,transparent);font-size:10px;padding:0 5px;color:var(--ctrl-ink)}
+.mc-attrib{background:color-mix(in srgb,var(--ctrl-bg) 88%,transparent);font-size:10px;padding:2px 6px;border-radius:3px;color:var(--ctrl-ink);max-width:70vw}
+
+/* ---------- Panneau ---------- */
+.panneau{grid-area:panneau;display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--rule);background:var(--card)}
+.etapes{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--rule)}
+.etapes button{border:0;background:transparent;border-bottom:3px solid transparent;margin-bottom:-1px;padding:10px 4px 8px;cursor:pointer;color:var(--muted);font-size:.8rem;line-height:1.2}
+.etapes button b{display:block;font-size:1.05rem;font-weight:700;margin-bottom:1px}
+.etapes button:hover{color:var(--ink)}
+.etapes button[aria-current="step"]{color:var(--ink);border-bottom-color:var(--accent)}
+.defile{flex:1;min-height:0;overflow-y:auto;padding:18px 20px 22px;display:flex;flex-direction:column;gap:14px}
+.defile>*{flex-shrink:0}
+.tete h2{font-size:1.65rem;line-height:1.15;margin-bottom:8px}
+.tete p{color:var(--ink2)}
+.tete p+p{margin-top:8px}
+.question{font-size:1.12rem;line-height:1.4;color:var(--ink)!important}
+.chiffres{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px}
+.chiffre{background:var(--panel);border-radius:8px;padding:11px 12px}
+.chiffre b{display:block;font-size:1.65rem;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.chiffre span{display:block;font-size:.8rem;color:var(--ink2);line-height:1.3;margin-top:3px}
+.contexte{font-size:.86rem;color:var(--muted)}
+.bloc{display:flex;flex-direction:column;gap:8px}
+.bloc h3{font-size:1rem}
+.choix{display:flex;flex-direction:column;gap:5px;font-size:.88rem;color:var(--ink2)}
+.choix select{font:inherit;color:var(--ink);border:1px solid var(--rule-strong);border-radius:7px;padding:7px 9px;max-width:100%}
+.legende{position:absolute;left:10px;bottom:34px;z-index:4;width:min(270px,calc(100% - 20px));display:flex;flex-direction:column;gap:6px;background:var(--card);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;font-size:.82rem;color:var(--ink2);box-shadow:0 4px 14px var(--shadow)}
+.legende h3{font-family:var(--body);font-weight:700;font-size:.84rem;color:var(--ink)}
+.rampe{display:grid;grid-template-columns:repeat(5,1fr);height:10px;border-radius:3px;overflow:hidden}
+.rampe-val{position:relative;height:16px;font-size:.74rem;font-variant-numeric:tabular-nums}
+.rampe-val span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.leg{display:grid;grid-template-columns:30px 1fr;gap:10px;align-items:center}
+.leg svg{width:30px;height:12px;display:block}
+.detour{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 10px;font-size:.88rem;padding:6px 0;border-bottom:1px solid var(--rule)}
+.detour:last-child{border-bottom:0}
+.detour .nom{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detour .route{grid-column:1;font-size:.76rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detour .val{grid-column:2;grid-row:1 / span 2;align-self:center;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.prudence{border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 7px 7px 0;padding:9px 12px;font-size:.88rem;color:var(--ink)}
+.rangs{display:flex;flex-direction:column;gap:2px}
+.rg{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:1px 8px;align-items:center;border:0;background:none;text-align:left;padding:3px 6px;border-radius:6px;cursor:pointer;font-size:.86rem}
+.rg:hover{background:var(--hover)}
+.rg .r{color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.rg .nom{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rg .val{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.rg .piste{grid-column:2 / -1;height:4px;background:var(--panel);border-radius:3px;overflow:hidden}
+.rg .piste i{display:block;height:100%;border-radius:3px}
+.limites{padding-left:18px;font-size:.88rem;color:var(--ink2);display:flex;flex-direction:column;gap:5px}
+.liens{display:flex;flex-direction:column;gap:3px;font-size:.88rem}
+.liens a{color:var(--ink);text-underline-offset:2px}
+.pied{display:flex;justify-content:space-between;gap:8px;padding:10px 16px;border-top:1px solid var(--rule)}
+.pied .btn:disabled{visibility:hidden}
+
+/* ---------- Petits écrans ---------- */
+@media (max-width:900px){
+  .app{height:auto;min-height:100vh;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 56vh auto;grid-template-areas:"barre" "scene" "panneau"}
+  .barre{padding:10px 16px;flex-wrap:wrap}
+  .barre h1{font-size:1.15rem}
+  .panneau{border-left:0;border-top:1px solid var(--rule)}
+  .defile{overflow:visible;padding:16px}
+  .legende{top:10px;bottom:auto;width:210px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="barre">
+    <div>
+      <span class="auteur">Akram Bouznad · Polytechnique Montréal · CIRANO</span>
+      <h1>Résilience du réseau routier québécois</h1>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn" id="btn-theme" onclick="basculerTheme()"></button>
+      <a class="btn" href="../jumeau/">Version technique</a>
+    </div>
+  </header>
+  <main class="scene" id="scene">
+    <div id="carte" class="carte" role="region" aria-label="Carte du réseau routier"></div>
+    <div class="legende" id="legende" hidden></div>
+    <div class="infobulle" id="infobulle" hidden></div>
+    <div class="chargement" id="chargement">Chargement de la carte…</div>
+  </main>
+  <aside class="panneau" aria-label="Présentation étape par étape">
+    <nav class="etapes" id="etapes" aria-label="Étapes"></nav>
+    <div class="defile" id="lecture"></div>
+    <div class="pied">
+      <button type="button" class="btn" id="prec">← Précédent</button>
+      <button type="button" class="btn" id="suiv">Suivant →</button>
+    </div>
+  </aside>
+</div>
+
+<script id="donnees" type="application/json">/*__DONNEES__*/null</script>
+<script>
+/*__MOTEUR_CANVAS__*/
+</script>
+<script>
+"use strict";
+const D = JSON.parse(document.getElementById("donnees").textContent);
+const M = D.meta, C = PALETTE;
+const REDUIT = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// ---------- Formats ----------
+const fmt = v => new Intl.NumberFormat("fr-CA").format(Math.round(v));
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function arrondi2(x) { const p = Math.pow(10, Math.floor(Math.log10(Math.abs(x))) - 1); return Math.round(x / p) * p; }
+
+// ---------- Données ----------
+const ROUTES = [];
+D.routes.features.forEach(f => { ROUTES[f.properties.i] = f.properties; });
+const LIAISONS = new Map(D.liaisons.map(l => [l.id, l]));
+const routesDe = new Map();
+ROUTES.forEach(r => { if (!routesDe.has(r.arc)) routesDe.set(r.arc, []); routesDe.get(r.arc).push(r.i); });
+const nomArc = id => { const l = LIAISONS.get(id); return `${l.a} – ${l.b}`; };
+const CLASSEES = D.liaisons.filter(l => !l.sans_itineraire).sort((a, b) => b.heures_jour - a.heures_jour);
+CLASSEES.forEach((l, k) => { l.rang = k + 1; });
+const NB_SANS = D.liaisons.length - CLASSEES.length;
+const PAR_NOM = [...D.liaisons].sort((a, b) => nomArc(a.id).localeCompare(nomArc(b.id), "fr"));
+
+// ---------- Classes ----------
+function quantiles(vals, n) {
+  const v = vals.filter(x => x > 0).sort((a, b) => a - b);
+  return Array.from({ length: n - 1 }, (_, k) => arrondi2(v[Math.floor((k + 1) * v.length / n)]));
+}
+const classe = (x, bornes) => { let k = 0; while (k < bornes.length && x >= bornes[k]) k++; return k; };
+const BORNES_FLUX = quantiles(D.flux, 5);
+const BORNES_HEURES = quantiles(CLASSEES.map(l => l.heures_jour), 5);
+const BORNES_DETOUR = [50, 500];          // camions par jour : en deçà de 50, l'écart n'est pas colorié
+const HAUSSE = C.div[1], BAISSE = C.div[5], SANS = C.bleu[3];
+
+// ---------- État ----------
+const ETAPES = [
+  { court: "Réseau", titre: "Le réseau étudié", vue: "QC" },
+  { court: "Trafic", titre: "Le trafic de camions", vue: "SUD" },
+  { court: "Fermeture", titre: "Simulation d'une fermeture", vue: "SUD" },
+  { court: "Résultats", titre: "Liaisons les plus critiques", vue: "QC" },
+];
+const VUES = { QC: [[-80.2, 44.6], [-56.8, 53.9]], SUD: [[-79.8, 44.85], [-64.5, 49.6]] };
+const S = { etape: 1, arc: M.exemple };
+try {
+  const h = new URLSearchParams(location.hash.slice(1)), e = +h.get("etape"), a = +h.get("arc");
+  if (e >= 1 && e <= ETAPES.length) S.etape = e;
+  if (LIAISONS.has(a)) S.arc = a;
+} catch (e) {}
+const ecarts = arc => {
+  const d = new Float64Array(ROUTES.length), [ids, vals] = LIAISONS.get(arc).detours;
+  ids.forEach((i, k) => { d[i] = vals[k]; });
+  return d;
+};
+
+// ---------- Carte ----------
+let MOTEUR = (window.maplibregl && webglDisponible()) ? window.maplibregl : MoteurCanvas;
+let carte = null;
+const BASE_STYLE = { version: 8, sources: {}, layers: [{ id: "fond", type: "background", paint: { "background-color": C.terre } }] };
+const etat = (k, d) => ["coalesce", ["feature-state", k], d];
+const largeur = (k, d) => ["interpolate", ["linear"], ["zoom"], 4, ["*", 0.8, etat(k, d)], 8, ["*", 1.7, etat(k, d)]];
+
+function creerCarte() {
+  return new MOTEUR.Map({
+    container: "carte", style: BASE_STYLE, bounds: VUES[ETAPES[S.etape - 1].vue], fitBoundsOptions: { padding: 24 },
+    attributionControl: false, dragRotate: false, pitchWithRotate: false, keyboard: false, maxBounds: [[-175, 5], [-20, 80]],
+  });
+}
+function construireCouches(map) {
+  map.addSource("ocean", { type: "geojson", data: D.fond.ocean });
+  map.addSource("lacs", { type: "geojson", data: D.fond.lacs });
+  map.addSource("admin", { type: "geojson", data: D.fond.admin });
+  map.addLayer({ id: "ocean", type: "fill", source: "ocean", paint: { "fill-color": C.eau } });
+  map.addLayer({ id: "lacs", type: "fill", source: "lacs", paint: { "fill-color": C.eau } });
+  map.addLayer({ id: "admin", type: "line", source: "admin", paint: { "line-color": C.bord, "line-width": 0.8 } });
+  map.addLayer({ id: "admin-qc", type: "line", source: "admin", filter: ["==", ["get", "qc"], true], paint: { "line-color": C.qc, "line-width": 1.4 } });
+  map.addSource("routes", { type: "geojson", data: D.routes, promoteId: "i" });
+  const rond = { "line-cap": "round", "line-join": "round" };
+  map.addLayer({ id: "routes-halo", type: "line", source: "routes", layout: rond,
+                 paint: { "line-color": C.selection, "line-width": largeur("hw", 0), "line-opacity": 0.9 } });
+  map.addLayer({ id: "routes", type: "line", source: "routes", layout: rond,
+                 paint: { "line-color": etat("c", C.reseau), "line-width": largeur("w", 1), "line-opacity": etat("o", 1) } });
+  map.addLayer({ id: "routes-hit", type: "line", source: "routes", paint: { "line-color": "#000", "line-opacity": 0, "line-width": 12 } });
+  map.addControl(new MOTEUR.NavigationControl({ showCompass: false }), "top-right");
+  map.addControl(new MOTEUR.ScaleControl({ unit: "metric" }), "bottom-left");
+  map.addControl(new MOTEUR.AttributionControl({ compact: true,
+    customAttribution: (MOTEUR === MoteurCanvas ? "Rendu simplifié sans accélération graphique · " : "") +
+      "Natural Earth · MTMD (RTSS, débits de circulation 2025) · Enquête nationale en bordure de route 2006-2007 (MTQ, Transports Canada)" }), "bottom-right");
+  D.noeuds.forEach(n => {
+    const el = document.createElement("div");
+    el.className = "etiq-ville" + (n.frontiere ? " fr" : "");
+    el.appendChild(document.createElement("span")).textContent = n.nom;
+    new MOTEUR.Marker({ element: el, anchor: "left" }).setLngLat([n.lon, n.lat]).addTo(map);
+  });
+}
+
+// État de chaque tracé pour l'étape courante : couleur c, largeur w, opacité o, liseré hw
+function etatsRoutes() {
+  const k = S.etape;
+  if (k === 1) return ROUTES.map(() => ({ c: C.muet, w: 1.2, o: 1, hw: 0 }));
+  if (k === 2) return ROUTES.map(r => { const c = classe(D.flux[r.i], BORNES_FLUX); return { c: C.bleu[c], w: 0.7 + 0.9 * c, o: 1, hw: 0 }; });
+  if (k === 3) {
+    const d = ecarts(S.arc), ferme = new Set(routesDe.get(S.arc));
+    return ROUTES.map(r => {
+      if (ferme.has(r.i)) return { c: C.vide, w: 2.2, o: 1, hw: 8 };
+      const c = classe(Math.abs(d[r.i]), BORNES_DETOUR);
+      return c === 0 ? { c: C.reseau, w: 1, o: 0.5, hw: 0 } : { c: d[r.i] > 0 ? HAUSSE : BAISSE, w: 1.2 + 1.6 * c, o: 1, hw: 0 };
+    });
+  }
+  return ROUTES.map(r => {
+    const l = LIAISONS.get(r.arc);
+    if (l.sans_itineraire) return { c: SANS, w: 1.4, o: 1, hw: 0 };
+    const c = classe(l.heures_jour, BORNES_HEURES);
+    return { c: C.or[c], w: 0.9 + 0.8 * c, o: 1, hw: 0 };
+  });
+}
+function appliquerEtape() {
+  etatsRoutes().forEach((e, i) => carte.setFeatureState({ source: "routes", id: i }, e));
+}
+
+// ---------- Briques du panneau ----------
+const chiffre = (val, lib) => `<div class="chiffre"><b>${val}</b><span>${lib}</span></div>`;
+const trait = (couleur, l = 3) => `<svg viewBox="0 0 30 12" aria-hidden="true"><line x1="2" y1="6" x2="28" y2="6" stroke="${couleur}" stroke-width="${l}" stroke-linecap="round"/></svg>`;
+const ligneLeg = (forme, lib) => `<div class="leg">${forme}<span>${lib}</span></div>`;
+const tete = (...textes) => `<div class="tete"><h2>${ETAPES[S.etape - 1].titre}</h2>${textes.map(t => `<p>${t}</p>`).join("")}</div>`;
+const rampe = (titre, couleurs, bornes) => `<h3>${titre}</h3><div class="rampe" aria-hidden="true">${couleurs.map(c => `<i style="background:${c}"></i>`).join("")}</div>
+  <div class="rampe-val num">${bornes.map((b, k) => `<span style="left:${100 * (k + 1) / couleurs.length}%">${fmt(b)}</span>`).join("")}</div>`;
+function legendeEtape() {
+  if (S.etape === 2) return rampe("Camions par jour", C.bleu, BORNES_FLUX);
+  if (S.etape === 4) return rampe("Heures perdues par jour de fermeture", C.or, BORNES_HEURES) + ligneLeg(trait(SANS, 2.5), "Sans itinéraire de remplacement");
+  if (S.etape !== 3) return "";
+  const traitFerme = `<svg viewBox="0 0 30 12" aria-hidden="true"><line x1="2" y1="6" x2="28" y2="6" stroke="${C.selection}" stroke-width="8" stroke-linecap="round" stroke-opacity=".9"/><line x1="2" y1="6" x2="28" y2="6" stroke="${C.vide}" stroke-width="2.2" stroke-linecap="round"/></svg>`;
+  return ligneLeg(traitFerme, "Liaison fermée") + ligneLeg(trait(HAUSSE, 3.5), "Trafic en hausse") + ligneLeg(trait(BAISSE, 3.5), "Trafic en baisse");
+}
+
+// ---------- Étapes ----------
+function rendreReseau() {
+  return `<div class="tete"><h2>${ETAPES[0].titre}</h2>
+      <p class="question">Lorsqu'une route importante ferme, où vont les camions et quel temps perd-on ?</p>
+      <p>Pour répondre, le réseau interurbain du Québec est décrit par ses liaisons : les tronçons qui relient deux villes ou deux carrefours.</p></div>
+    <div class="chiffres">${chiffre(fmt(M.n_liaisons), "liaisons")}${chiffre(fmt(M.n_routes), "tracés routiers")}${chiffre(fmt(M.n_sections_mesurees), "sections de comptage mesurées")}</div>`;
+}
+function rendreTrafic() {
+  return tete(`Un modèle répartit les camions entre les tracés possibles. Il est calé sur les comptages routiers de 2025 et sur une enquête menée auprès de ${fmt(M.n_camions_enquetes)} camions en 2006-2007.`);
+}
+function rendreFermeture() {
+  const l = LIAISONS.get(S.arc), d = ecarts(S.arc), ferme = new Set(routesDe.get(S.arc));
+  const detours = ROUTES.filter(r => d[r.i] > 0 && !ferme.has(r.i)).sort((a, b) => d[b.i] - d[a.i]).slice(0, 3);
+  let h = tete("Sélectionnez une liaison sur la carte ou dans la liste. Le modèle estime où vont les camions si elle ferme entièrement.");
+  h += `<label class="choix">Liaison fermée<select id="choix-arc">${PAR_NOM.map(x => `<option value="${x.id}" ${x.id === S.arc ? "selected" : ""}>${esc(nomArc(x.id))}</option>`).join("")}</select></label>`;
+  if (l.sans_itineraire) {
+    h += `<div class="chiffres" aria-live="polite">${chiffre(fmt(l.camions_jour), "camions touchés par jour")}${chiffre(fmt(l.sans_chemin_jour), "camions par jour sans itinéraire de remplacement")}</div>
+      <p class="prudence">Le réseau modélisé n'offre aucun itinéraire de remplacement à ces camions. Selon le cas, cela traduit une vraie dépendance à une seule route ou une simplification du réseau. Le temps perdu n'est donc pas estimé.</p>`;
+  } else {
+    h += `<div class="chiffres" aria-live="polite">${chiffre(fmt(l.camions_jour), "camions touchés par jour")}${chiffre(fmt(l.heures_jour), "heures perdues par jour de fermeture")}</div>
+      <p class="contexte">Rang ${fmt(l.rang)} sur ${fmt(CLASSEES.length)} liaisons classées.</p>`;
+  }
+  if (detours.length) h += `<div class="bloc"><h3>Principales routes de détour</h3><div>${detours.map(r => `<div class="detour">
+      <span class="nom" title="${esc(nomArc(r.arc))}">${esc(nomArc(r.arc))}</span><span class="val">+${fmt(d[r.i])} camions/j</span>
+      <span class="route">${esc(r.nums)}</span></div>`).join("")}</div></div>`;
+  return h;
+}
+function rendreResultats() {
+  const top = CLASSEES.slice(0, 10), max = top[0].heures_jour;
+  return tete("Chaque liaison a été fermée à tour de rôle. Voici les dix fermetures les plus pénalisantes, en heures perdues par jour.") +
+    `<div class="rangs">${top.map((l, k) => `<button type="button" class="rg" data-arc="${l.id}">
+      <span class="r">${k + 1}</span><span class="nom" title="${esc(nomArc(l.id))}">${esc(nomArc(l.id))}</span><span class="val">${fmt(l.heures_jour)} h</span>
+      <span class="piste"><i style="width:${100 * l.heures_jour / max}%;background:${C.or[classe(l.heures_jour, BORNES_HEURES)]}"></i></span></button>`).join("")}</div>
+    <p class="contexte">Les ${fmt(NB_SANS)} liaisons sans itinéraire de remplacement ne sont pas classées : le temps perdu n'y est pas mesurable.</p>
+    <div class="bloc"><h3>Portée et limites</h3><ul class="limites">
+      <li>Ordres de grandeur, pas des prévisions : erreur médiane d'environ ${fmt(M.erreur_mediane * 100)} % par section, sur des données mises de côté.</li>
+      <li>Déplacements issus d'une enquête de 2006-2007.</li>
+      <li>Réseau simplifié, surtout aux frontières : des détours réels manquent et des camions changent de point d'entrée au Québec, parfois loin de la fermeture.</li></ul></div>
+    <div class="bloc"><h3>Méthode détaillée</h3><div class="liens">
+      <a href="../volet1/">Module 1 · Estimation du trafic par liaison</a>
+      <a href="../volet2/carte_interactive.html">Module 2 · Valorisation économique du fret</a>
+      <a href="../jumeau/">Module 3 · Jumeau numérique et analyse de résilience</a>
+      <a href="https://github.com/akrambouznad789-cyber/projet-resilience-cirano">Code source</a></div></div>
+    <p class="contexte">Page mise à jour le ${esc(M.genere_le)}.</p>`;
+}
+const RENDUS = [rendreReseau, rendreTrafic, rendreFermeture, rendreResultats];
+
+function rendreLecture() {
+  const z = document.getElementById("lecture");
+  z.innerHTML = RENDUS[S.etape - 1]();
+  const legende = document.getElementById("legende"), contenu = legendeEtape();
+  legende.innerHTML = contenu; legende.hidden = !contenu;
+  z.querySelectorAll(".rg").forEach(b => b.addEventListener("click", () => { S.arc = +b.dataset.arc; allerA(3); }));
+  const choix = z.querySelector("#choix-arc");
+  if (choix) choix.addEventListener("change", () => { S.arc = +choix.value; toutRafraichir(); });
+}
+function rendreEtapes() {
+  const nav = document.getElementById("etapes");
+  nav.innerHTML = ETAPES.map((e, k) => `<button type="button" data-k="${k + 1}" ${k + 1 === S.etape ? 'aria-current="step"' : ""}><b>${k + 1}</b>${e.court}</button>`).join("");
+  nav.querySelectorAll("button").forEach(b => b.addEventListener("click", () => allerA(+b.dataset.k)));
+  document.getElementById("prec").disabled = S.etape === 1;
+  document.getElementById("suiv").disabled = S.etape === ETAPES.length;
+}
+function toutRafraichir() {
+  if (carte && carte._pret) appliquerEtape();
+  rendreEtapes();
+  rendreLecture();
+  try { history.replaceState(null, "", `#etape=${S.etape}${S.etape === 3 ? "&arc=" + S.arc : ""}`); } catch (e) {}
+}
+function allerA(k) {
+  if (k < 1 || k > ETAPES.length) return;
+  const ancienne = ETAPES[S.etape - 1].vue;
+  S.etape = k;
+  toutRafraichir();
+  if (carte && carte._pret && ETAPES[k - 1].vue !== ancienne) carte.fitBounds(VUES[ETAPES[k - 1].vue], { padding: 24, duration: REDUIT ? 0 : 600 });
+  document.getElementById("lecture").scrollTop = 0;
+}
+
+// ---------- Survol et clic ----------
+const bulle = document.getElementById("infobulle");
+const ligneBulle = (a, b) => `<div class="l"><span>${a}</span><span>${b}</span></div>`;
+function contenuBulle(r) {
+  const l = LIAISONS.get(r.arc), k = S.etape;
+  let h = `<strong>${esc(nomArc(r.arc))}</strong>${r.nums ? ligneBulle("Route", esc(r.nums)) : ""}`;
+  if (k === 1) h += ligneBulle("Longueur", fmt(r.km) + " km");
+  if (k === 2) h += ligneBulle("Camions par jour", fmt(D.flux[r.i]));
+  if (k === 3) {
+    const d = ecarts(S.arc)[r.i];
+    h += r.arc === S.arc ? ligneBulle("État", "fermée") : ligneBulle("Écart", (d > 0 ? "+" : d < 0 ? "−" : "") + fmt(Math.abs(d)) + " camions/j");
+  }
+  if (k === 4) h += l.sans_itineraire ? ligneBulle("Sans itinéraire", "de remplacement") : ligneBulle("Heures perdues par jour", fmt(l.heures_jour));
+  return h;
+}
+function brancherSouris(map) {
+  map.on("mousemove", e => {
+    const f = map.queryRenderedFeatures(e.point, { layers: ["routes-hit"] });
+    if (!f.length) { bulle.hidden = true; map.getCanvas().style.cursor = ""; return; }
+    bulle.innerHTML = contenuBulle(ROUTES[f[0].properties.i]); bulle.hidden = false;
+    const r = document.getElementById("scene").getBoundingClientRect();
+    bulle.style.left = Math.min(e.point.x + 14, r.width - bulle.offsetWidth - 8) + "px";
+    bulle.style.top = Math.min(e.point.y + 14, r.height - bulle.offsetHeight - 8) + "px";
+    map.getCanvas().style.cursor = S.etape >= 3 ? "pointer" : "";
+  });
+  map.on("mouseout", () => { bulle.hidden = true; });
+  map.on("click", e => {
+    if (S.etape < 3) return;
+    const f = map.queryRenderedFeatures(e.point, { layers: ["routes-hit"] });
+    if (f.length) { S.arc = ROUTES[f[0].properties.i].arc; S.etape === 3 ? toutRafraichir() : allerA(3); }
+  });
+}
+
+// ---------- Démarrage ----------
+function afficherProbleme(detail) {
+  const c = document.getElementById("chargement");
+  if (c) c.textContent = "La carte ne peut pas s'afficher : " + detail;
+}
+function lancerCarte() {
+  try { carte = creerCarte(); }
+  catch (e) {
+    if (MOTEUR !== MoteurCanvas) { MOTEUR = MoteurCanvas; document.getElementById("carte").innerHTML = ""; return lancerCarte(); }
+    afficherProbleme(e.message); return;
+  }
+  carte.on("load", () => {
+    try {
+      construireCouches(carte); carte._pret = true;
+      brancherSouris(carte);
+      document.getElementById("chargement").remove();
+      toutRafraichir();
+    } catch (e) { afficherProbleme(e.message); }
+  });
+}
+document.getElementById("btn-theme").textContent = THEME === "sombre" ? "Thème clair" : "Thème sombre";
+document.getElementById("prec").addEventListener("click", () => allerA(S.etape - 1));
+document.getElementById("suiv").addEventListener("click", () => allerA(S.etape + 1));
+document.addEventListener("keydown", e => {
+  if (e.target.closest("select")) return;
+  if (e.key === "ArrowRight") allerA(S.etape + 1);
+  if (e.key === "ArrowLeft") allerA(S.etape - 1);
+});
+rendreEtapes(); rendreLecture();
+lancerCarte();
+</script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Volet 2 · De l'enquête au dollar</title>
+<title>Module 2 · Valorisation économique du fret</title>
 <!-- Gabarit de scripts/visualisation_volet2.py : les données sont injectées dans
      la balise <script id="donnees">. Page locale (agrégats ENR), ne pas publier. -->
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
@@ -187,8 +187,8 @@ pre.code .k{color:var(--code-k)}
 <div class="app">
   <header class="barre">
     <div>
-      <span class="eyebrow">CIRANO · Volet 2 · premier jet du <span id="date-gen"></span><span id="mention-publique"></span></span>
-      <h1>De l'enquête au dollar</h1>
+      <span class="eyebrow">CIRANO · Module 2 · premier jet du <span id="date-gen"></span><span id="mention-publique"></span></span>
+      <h1>Valorisation économique du fret</h1>
     </div>
     <div class="barre-actions">
       <span class="provisoire" title="Groupes de marchandises, $/t et facteur d'actualisation provisoires">Hypothèses provisoires</span>
@@ -198,7 +198,7 @@ pre.code .k{color:var(--code-k)}
     </div>
   </header>
 
-  <nav class="etapes" id="etapes" aria-label="Étapes des trois volets"></nav>
+  <nav class="etapes" id="etapes" aria-label="Étapes des trois modules"></nav>
 
   <main class="scene" id="scene">
     <div id="carte-b" class="carte" role="region" aria-label="Carte de l'étape courante"></div>
@@ -364,7 +364,7 @@ function classer(x, bornes) {
 
 // ---------- Définition des étapes ----------
 const ETAPES = [
-  { court: "Réseau du volet 1", sur: "point de départ", vue: "QC" },
+  { court: "Réseau du module 1", sur: "point de départ", vue: "QC" },
   { court: "ENR brute", sur: "114 734 camions", vue: "AN" },
   { court: "Filtre Québec", sur: "camions retenus", vue: "EST" },
   { court: "Postes d'enquête", sur: "où on les arrête", vue: "SUD" },
@@ -963,14 +963,14 @@ const ETAPES_V3 = [["Plusieurs routes", "459 routes, 307 liaisons"], ["Le modèl
 const URL_V3 = PUBLIQUE ? "../jumeau/" : "../jumeau/index.html";
 function rendreEtapes() {
   const nav = document.getElementById("etapes");
-  nav.innerHTML = `<p class="groupe-etapes v1"><span>Volet 1</span> Le trafic</p>` +
+  nav.innerHTML = `<p class="groupe-etapes v1"><span>Module 1</span> Estimation du trafic</p>` +
     ETAPES_V1.map(([court, sur], i) => `<a class="etape v1" href="${URL_V1}#etape=${i + 1}"><b>${i + 1}</b><span>${esc(court)}<small>${esc(sur)}</small></span></a>`).join("") +
-    `<p class="groupe-etapes v2"><span>Volet 2</span> La valeur</p>` +
+    `<p class="groupe-etapes v2"><span>Module 2</span> Valorisation du fret</p>` +
     ETAPES.map((e, k) => `
     <button type="button" class="etape v2${e.page ? " calcul-page" : ""}" data-k="${k}" ${k === S.etape ? 'aria-current="step"' : ""}>
       <b>${k}</b><span>${esc(e.court)}<small>${esc(k === 2 ? fmt(M.n_garde) + " retenus" : e.sur)}</small></span>
     </button>`).join("") +
-    `<p class="groupe-etapes v3"><span>Volet 3</span> Le jumeau</p>` +
+    `<p class="groupe-etapes v3"><span>Module 3</span> Jumeau numérique</p>` +
     ETAPES_V3.map(([court, sur], i) => `<a class="etape v3" href="${URL_V3}#etape=${i + 1}"><b>${i + 1}</b><span>${esc(court)}<small>${esc(sur)}</small></span></a>`).join("") +
     `<p class="etapes-pied"><kbd>←</kbd> <kbd>→</kbd> pour changer d'étape. Les étapes 6 à 8 se recalculent dans la page.</p>`;
   nav.querySelectorAll("button.etape").forEach(b => b.addEventListener("click", () => allerA(+b.dataset.k)));
@@ -1010,7 +1010,7 @@ function listeBarres(lignes, couleur, max) {
     <span class="piste"><i style="width:${Math.max(1.5, 100 * l.v / m)}%;background:${l.couleur || couleur}"></i></span><span class="val">${l.lib}</span></div>`).join("")}</div>`;
 }
 function blocSelection() {
-  if (S.selection == null) return `<p class="note">Clique sur un arc pour voir son détail.</p>`;
+  if (S.selection == null) return `<p class="note">Cliquer sur un arc pour voir son détail.</p>`;
   const p = parId.get(S.selection), c = calcParId().get(S.selection), i = posArc.get(S.selection);
   const T = PA[S.poids === "n3" ? "t3" : "t4"][i], top = PA.top[i] || [];
   const comp = GRP.map(([k, l], g) => ({ nom: l, v: T[g], lib: compact(T[g], "t") })).filter(x => x.v > 0 && x.nom).sort((a, b) => b.v - a.v);
@@ -1039,7 +1039,7 @@ function rendreLecture() {
 
   if (k === 0) {
     const cams = ARCS.map(p => p.cam_m4).filter(v => v != null).sort((a, b) => a - b);
-    h += tete("Le réseau du volet 1", "Les 307 arcs entre les villes, avec leurs camions par jour (comptages MTMD 2025). C'est le multiplicateur final : le volet 2 n'ajoute que le $ par camion.");
+    h += tete("Le réseau du module 1", "Les 307 arcs entre les villes, avec leurs camions par jour (comptages MTMD 2025). C'est le multiplicateur final : le module 2 n'ajoute que le $ par camion.");
     h += `<div class="tuiles">${tuile(fmt(ARCS.length), "arcs")}${tuile(fmt(NOEUDS.length), "nœuds reliés, dont " + NOEUDS.filter(n => n.type.startsWith("frontiere")).length + " frontières")}
       ${tuile(fmt(cams[Math.floor(cams.length / 2)]), "camions/jour, arc médian (m4)")}${tuile(fmt(cams[cams.length - 1]), "camions/jour, arc le plus chargé")}</div>`;
     h += `<div class="bloc"><h3>Méthode DJMA</h3>${segment("methode", [["m1", "m1"], ["m2", "m2"], ["m3", "m3"], ["m4", "m4 · 80e percentile"]], S.methode)}
@@ -1221,7 +1221,7 @@ const CODE = {
   8: [["js", "valeurAnnuelle() — dans cette page", valeurAnnuelle.toString()], ["js", "valoriserArc()", valoriserArc.toString()]],
 };
 const RESUME = {
-  0: "Le graphe NetworkX du volet 1 : chaque arc est pondéré par la longueur de son tracé OSRM.",
+  0: "Le graphe NetworkX du module 1 : chaque arc est pondéré par la longueur de son tracé OSRM.",
   1: "Jointure 1 pour 1 des quatre fichiers ENR, puis tonnes annuelles = kg du chargement ÷ 1 000 × trajets annualisés.",
   2: "Le filtre du 2026-10-20, appliqué tel quel : 37 603 camions.",
   3: "Chaque poste est accroché au tracé le plus proche ; on mesure ensuite si les chemins calculés y passent.",
@@ -1315,7 +1315,7 @@ function contenuBulle(map, f, k) {
     if (k === 8) h += l("$ par an", dollars(c.valeurAn)) + l("Fourchette m1–m4", `${dollars(c.vMin)} – ${dollars(c.vMax)}`);
     if (k === 0) h += l("DJMA total", fmt(p["djma_" + S.methode])) + l("Statut", esc(p.statut));
     if (k >= 5 && c.oAll < SEUIL_OBS) h += `<div class="note">Moins de ${SEUIL_OBS} camions enquêtés : valeur fragile.</div>`;
-    return h + (k >= 5 ? `<div class="note">Clique pour le détail.</div>` : "");
+    return h + (k >= 5 ? `<div class="note">Cliquer pour le détail.</div>` : "");
   }
   if (L === "noeuds") {
     const n = noeudParId.get(f.properties.id);

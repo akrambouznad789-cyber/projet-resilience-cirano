@@ -37,7 +37,9 @@ Volets 1 et 2 (venv `~/.venvs/portfolio`) :
 
 Volet 3, le jumeau (paquet `src/jumeau_cirano/`, environnement `uv`, Python 3.12) :
 - `uv run jumeau reseau` → `uv run jumeau preparer` (ENR) → `uv run jumeau calibrer` → `uv run jumeau scenarios`
-- Page : `uv run python scripts/visualisation_jumeau.py --publique`
+- Page technique : `uv run python scripts/visualisation_jumeau.py --publique`
+- Page de présentation : `uv run python scripts/visualisation_demo.py` (lit la page publique, ni artefact ni ENR)
+- Noms publics dans les pages et le README : Module 1 (Estimation du trafic par liaison), Module 2 (Valorisation économique du fret), Module 3 (Jumeau numérique et analyse de résilience). Les chemins et le code gardent `volet`.
 - API : `uv run jumeau exporter`, puis `JUMEAU_ARTEFACT=outputs/jumeau/service uv run jumeau api` ; contrat : `uv run jumeau openapi`
 - Tests : `uv run pytest` (réseaux synthétiques, jamais l'ENR)
 - Thème des pages : `scripts/gabarits/theme/jetons.json` → `python scripts/theme_pages.py`
@@ -50,3 +52,10 @@ Volet 3, le jumeau (paquet `src/jumeau_cirano/`, environnement `uv`, Python 3.12
 ## Commandes Git
 - Avant tout travail : `git checkout -b feature/nom-agent`
 - Après validation : `git add . && git commit -m "message clair"`
+
+## Labo ML (session parallèle)
+- Un labo d'apprentissage automatique travaille sur ce dépôt depuis un worktree séparé, `~/projects/jumeau-labo`, sur des branches `feature/labo-NN-nom`. Ne jamais extraire, modifier, rebaser ni supprimer une branche `feature/labo-*`.
+- Ses fichiers : `labos/` (code des expériences), `docs/labos/` (pages publiques, CSV, figures), `scripts/visualisation_labos.py`, `scripts/gabarits/labo.html`. Ne pas les modifier depuis ici.
+- Les fichiers partagés (`README.md`, `docs/progress.md`, la documentation des modules, `pyproject.toml`, `uv.lock`) ne reçoivent les ajouts du labo qu'à sa fusion, par une PR qu'Akram fusionne lui-même.
+- Le labo a sa propre base MLflow et n'écrit jamais dans `data/` ni dans `outputs/` de ce dossier.
+- Une seule session publie à la fois : avant de pousser sur `main`, demander à Akram.

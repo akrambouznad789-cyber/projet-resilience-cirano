@@ -1,8 +1,8 @@
-[← Résultats du Volet 1](resultats.md) · **Volet 2** · [README](../README.md)
+[← Résultats du Module 1](resultats.md) · **Module 2** · [README](../README.md)
 
 ---
 
-## Volet 2 — La valeur de ce qui circule sur chaque liaison
+## Module 2 — Valorisation économique du fret
 
 > **Statut : premier jet, octobre 2026.** Les étapes de données (enquête, filtre, localisation, routage) sont réelles. Les prix par tonne et l'actualisation en dollars de 2026 sont encore provisoires : les montants affichés servent à montrer la méthode et ne doivent pas être cités.
 
@@ -10,19 +10,19 @@
 
 ### L'idée
 
-Le Volet 1 sait combien de camions passent chaque jour sur une liaison. Il ne sait pas ce qu'ils transportent. L'**Enquête nationale en bordure de route** (ENR 2006-2007, MTQ et Transports Canada) apporte cette pièce manquante : des enquêteurs ont arrêté des camions au bord de la route pour noter d'où ils venaient, où ils allaient, ce qu'ils transportaient et combien pesait leur chargement.
+Le Module 1 sait combien de camions passent chaque jour sur une liaison. Il ne sait pas ce qu'ils transportent. L'**Enquête nationale en bordure de route** (ENR 2006-2007, MTQ et Transports Canada) apporte cette pièce manquante : des enquêteurs ont arrêté des camions au bord de la route pour noter d'où ils venaient, où ils allaient, ce qu'ils transportaient et combien pesait leur chargement.
 
-L'enquête ne sert pas à compter les camions : ses chiffres datent de 2006-2007. Elle sert à savoir ce qu'il y a dedans, en moyenne, sur chaque liaison. Le nombre de camions vient des comptages récents du Volet 1.
+L'enquête ne sert pas à compter les camions : ses chiffres datent de 2006-2007. Elle sert à savoir ce qu'il y a dedans, en moyenne, sur chaque liaison. Le nombre de camions vient des comptages récents du Module 1.
 
 ```
-valeur annuelle d'une liaison = camions par jour (Volet 1) × $ moyen par camion (ENR) × 365
+valeur annuelle d'une liaison = camions par jour (Module 1) × $ moyen par camion (ENR) × 365
 ```
 
 ### Les étapes
 
 | # | Étape | Ce qu'on fait | En chiffres |
 |---|---|---|---|
-| 0 | Réseau du Volet 1 | Point de départ : les liaisons et leurs camions par jour. | 307 liaisons |
+| 0 | Réseau du Module 1 | Point de départ : les liaisons et leurs camions par jour. | 307 liaisons |
 | 1 | Enquête brute | Toutes les fiches de l'enquête, partout au Canada. Aucune ne contient de montant en dollars. | 114 734 camions |
 | 2 | Cibler le Québec | On garde les camions qui chargent ou livrent au Québec, où qu'ils aient été arrêtés, et ceux dont le trajet traverse le Québec. | 37 603 camions, dont 9 057 vides |
 | 3 | Postes d'enquête | Les lieux où les camions ont été arrêtés au Québec. | 49 postes |
@@ -38,7 +38,7 @@ Les étapes 6 à 8 sont calculées directement dans la page : on peut y modifier
 
 - **Le routage est à affiner.** Pour seulement 51 % des camions arrêtés à un poste d'enquête, le chemin calculé passe bien par la liaison de ce poste. Aux postes frontaliers comme Lacolle, le plus court chemin sort souvent par une autre frontière voisine. L'enquête indique les postes réellement franchis par chaque camion : s'en servir pour guider le routage est la prochaine amélioration.
 - **Le niveau de détail des lieux compte.** L'enquête code ses lieux selon les municipalités de 2001, avant les fusions de 2002. Avec les limites municipales de la même année, chaque lieu canadien retrouve sa municipalité. Si on regroupait plutôt les lieux par division de recensement (en général une MRC), 47 % des ramassages et livraisons au Québec changeraient de nœud. La carte permet de comparer les deux niveaux.
-- **Plus d'un camion sur trois roule vide** (37 % une fois pondérés). Ces camions restent dans la moyenne à 0 $, parce que les comptages du Volet 1 les incluent aussi.
+- **Plus d'un camion sur trois roule vide** (37 % une fois pondérés). Ces camions restent dans la moyenne à 0 $, parce que les comptages du Module 1 les incluent aussi.
 
 ### Ce qui reste à faire
 
@@ -62,4 +62,4 @@ Le script [`visualisation_volet2.py`](../scripts/visualisation_volet2.py) prépa
 
 ---
 
-[← Résultats du Volet 1](resultats.md) · [README](../README.md)
+[← Résultats du Module 1](resultats.md) · [README](../README.md)

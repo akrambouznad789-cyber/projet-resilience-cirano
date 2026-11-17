@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Volet 3 · Le jumeau</title>
+<title>Module 3 · Jumeau numérique et analyse de résilience</title>
 <!-- Gabarit de scripts/visualisation_jumeau.py : thème, moteur Canvas, modele.js, scenario.js et données
      sont injectés aux marqueurs. Version locale (outputs/) : itinéraires dérivés de l'ENR, ne pas publier. -->
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
@@ -210,17 +210,18 @@ details.plus[open] summary{margin-bottom:8px}
 <div class="app">
   <header class="barre">
     <div>
-      <span class="eyebrow">CIRANO · Volet 3 · jumeau numérique · mis à jour le <span id="date-gen"></span><span id="mention-publique"></span></span>
-      <h1>Le jumeau : fermer une liaison, voir le report</h1>
+      <span class="eyebrow">CIRANO · Module 3 · version technique · mis à jour le <span id="date-gen"></span><span id="mention-publique"></span></span>
+      <h1>Jumeau numérique et analyse de résilience</h1>
     </div>
     <div class="barre-actions">
       <span class="provisoire" title="Coût horaire d'un camion et valeur par tonne : hypothèses à remplacer">$ provisoires</span>
       <button type="button" class="btn" id="btn-theme" onclick="basculerTheme()"></button>
+      <a class="btn" id="btn-demo" href="../demo/" hidden>Version de présentation</a>
       <a class="btn" href="https://github.com/akrambouznad789-cyber/projet-resilience-cirano">Code sur GitHub</a>
     </div>
   </header>
 
-  <nav class="etapes" id="etapes" aria-label="Étapes des trois volets"></nav>
+  <nav class="etapes" id="etapes" aria-label="Étapes des trois modules"></nav>
 
   <main class="scene" id="scene">
     <div id="carte" class="carte" role="region" aria-label="Carte de l'étape courante"></div>
@@ -390,7 +391,7 @@ const ETAPES = [
 const VUES = { QC: [[-80.2, 44.6], [-56.8, 53.9]], SUD: [[-79.8, 44.85], [-64.5, 49.6]] };
 const ETAPES_V1 = [["Données", "trois couches de départ"], ["Complétion", "combler les trous"], ["Routage", "tracer les liaisons"],
                    ["Méthodes DJMA", "4 façons de résumer"], ["Résultats", "304 liaisons sur 307"]];
-const ETAPES_V2 = [["Réseau du volet 1", "point de départ"], ["ENR brute", "114 734 camions"], ["Filtre Québec", "37 603 retenus"],
+const ETAPES_V2 = [["Réseau du module 1", "point de départ"], ["ENR brute", "114 734 camions"], ["Filtre Québec", "37 603 retenus"],
   ["Postes d'enquête", "où on les arrête"], ["Rattachement aux nœuds", "lieux → nœuds"], ["Routage sur le graphe", "chemin par camion"],
   ["$ par tonne", "calcul dans la page"], ["Actualisation $ 2026", "calcul dans la page"], ["Valeur par arc", "calcul dans la page"]];
 const URL_V1 = PUBLIQUE ? "../volet1/" : "../volet1/index.html";
@@ -442,7 +443,7 @@ function construireCouches(map) {
   map.addControl(new MOTEUR.ScaleControl({ unit: "metric" }), "bottom-left");
   map.addControl(new MOTEUR.AttributionControl({ compact: true,
     customAttribution: (MOTEUR === MoteurCanvas ? "Rendu simplifié sans accélération graphique · " : "") +
-      "Natural Earth · MTMD (RTSS, débits de circulation 2025) · ENR 2006-2007 (MTQ, Transports Canada) · modèle calé du Volet 3" }), "bottom-right");
+      "Natural Earth · MTMD (RTSS, débits de circulation 2025) · ENR 2006-2007 (MTQ, Transports Canada) · modèle calé du module 3" }), "bottom-right");
   NOEUDS.forEach(n => {
     const ville = VILLES.includes(n.nom), fr = n.type.startsWith("frontiere");
     if (!ville && !fr) return;
@@ -499,7 +500,7 @@ const ligneLeg = (forme, lib, n = "") => `<div class="leg">${forme}<span>${lib}<
 const legende = (titre, sous, lignes) => `<div class="legende"><h3>${titre}</h3>${sous ? `<p class="sous">${sous}</p>` : ""}${lignes.join("")}</div>`;
 const note = (texte, cls = "") => `<p class="note ${cls}">${texte}</p>`;
 const bloc = (titre, contenu, sous = "") => `<div class="bloc"><h3>${titre}</h3>${sous ? `<p class="sous">${sous}</p>` : ""}${contenu}</div>`;
-const tete = (titre, texte) => `<div class="tete"><span class="eyebrow">Volet 3 · étape ${S.etape} sur 5</span><h2>${titre}${!PUBLIQUE && modifie() ? '<span class="modifie">θ modifié</span>' : ""}</h2><p>${texte}</p></div>`;
+const tete = (titre, texte) => `<div class="tete"><span class="eyebrow">Module 3 · étape ${S.etape} sur 5</span><h2>${titre}${!PUBLIQUE && modifie() ? '<span class="modifie">θ modifié</span>' : ""}</h2><p>${texte}</p></div>`;
 function compterClasses(vals, bornes, n) { const c = new Array(n).fill(0); vals.forEach(v => c[classe(v, bornes)]++); return c; }
 function libBornes(bornes, unite, k) {
   if (k === 0) return `moins de ${fmt(bornes[0])} ${unite}`;
@@ -592,7 +593,7 @@ function tableValidation() {
   const noms = Object.keys(V), meilleur = {};
   cols.forEach(([k, , s]) => { meilleur[k] = noms.reduce((a, b) => (s * V[b][k].moyenne > s * V[a][k].moyenne ? b : a)); });
   return `<table class="tab"><thead><tr><th></th>${cols.map(c => `<th>${c[1]}</th>`).join("")}</tr></thead><tbody>
-    ${noms.map(n => `<tr><td>${esc(n)}</td>${cols.map(([k, , , d]) => `<td style="${meilleur[k] === n ? "font-weight:700;color:var(--ink)" : ""}">${dec(V[n][k].moyenne, d)}<br><span style="color:var(--muted);font-size:.66rem">± ${dec(V[n][k].ecart_type, d)}</span></td>`).join("")}</tr>`).join("")}
+    ${noms.map(n => `<tr><td>${esc(n.replace("Volet", "module"))}</td>${cols.map(([k, , , d]) => `<td style="${meilleur[k] === n ? "font-weight:700;color:var(--ink)" : ""}">${dec(V[n][k].moyenne, d)}<br><span style="color:var(--muted);font-size:.66rem">± ${dec(V[n][k].ecart_type, d)}</span></td>`).join("")}</tr>`).join("")}
   </tbody></table>`;
 }
 
@@ -603,15 +604,15 @@ function rendreLecture() {
   if (k === 1) {
     const n = [0, 0, 0, 0];
     ROUTES.forEach(r => { n[r.multi ? r.rang - 1 : 3]++; });
-    h += tete("Plusieurs routes par liaison", "Le Volet 1 traçait une seule route par liaison. Le jumeau en cherche jusqu'à trois sur le réseau routier du MTMD (RTSS) : sans route de rechange, aucun camion ne peut se reporter quand une route ferme.");
-    h += `<div class="tuiles">${tuile(fmt(M.n_routes), "routes au total")}${tuile(fmt(M.n_liaisons), "liaisons du graphe du Volet 1")}
+    h += tete("Plusieurs routes par liaison", "Le module 1 traçait une seule route par liaison. Le jumeau numérique en cherche jusqu'à trois sur le réseau routier du MTMD (RTSS) : sans route de rechange, aucun camion ne peut se reporter quand une route ferme.");
+    h += `<div class="tuiles">${tuile(fmt(M.n_routes), "routes au total")}${tuile(fmt(M.n_liaisons), "liaisons du graphe du module 1")}
       ${tuile(fmt(M.n_liaisons_multi), "liaisons à deux ou trois routes")}${tuile(fmt(M.n_sections_mesurees), `sections de comptage mesurées en 2025, sur ${fmt(M.n_sections)} portées par une route`)}</div>`;
-    h += legende("Couleur des routes", "Clique une route : la liaison est entourée et ses routes listées.", [
+    h += legende("Couleur des routes", "Sélectionner une route : la liaison est entourée et ses routes listées.", [
       ligneLeg(trait(C.cat[0]), "Route principale (la plus rapide)", fmt(n[0])), ligneLeg(trait(C.cat[1]), "2ᵉ route", fmt(n[1])),
       ligneLeg(trait(C.cat[2]), "3ᵉ route", fmt(n[2])), ligneLeg(trait(C.reseau), "Liaison à une seule route", fmt(n[3]))]);
     h += blocSelection(tableRoutesLiaison(S.arc));
     h += note("<b>Comment on trouve les routes de rechange.</b> Plus court chemin en minutes, puis on pénalise les liens déjà pris (× 1,5) et on recommence. Une route est gardée si elle prend au plus 1,3 fois le temps de la meilleure et reprend au plus 60 % d'une route déjà gardée.");
-    h += note("Les liaisons qui sortent du Québec gardent la route OSRM du Volet 1 (le RTSS s'arrête à la frontière). Le graphe RTSS a été vérifié contre OSRM : voir le journal du projet pour les écarts.");
+    h += note("Les liaisons qui sortent du Québec gardent la route OSRM du module 1 (le RTSS s'arrête à la frontière). Le graphe RTSS a été vérifié contre OSRM : voir le journal du projet pour les écarts.");
   } else if (k === 2) {
     h += tete("Le modèle et ses réglages", "Un logit à taille de chemin : chaque camion choisit parmi les itinéraires de sa paire de lieux, d'autant plus souvent qu'ils sont peu coûteux. Les paramètres sont calés à la fois sur les comptages de 2025 et sur l'enquête routière de 2006-2007.");
     h += `<div class="formule">coût  = minutes + β_ha · km hors autoroute
@@ -640,7 +641,7 @@ camions(section) = Σ flux des routes + fond local</div>`;
     h += bloc("Mesuré contre prédit", nuage(), "Échelles logarithmiques. Diagonale : prédiction parfaite ; bande : ±30 %.");
     h += legende("Rapport prédit / mesuré", "", LIB_RATIO.map((l, c) => ligneLeg(rond(COUL_RATIO[c]), l, fmt(n[c]))));
     h += bloc("Validation croisée (données mises de côté)", tableValidation(), "5 plis : blocs de sections de 50 km et postes d'enquête entiers. En gras, le meilleur de chaque colonne. Err. méd. et NLL : plus bas = mieux.");
-    h += note("<b>Ce que disent ces chiffres.</b> Le modèle calé ne bat pas le routage du Volet 2 (B0) sur les comptages (R² log 0,53 contre 0,55, moins d'un écart type). Il gagne sur l'enquête (−0,15 nat par camion). Son vrai apport : une répartition calée entre itinéraires, sans laquelle on ne peut pas simuler de report.", "attention");
+    h += note("<b>Ce que disent ces chiffres.</b> Le modèle calé ne bat pas le routage du module 2 (B0) sur les comptages (R² log 0,53 contre 0,55, moins d'un écart type). Il gagne sur l'enquête (−0,15 nat par camion). Son vrai apport : une répartition calée entre itinéraires, sans laquelle on ne peut pas simuler de report.", "attention");
   } else if (k === 4) {
     h += rendreFermeture();
   } else {
@@ -653,7 +654,7 @@ camions(section) = Σ flux des routes + fond local</div>`;
 function rendreFermeture() {
   const sc = scenario(), ids = routesDe.get(S.arc) || [];
   const tri = rangs();
-  let h = tete("Fermer une liaison", "Choisis une liaison (sur la carte ou dans la liste). Les camions se reportent sur les itinéraires restants selon le modèle calé. Ceux qui n'en ont plus prennent le plus court détour du réseau ; sans détour, leurs trajets ne sont pas desservis.");
+  let h = tete("Fermer une liaison", "Choisir une liaison (sur la carte ou dans la liste). Les camions se reportent sur les itinéraires restants selon le modèle calé. Ceux qui n'en ont plus prennent le plus court détour du réseau ; sans détour, leurs trajets ne sont pas desservis.");
   h += `<label class="choix">Liaison fermée<select id="choix-arc">${tri.map(c => `<option value="${c.ID_ARC}" ${c.ID_ARC === S.arc ? "selected" : ""}>${fmt(c.rang)} · ${esc(nomArc(c.ID_ARC))}</option>`).join("")}</select></label>`;
   if (ids.length > 1) {
     h += `<div>${segment("mode", [["liaison", "Toute la liaison"], ["route", "Une seule route"]], S.mode)}</div>`;
@@ -696,7 +697,7 @@ function rendreCritiques() {
   h += `<div>${segment("mesure", Object.entries(MESURES), S.mesure)}</div>`;
   if (!PUBLIQUE && modifie()) {
     h += S.classement ? note("Classement recalculé avec les réglages de l'étape 2.")
-      : `<div class="bloc"><p class="sous">Le classement affiché vient du modèle calé. Tu as modifié les réglages :</p>
+      : `<div class="bloc"><p class="sous">Le classement affiché vient du modèle calé. Les réglages ont été modifiés :</p>
         <button type="button" class="btn petit" data-action="reclasser" ${S.enCours ? "disabled" : ""}>Recalculer les ${fmt(CRIT_ARC.size)} fermetures avec ces réglages</button>
         <div class="progression" ${S.enCours ? "" : "hidden"}><i id="prog"></i></div></div>`;
   }
@@ -722,7 +723,7 @@ function rendreCritiques() {
     ...[0, 1, 2, 3, 4].map(c => ligneLeg(trait(C.or[c], 0.9 + 0.8 * c + 0.6), libBornes(bornes, "h", c))),
     ligneLeg(`<svg viewBox="0 0 30 12" aria-hidden="true"><line x1="2" y1="6" x2="28" y2="6" stroke="${C.encre}" stroke-width="6" stroke-linecap="round"/><line x1="2" y1="6" x2="28" y2="6" stroke="${C.or[2]}" stroke-width="2.4" stroke-linecap="round"/></svg>`, "Liseré clair : coupure")]);
   h += note("<b>Robuste n'est pas exact.</b> La stabilité ne couvre que l'incertitude d'échantillonnage des paramètres, pas la structure du modèle (ensembles de chemins, vitesses, demande de 2006-2007). Pour la fermeture d'une seule route, le logsum compte aussi la valeur de la diversité du logit : d'où la seconde mesure.");
-  h += note(`Coût horaire (${fmt(M.cout_horaire)} $/h) et valeur par tonne (${fmt(M.valeur_tonne)} $/t) <b>provisoires</b> : à remplacer par le guide avantages-coûts du MTMD et les $/t du Volet 2.`, "attention");
+  h += note(`Coût horaire (${fmt(M.cout_horaire)} $/h) et valeur par tonne (${fmt(M.valeur_tonne)} $/t) <b>provisoires</b> : à remplacer par le guide avantages-coûts du MTMD et les $/t du module 2.`, "attention");
   return h;
 }
 
@@ -735,8 +736,8 @@ function surligner(code) {
 }
 function rendreMethode() {
   const [fichier, code] = D.code[String(S.etape)] || ["", ""];
-  document.getElementById("methode").innerHTML = `<div class="tete"><span class="eyebrow">Volet 3 · étape ${S.etape} · code exécuté</span><h2>${esc(ETAPES[S.etape - 1].court)}</h2>
-    <p>Extrait du fichier qui fait réellement le calcul${S.etape === 2 || S.etape === 4 ? " (dans la page locale, ce même code tourne dans ton navigateur)" : ""}.</p></div>
+  document.getElementById("methode").innerHTML = `<div class="tete"><span class="eyebrow">Module 3 · étape ${S.etape} · code exécuté</span><h2>${esc(ETAPES[S.etape - 1].court)}</h2>
+    <p>Extrait du fichier qui fait réellement le calcul${S.etape === 2 || S.etape === 4 ? " (dans la page locale, ce même code tourne dans le navigateur)" : ""}.</p></div>
     <div class="code-tete"><span class="fichier">${esc(fichier)}</span><button type="button" class="copie" id="copier">Copier</button></div>
     <pre class="code">${surligner(code)}</pre>`;
   document.getElementById("copier").addEventListener("click", e => { navigator.clipboard?.writeText(code); e.target.textContent = "Copié"; });
@@ -826,7 +827,7 @@ function contenuBulle(f) {
     const c = critiques().get(r.arc);
     if (c) h += ligneBulle("Heures équiv. par an", compact(c.delta_heures_equivalentes, "h")) + ligneBulle("Meilleur itinéraire", compact(c.delta_heures_meilleur, "h")) + (c.coupure ? `<div class="note">Coupure : ${compact(c.trajets_non_desservis)} trajets par an sans chemin</div>` : "");
   }
-  return h + `<div class="note">${S.etape === 4 ? "Clique pour fermer cette liaison" : "Clique pour choisir la liaison"}</div>`;
+  return h + `<div class="note">${S.etape === 4 ? "Cliquer pour fermer cette liaison" : "Cliquer pour choisir la liaison"}</div>`;
 }
 function brancherSouris(map) {
   map.on("mousemove", e => {
@@ -863,11 +864,11 @@ function choisirArc(arc, voler) {
 }
 function rendreEtapes() {
   const nav = document.getElementById("etapes");
-  nav.innerHTML = `<p class="groupe-etapes v1"><span>Volet 1</span> Le trafic</p>` +
+  nav.innerHTML = `<p class="groupe-etapes v1"><span>Module 1</span> Estimation du trafic</p>` +
     ETAPES_V1.map(([court, sur], i) => `<a class="etape v1" href="${URL_V1}#etape=${i + 1}"><b>${i + 1}</b><span>${esc(court)}<small>${esc(sur)}</small></span></a>`).join("") +
-    `<p class="groupe-etapes v2"><span>Volet 2</span> La valeur</p>` +
+    `<p class="groupe-etapes v2"><span>Module 2</span> Valorisation du fret</p>` +
     ETAPES_V2.map(([court, sur], i) => `<a class="etape v2" href="${URL_V2}#etape=${i}"><b>${i}</b><span>${esc(court)}<small>${esc(sur)}</small></span></a>`).join("") +
-    `<p class="groupe-etapes v3"><span>Volet 3</span> Le jumeau</p>` +
+    `<p class="groupe-etapes v3"><span>Module 3</span> Jumeau numérique</p>` +
     ETAPES.map((e, k) => `<button type="button" class="etape v3" data-k="${k + 1}" ${k + 1 === S.etape ? 'aria-current="step"' : ""}>
       <b>${k + 1}</b><span>${esc(e.court)}<small>${esc(e.sur)}</small></span></button>`).join("") +
     `<p class="etapes-pied"><kbd>←</kbd> <kbd>→</kbd> pour changer d'étape. ${PUBLIQUE ? "Résultats du modèle calé." : "Les étapes 2 et 4 se recalculent dans la page."}</p>`;
@@ -916,6 +917,7 @@ function lancerCarte() {
 }
 function demarrer() {
   document.getElementById("date-gen").textContent = M.genere_le;
+  document.getElementById("btn-demo").hidden = !PUBLIQUE;
   if (PUBLIQUE) document.getElementById("mention-publique").textContent = " · version publique";
   else document.getElementById("mention-publique").textContent = " · version locale complète";
   document.getElementById("btn-theme").textContent = THEME === "sombre" ? "Thème clair" : "Thème sombre";
