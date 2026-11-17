@@ -6,7 +6,7 @@
 
 Cet atlas décrit ce que les données du projet permettent d'apprendre, et ce qu'elles ne permettent pas. Pour chaque jeu de données, il donne le schéma, la couverture, les anomalies, la part de valeurs publiées par le ministère et la part de valeurs complétées par le projet, puis les cibles possibles avec leur taille effective et leur piège de fuite.
 
-Chaque chiffre de cette page est recalculé par `scripts/atlas_donnees_ml.py` à partir des fichiers publics du dépôt, et consigné dans [`donnees_ml/agregats.json`](donnees_ml/agregats.json). Six audits indépendants, un par famille de données, ont été confrontés à ce script. L'enquête ENR, confidentielle, n'est décrite que par le code qui la lit : aucun de ses fichiers n'a été ouvert pour cet atlas.
+Chaque chiffre de cette page est recalculé par `scripts/atlas_donnees_ml.py` à partir des fichiers publics du dépôt, et consigné dans [`donnees_ml/agregats.json`](donnees_ml/agregats.json). Font exception ceux de la section sur les tables d'apprentissage : ils viennent de la commande qui écrit ces tables, et sont consignés dans [`donnees_ml/tables.json`](donnees_ml/tables.json). Six audits indépendants, un par famille de données, ont été confrontés au script de l'atlas. L'enquête ENR, confidentielle, n'est décrite que par le code qui la lit : aucun de ses fichiers n'a été ouvert pour cet atlas.
 
 ## Trois règles de lecture
 
@@ -28,6 +28,7 @@ Chaque chiffre de cette page est recalculé par `scripts/atlas_donnees_ml.py` à
 | Module 1, trafic par liaison | `data/processed/graphe_routier_djma.gpkg` | liaison | 307 | oui | `scripts/calcul_djma_methodes.py` |
 | Graphe RTSS et réseau à plusieurs routes | `data/processed/reseau_multi_routes.gpkg` | lien ; nœud ; route ; section | 22 655 ; 16 460 ; 459 ; 7 823 | non | `uv run jumeau reseau` (environ 30 s) |
 | Enquête ENR 2006-2007 | hors du dépôt | camion enquêté | voir la fiche | non | sous entente |
+| Tables d'apprentissage | `outputs/ml/*.parquet` | section × année ; nœud ; lien ; lien × section ; lien × année | 78 230 ; 16 460 ; 22 655 ; 46 583 ; 218 700 | non | `uv run jumeau tables` (moins de 10 s) |
 
 Les six premiers fichiers sont suivis par git malgré la règle `data/` du `.gitignore` (ajout forcé, pour un dépôt clonable et exécutable). `data/processed/` contient aussi 18 fichiers non suivis : d'anciennes versions (`_v1`, `_v2`, `_v4`, échantillons) et le réseau à plusieurs routes. Seuls les fichiers du tableau font foi. L'empreinte SHA-256 de chacun est dans `agregats.json` : une table d'apprentissage devrait la citer.
 
@@ -174,6 +175,79 @@ La taille effective est le nombre de blocs de 50 km qu'occupent les exemples. Le
 | Attribut d'un lien du graphe RTSS | apprentissage sur graphe | 22 482 liens réels ; 1 244 sections étiquetées en 2025, qui longent 8 391 liens | 113 blocs | Une section étiquette 5 liens en médiane : un découpage par lien met la même étiquette des deux côtés. Les 173 liens estimés et les connecteurs d'accès sont des hypothèses. Les deux chaussées d'une route reçoivent le même total. |
 | Choix d'itinéraire, demande entre lieux (ENR) | choix discret, estimation de matrice | volumes publiés : 37 235 camions, 20 484 paires de lieux | 49 postes localisés | Les camions d'un même poste et d'une même paire de lieux partagent leurs itinéraires : découper par poste entier, comme la validation actuelle. L'enquête date de 2006-2007. |
 
+## Tables d'apprentissage
+
+`uv run jumeau tables` met en œuvre les règles de cet atlas. Après `uv run jumeau reseau`, la commande écrit cinq tables Parquet dans `outputs/ml/`, hors de git, en moins de 10 secondes ; avec `--echantillon`, elle les écrit pour le couloir Montréal–Québec dans `outputs/ml/echantillon/`. Elle ne lit que les fichiers publics du ministère et le graphe RTSS. Le code est dans `src/jumeau_cirano/donnees/` (`tables.py`, `blocs.py`, `commande.py`), la configuration dans `configs/tables.yaml`.
+
+| Table | Grain | Lignes | Contenu |
+|---|---|---|---|
+| `sections_annees` | section × année | 78 230 | DJMA et % de camions, publiés et complétés, avec la méthode de chaque valeur ; DJME et DJMH publiés ; type de route, position, longueur et bloc de la section |
+| `noeuds` | nœud du graphe RTSS | 16 460 | position, degré, bloc ; jonction nouée par le projet et écart de jonction |
+| `aretes` | lien du graphe RTSS | 22 655 | nœuds `u` et `v`, longueur, numéro et classe de route, côté de chaussée, tronçon estimé ou non, position, bloc |
+| `aretes_sections` | lien × section | 46 583 | longueur de la section le long du lien (même numéro de route, à 30 m ou moins), bloc de la section |
+| `aretes_annees` | lien × année | 218 700 | moyenne des valeurs des sections qui longent le lien, pondérée par la longueur commune, et part de cette longueur dont la valeur est publiée |
+
+Un fichier `meta.json` accompagne les tables : leurs colonnes, la version du code (commit), l'empreinte SHA-256 des quatre fichiers lus et les chiffres de contrôle. Pour tout le Québec, il est copié dans `donnees_ml/tables.json`, suivi par git. Ses empreintes sont celles de `agregats.json` : les tables et l'atlas décrivent les mêmes fichiers.
+
+### Les colonnes d'une mesure
+
+Le DJMA (`djma_…`) et le % de camions (`pct_camions_…`) ont chacun six colonnes dans `sections_annees`.
+
+| Suffixe | Contenu |
+|---|---|
+| `_cible` | valeur publiée par le MTQ, lue dans le fichier brut ; vide si l'année n'est pas publiée |
+| `_complete` | valeur du fichier complété, jamais vide ; à n'employer qu'en variable, avec sa méthode |
+| `_mesure` | vrai si la valeur est publiée |
+| `_methode` | `mesure`, `interpolation`, `extrapolation`, `recopie` (une seule année publiée), `foret_aleatoire` ou `knn_idw` |
+| `_ecrase` | vrai si la valeur publiée a été remplacée dans le fichier complété (788 % de camions) |
+| `_n_mesures` | nombre d'années publiées dans la section |
+
+`camions_cible` est le produit des deux cibles, là où elles sont publiées la même année. `djme` et `djmh` ne portent que des valeurs publiées : le Module 1 ne les complète pas.
+
+### Trois garde-fous contre la fuite
+
+**Une cible est toujours une valeur publiée.** La commande refuse d'écrire une table dont une colonne `_cible` porterait une valeur absente du fichier du ministère. Elle vérifie aussi qu'il y a exactement autant de cibles que de valeurs publiées, soit 37 344 DJMA et 12 498 % de camions.
+
+**`exemples(table, cible)` est l'accès conseillé.** La fonction ne garde que les lignes dont la cible est publiée, et retire les colonnes qui la répètent : sa valeur complétée, ses drapeaux et son nombre d'années publiées, toujours d'au moins 1 dans les exemples, mais nul là où l'on voudrait prédire. Pour le DJMA et les camions, elle retire aussi DJME et DJMH, cibles sœurs issues de la même estimation du ministère ; les deux sont publiés sur 33 105 des 37 344 exemples de DJMA. Les autres colonnes `_complete` restent, avec leur méthode : c'est à l'utilisateur de décider s'il accepte une variable complétée.
+
+| Cible | Exemples | Sections | Blocs de 50 km | Colonnes |
+|---|---|---|---|---|
+| `djma` | 37 344 | 4 576 | 159 | 17 |
+| `pct_camions` | 12 498 | 4 121 | 149 | 19 |
+| `camions` | 11 693 | 3 666 | 149 | 11 |
+
+**Les étiquettes des liens se recalculent à chaque découpage.** Une section longe 5 liens en médiane, et 1 732 des 46 583 paires lien–section relient deux blocs différents. `aretes_annees` étiquette chaque lien avec toutes les sections. Dans une validation croisée, `etiquettes_aretes(aretes_sections, sections_annees, sections_gardees=…)` n'étiquette les liens qu'avec les sections d'entraînement : une section mise de côté n'étiquette alors aucun lien de l'entraînement.
+
+```python
+import pandas as pd
+from jumeau_cirano.donnees import tables as t
+
+sa = pd.read_parquet("outputs/ml/sections_annees.parquet")
+ex = t.exemples(sa, "pct_camions")       # 12 498 lignes, cibles publiées seulement
+groupes = ex["bloc_50km"]                # GroupKFold : des blocs entiers mis de côté
+```
+
+### Type de route et jonctions du graphe
+
+- `type_route` vient du code RTSS de la section pour 7 436 sections. Pour 75 autres, il vient des lignes RTSS de même numéro de route que la section longe à 30 m ou moins, selon la règle de rattachement du Module 3. Les 312 restantes n'ont aucune ligne de leur numéro à cette distance, et ce numéro est le plus souvent absent du RTSS : leur type est `Inconnu`, et 69 d'entre elles ont un DJMA publié. `type_route_source` indique lequel des trois cas s'applique. `Autre` regroupe les classes RTSS connues hors des quatre principales (138 sections).
+- `jonction_nouee` marque les 10 846 nœuds où le fichier RTSS n'a pas d'extrémité commune : le projet y a noué les lignes. Ce sont surtout des carrefours en T, car le RTSS ne coupe pas ses lignes aux carrefours. `ecart_jonction_m` donne la plus grande distance entre les extrémités des liens qui aboutissent au nœud. Elle dépasse la tolérance de croisement (2 m) à 1 222 nœuds, où une extrémité pendante a été raccordée à la ligne la plus proche (médiane 19,3 m, 9e décile 59,9 m) : ce sont les seules jonctions estimées. Aux nœuds faits d'extrémités communes, elle ne dépasse jamais 0,59 m.
+- Les 173 liens `estime` (raccords estimés à travers une ville) ne portent aucune section. Les connecteurs d'accès des villes n'entrent pas dans ces tables : elles décrivent le réseau routier, pas le modèle du Module 3.
+
+### Contrôles
+
+| Tout le Québec | |
+|---|---|
+| Sections ; blocs de 50 km | 7 823 ; 182 |
+| Cibles de DJMA | 37 344 |
+| Cibles de % de camions ; valeurs écrasées par la complétion | 12 498 ; 788 |
+| Blocs des sections de la validation spatiale | 149 |
+| Sections rattachées au graphe | 7 326 |
+| Liens longés par une section | 21 870 |
+| Liens étiquetés en camions en 2025 | 8 391 |
+| Nœuds ; jonctions estimées | 16 460 ; 1 222 |
+
+Ces chiffres redonnent ceux de l'atlas, calculés par un autre script. Sur tout le Québec, la commande s'arrête si les sections de la validation spatiale n'occupent plus 149 blocs (`blocs_validation_attendus`). Les cibles, DJME et DJMH ont aussi été relues dans le fichier brut par un calcul indépendant du code des tables, qui refait à la main la conversion du texte et la correspondance entre créneau et année : les 78 230 cases de chacune concordent.
+
 ## Ce que cet atlas ne mesure pas
 
 Un labo d'apprentissage automatique préenregistre ses hypothèses sur ces mêmes données. Pour ne pas les devancer, l'atlas s'arrête à la structure : aucun modèle n'y est entraîné, et il ne mesure ni l'évolution d'une série d'une année à l'autre, ni le lien entre une cible et une variable, ni la ressemblance entre sections voisines ou liens adjacents.
@@ -192,6 +266,7 @@ Ces pages ne sont pas modifiées ici : elles alimentent le site du Module 1.
 ```bash
 uv run jumeau reseau                          # réseau à plusieurs routes (30 s), hors git
 uv run python scripts/atlas_donnees_ml.py     # agrégats et figures (10 s)
+uv run jumeau tables                          # tables d'apprentissage dans outputs/ml/, et tables.json (10 s)
 ```
 
-Le script échoue si la définition des blocs ne redonne plus les 149 blocs de la validation spatiale. Il lit `data/` seulement ; il n'ouvre ni l'ENR ni `outputs/`.
+Le script et la commande échouent si la définition des blocs ne redonne plus les 149 blocs de la validation spatiale. Ils ne lisent que `data/` et n'ouvrent jamais l'ENR.

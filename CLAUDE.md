@@ -42,6 +42,7 @@ Volet 3, le jumeau (paquet `src/jumeau_cirano/`, environnement `uv`, Python 3.12
 - Tests : `uv run pytest` (réseaux synthétiques, jamais l'ENR)
 - Thème des pages : `scripts/gabarits/theme/jetons.json` → `python scripts/theme_pages.py`
 - Atlas des données pour le ML : `uv run python scripts/atlas_donnees_ml.py` → `docs/donnees_ml/agregats.json`, `figures/ml_*.png` (après `jumeau reseau` ; ni ENR ni modèle)
+- Tables d'apprentissage : `uv run jumeau tables [--echantillon]` → `outputs/ml/*.parquet`, `docs/donnees_ml/tables.json` (après `jumeau reseau` ; ni ENR ni modèle ; cibles = valeurs publiées seulement, lire par `tables.exemples()`)
 
 ## Gestion du contexte
 - Utiliser `/compact` régulièrement entre les agents

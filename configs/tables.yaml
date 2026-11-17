@@ -1,0 +1,14 @@
+# Tables d'apprentissage : sections × années, nœuds et arêtes du graphe RTSS.
+# Données publiques du MTQ seulement ; les sorties restent hors Git (outputs/ml/).
+
+reseau: configs/reseau.yaml          # fichiers d'entrée, réseau produit par `jumeau reseau`, règle de rattachement
+dossier_sortie: outputs/ml           # l'échantillon s'écrit dans outputs/ml/echantillon/
+meta_publique: docs/donnees_ml/tables.json   # copie de meta.json pour tout le Québec : agrégats seulement, suivie par git
+
+# Bloc spatial : carré de 50 km, ⌊x / côté⌋_⌊y / côté⌋ du centroïde en EPSG:32198.
+# Même définition que scripts/validation_spatiale_randomforest.py.
+bloc_km: 50
+
+# Contrôle sur tout le Québec : les sections dont le DJMA et le % de camions ont au moins une année publiée
+# occupent ce nombre de blocs (celui de la validation spatiale publiée). À ne changer qu'avec les données.
+blocs_validation_attendus: 149

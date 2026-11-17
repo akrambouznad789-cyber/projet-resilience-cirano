@@ -255,3 +255,61 @@ Deuxième étape d'une course en cinq phases qui prépare le jumeau à l'apprent
 - La copie des données du MTQ n'a pas de date de téléchargement, alors que la source est mise à jour chaque jour. Les empreintes SHA-256 de `agregats.json` figent au moins ce qui a été audité.
 - Le script n'a pas de test automatique et la CI ne le lance pas. Il dépend de `reseau_multi_routes.gpkg`, qui n'est pas dans git.
 - La page n'est liée depuis aucune autre : le README n'est pas modifié sur cette branche, pour ne pas entrer en conflit avec la branche de la version de présentation. Lien à ajouter après la fusion.
+
+## Terrain ML · phase 2 · Tables d'apprentissage reproductibles (2026-11-16 → 17)
+
+Branche `feature/ml-tables`, posée sur `feature/ml-atlas` : elle complète `docs/donnees_ml.md`, créé par la phase 1.
+
+**Plan en pseudo-code (écrit avant tout script)**
+
+```
+uv run jumeau tables [--echantillon]            → outputs/ml/ (hors git), en Parquet
+
+donnees/blocs.py      bloc_50km()               ⌊x / 50 km⌋_⌊y / 50 km⌋ du centroïde en EPSG:32198 : source unique,
+                                                 la même que scripts/validation_spatiale_randomforest.py
+donnees/tables.py
+  series_longues()    brut + complété → une ligne par section et par année, pour le DJMA et le % de camions :
+                        *_cible     valeur publiée par le MTQ, lue dans le fichier BRUT ; vide sinon
+                        *_complete  valeur du fichier complété (jamais vide)
+                        *_mesure    drapeau ; *_methode : mesure, interpolation, extrapolation, recopie,
+                                    foret_aleatoire, knn_idw ; *_ecrase : valeur publiée que la complétion a remplacée
+  attributs_sections() type de route (code RTSS de la section, sinon ligne RTSS la plus proche), position (x, y),
+                        longueur, bloc de 50 km
+  verifier_cibles()   refuse une table où une colonne *_cible porte une valeur non publiée
+  exemples()          lignes dont la cible est publiée, sans les colonnes qui la répètent : le seul accès conseillé
+  table_noeuds(), table_aretes()                graphe RTSS : position, bloc, classe, tronçon estimé ou non
+  table_aretes_sections()                       incidence lien × section (même numéro de route, à 30 m ou moins)
+  etiquettes_aretes() lien × année : moyenne des sections qui longent le lien, pondérée par la longueur commune ;
+                        accepte la liste des sections d'entraînement, pour ne jamais étiqueter un lien avec une
+                        section mise de côté
+donnees/commande.py   lit configs/tables.yaml, construit, vérifie (dont les 149 blocs), écrit les tables et meta.json
+tests/test_tables.py  données synthétiques : statut de chaque valeur, cible jamais complétée, valeur écrasée,
+                        blocs, rattachement des liens, sections mises de côté
+ordre : échantillon (couloir Montréal–Québec), puis tout le Québec ; fiches dans docs/donnees_ml.md
+```
+
+**Fait**
+- `uv run jumeau tables [--echantillon]` : `donnees/blocs.py` (le bloc de 50 km, source unique), `donnees/tables.py`, `donnees/commande.py`, `configs/tables.yaml`. Cinq tables Parquet dans `outputs/ml/` (hors git), et un `meta.json` : colonnes, version du code, empreintes des quatre fichiers lus, contrôles. Pour tout le Québec, `meta.json` est copié dans `docs/donnees_ml/tables.json`, suivi par git. 6 s pour tout le Québec, 4 s pour l'échantillon.
+- Section « Tables d'apprentissage » dans `docs/donnees_ml.md` : schéma, colonnes d'une mesure, garde-fous contre la fuite, type de route et jonctions, contrôles. Ses 62 nombres se retrouvent dans `tables.json` ou `agregats.json`, sauf la durée, les nombres de colonnes et des constantes (SHA-256, Module 3).
+- 11 tests sur données synthétiques (48 en tout) : statut de chaque valeur, cible jamais complétée (sentinelles), valeur publiée écrasée, fichiers incohérents refusés, type de route par le numéro, écart de jonction, étiquettes des liens et sections mises de côté, commande de bout en bout et copie publique.
+
+**Ce que le point de contrôle a révélé, dans l'ordre**
+1. **Le repli prévu pour le type de route était faux.** 387 sections ont un code RTSS introuvable. Pour elles, la « ligne RTSS la plus proche » du plan ne portait le même numéro de route que 13 % du temps : c'était le plus souvent une route qui croise la section, et 107 sections sont à plus de 100 m de toute ligne. Ces sections sont surtout sur des routes absentes du RTSS : 258 numéros inconnus du fichier, dont 36 codes « Segment… » qui ne sont pas des codes RTSS. Remplacé par la règle de rattachement du Module 3 : lignes de même numéro à 30 m ou moins (75 sections), sinon `Inconnu` (312, dont 69 avec un DJMA publié). Le pseudo-code ci-dessus garde la règle initiale.
+2. **DJME et DJMH restaient dans les exemples du DJMA.** L'atlas les désigne comme des cibles sœurs, issues de la même estimation du ministère ; les deux sont publiés sur 33 105 des 37 344 exemples. `exemples()` les retire pour le DJMA et les camions, avec le nombre d'années publiées de la cible : toujours d'au moins 1 dans les exemples, il est nul là où l'on voudrait prédire, et sa distribution change donc entre l'apprentissage et l'usage.
+3. **Le drapeau de nœud repris du graphe couvrait 66 % des nœuds.** Appelé `jonction_reparee`, il réunissait les carrefours en T (10 291 extrémités posées à 2 m ou moins sur une autre ligne, que le RTSS ne coupe pas) et les extrémités pendantes raccordées jusqu'à 100 m (1 780 au-delà de 2 m, médiane 16 m). Renommé `jonction_nouee`, et complété par `ecart_jonction_m`, mesuré sur la géométrie des liens sans modifier `jumeau reseau` : 1 222 nœuds dépassent 2 m ; aux extrémités communes, l'écart ne dépasse jamais 0,59 m.
+4. **Deux incohérences de fichier passaient sans erreur.** Une section sans % de camions publié, ni « forêt aléatoire » ni KNN, aurait été étiquetée « extrapolation » ; les créneaux de DJME et de DJMH n'étaient pas comparés à ceux du DJMA. Les deux cas sont maintenant refusés ; aucun ne se présente dans les fichiers actuels.
+
+**Chiffres (tout le Québec ; échantillon Montréal–Québec entre parenthèses)**
+- Sections : 7 823 dans 182 blocs (4 720 dans 23 blocs). Cibles : 37 344 DJMA (18 438) et 12 498 % de camions (6 248), autant que de valeurs publiées ; 788 % de camions écrasés par la complétion (668). Méthodes identiques à l'atlas, recopie comprise (3 078 DJMA, 6 453 % de camions).
+- Exemples : DJMA 37 344 lignes dans 159 blocs ; % de camions 12 498 dans 149 ; camions 11 693, sur 3 666 sections et 149 blocs, comme l'atlas.
+- Graphe : 7 326 sections rattachées (4 539), 21 870 liens longés par une section (13 363), 8 391 liens étiquetés en camions en 2025 (5 004) ; 16 460 nœuds (9 822), dont 1 222 jonctions estimées (978). 1 732 des 46 583 paires lien–section relient deux blocs différents.
+- Vérifications indépendantes, dans des scripts jetables hors du dépôt : les cibles, DJME et DJMH (78 230 cases chacune) sont identiques au fichier brut relu à la main ; aucune étiquette de lien n'est hors des bornes de ses sections (181 009 cases de DJMA, 77 049 de camions) ; les empreintes des quatre fichiers lus sont celles de `agregats.json`.
+
+**Revue critique**
+- Les tables ne corrigent pas les défauts du Module 1 relevés par l'atlas : elles les rendent visibles (`_ecrase`, `_methode`) et empêchent d'en faire des cibles. Les variables `_complete` restent disponibles ; qui les emploie en accepte la méthode.
+- Le contrôle de fuite des exemples (égalité et association entre chaque colonne restante et la cible) a été fait hors du dépôt. Ses mesures d'association ne sont pas publiées, pour la raison qui arrête l'atlas à la structure : ces questions reviennent au labo.
+- Les 312 sections de type `Inconnu` portent une valeur manquante explicite, pas une imputation ; un modèle devra la traiter comme telle.
+- `ecart_jonction_m` se déduit de la géométrie, car `jumeau reseau` n'écrit pas la distance de chaque raccord. Un nœud qui réunit plusieurs raccords peut dépasser la tolérance de 100 m (159,3 m au plus).
+- Le graphe reste non orienté, sans les connecteurs d'accès des villes : les tables décrivent le réseau routier, pas les itinéraires du Module 3.
+- `tables.json` cite le commit du code ; des tables produites depuis un arbre modifié portent le suffixe `-dirty`.
+- Comme le script de l'atlas, la commande complète ne tourne pas en CI : elle demande `reseau_multi_routes.gpkg`, hors git. Ses fonctions y tournent, sur données synthétiques et sur les fichiers publics suivis.
