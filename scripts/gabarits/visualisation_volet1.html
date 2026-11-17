@@ -1034,7 +1034,7 @@ function contenu4() {
 function contenu5() {
   const st = M.statuts, comp = ARCS.filter(a => a.comp);
   let h = `<div class="tuiles">${tuile(`${fmt(ARCS.length - (st.hors_quebec || 0))} / ${fmt(ARCS.length)}`, "arcs avec un trafic (99 %)")}
-    ${tuile(fmt(st.ok || 0), "mesurés directement par leurs segments")}${tuile(fmt(comp.length), "empruntés à l'arc voisin le plus proche (0 km)")}
+    ${tuile(fmt(st.ok || 0), "mesurés directement par leurs segments")}${tuile(fmt(comp.length), "empruntés à l'arc voisin le plus proche")}
     ${tuile(fmt(st.hors_quebec || 0), "sans valeur : tracé hors du Québec")}</div>`;
   h += bloc("Afficher", segment("vue5", [["trafic", "Trafic final (m4)"], ["cas", "Les 22 cas particuliers"]], S.vue5) +
     segment("rep5", [["graphe", "Graphe (résultat)"], ["trace", "Tracés routiers"]], S.rep5));
@@ -1053,7 +1053,7 @@ function contenu5() {
        ligneLeg(trait(C.pale, 2), "Mesuré directement", st.ok || 0)]);
     h += bloc("Arcs complétés et leur donneur", `<table class="tab"><thead><tr><th>Arc complété</th><th>Donneur</th></tr></thead><tbody>${
       comp.map(a => `<tr class="cliquable" data-arc="${a.id}"><td>${esc(nomArc(a))}</td><td>${esc(a.don ? nomArc(parId.get(a.don)) : "–")}</td></tr>`).join("")}</tbody></table>`,
-      "Le donneur est l'arc mesuré le plus proche ; il touche l'arc complété dans les 19 cas. 13 des 19 sont autour de Montréal.");
+      "Le donneur est l'arc mesuré le plus proche ; il partage un nœud avec l'arc complété dans 18 cas sur 19 (exception : Gatineau – Ontario-Sud, qui emprunte à Lachute – Thurso). 13 des 19 sont autour de Montréal.");
   }
   return h;
 }
