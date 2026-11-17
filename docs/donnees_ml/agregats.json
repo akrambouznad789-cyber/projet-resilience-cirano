@@ -1,5 +1,5 @@
 {
-  "genere_le": "2026-11-16",
+  "genere_le": "2026-11-17",
   "fichiers": {
     "data/raw/DebitCirculation.gpkg": {
       "octets": 31047680,
@@ -47,21 +47,21 @@
       }
     },
     "data/processed/debits_completes.gpkg": {
-      "octets": 32935936,
-      "sha256": "51dd30ee461ea52171d5eaba0b76df288c0ba19523deeb419a813ba67cd51641",
+      "octets": 32972800,
+      "sha256": "b24c1cd49f385e5394e197decbcb9504312bac41e6847b7249e2ef61fcfccef5",
       "suivi_par_git": true,
       "couches": {
         "debits_completes": {
           "lignes": 7823,
-          "champs": 113,
+          "champs": 115,
           "geometrie": "MultiLineString",
           "crs_declare": true
         }
       }
     },
     "data/processed/graphe_routier.gpkg": {
-      "octets": 34992128,
-      "sha256": "e0991effad3e9ab0a69d47cdf01028cb4504706414d7b59d00dd80eec09e823b",
+      "octets": 12378112,
+      "sha256": "21d9ecbd8064253743e2ed700995fdfeff222db5989aa2900d459657f2ac0d58",
       "suivi_par_git": true,
       "couches": {
         "arcs_enrichis": {
@@ -86,7 +86,7 @@
     },
     "data/processed/graphe_routier_djma.gpkg": {
       "octets": 1019904,
-      "sha256": "b358b6146174e78217adc02acb117f8b88790f92a5411d228ac464f19d7dc16e",
+      "sha256": "fb579e901ab09168f0271c7b55ed7a9a5ff7ea78faebbbd63fd43672c3632503",
       "suivi_par_git": true,
       "couches": {
         "arcs_enrichis_djma": {
@@ -98,8 +98,8 @@
       }
     },
     "data/processed/reseau_multi_routes.gpkg": {
-      "octets": 58703872,
-      "sha256": "c16fa9e1d8dc45b21292c81e0d5fc87a2aa6bf0aa4f0e0ad51d3fee359eac4ad",
+      "octets": 58707968,
+      "sha256": "9d30c6eb4029e1b655804166ed62c8c1ab8dda8aca7c2c83e1d7223fa2d21af9",
       "suivi_par_git": false,
       "couches": {
         "liens_rtss": {
@@ -347,72 +347,72 @@
         "2016": {
           "mesure": 1203,
           "interpolation": 0,
-          "extrapolation": 2463,
+          "extrapolation": 2918,
           "foret_aleatoire": 910,
-          "knn_idw": 3247
+          "knn_idw": 2792
         },
         "2017": {
           "mesure": 1141,
           "interpolation": 774,
-          "extrapolation": 1751,
+          "extrapolation": 2206,
           "foret_aleatoire": 910,
-          "knn_idw": 3247
+          "knn_idw": 2792
         },
         "2018": {
           "mesure": 1210,
           "interpolation": 1332,
-          "extrapolation": 1124,
+          "extrapolation": 1579,
           "foret_aleatoire": 910,
-          "knn_idw": 3247
+          "knn_idw": 2792
         },
         "2019": {
           "mesure": 1232,
           "interpolation": 1465,
-          "extrapolation": 969,
+          "extrapolation": 1424,
           "foret_aleatoire": 910,
-          "knn_idw": 3247
+          "knn_idw": 2792
         },
         "2020": {
           "mesure": 929,
           "interpolation": 1781,
-          "extrapolation": 956,
+          "extrapolation": 1411,
           "foret_aleatoire": 910,
-          "knn_idw": 3247
+          "knn_idw": 2792
         },
         "2021": {
           "mesure": 1168,
           "interpolation": 1709,
-          "extrapolation": 935,
+          "extrapolation": 1244,
           "foret_aleatoire": 910,
-          "knn_idw": 3101
+          "knn_idw": 2792
         },
         "2022": {
           "mesure": 1190,
-          "interpolation": 1670,
-          "extrapolation": 951,
+          "interpolation": 1711,
+          "extrapolation": 1220,
           "foret_aleatoire": 910,
-          "knn_idw": 3102
+          "knn_idw": 2792
         },
         "2023": {
           "mesure": 1368,
-          "interpolation": 1482,
-          "extrapolation": 976,
+          "interpolation": 1560,
+          "extrapolation": 1193,
           "foret_aleatoire": 910,
-          "knn_idw": 3087
+          "knn_idw": 2792
         },
         "2024": {
           "mesure": 1606,
-          "interpolation": 738,
-          "extrapolation": 1499,
+          "interpolation": 796,
+          "extrapolation": 1719,
           "foret_aleatoire": 910,
-          "knn_idw": 3070
+          "knn_idw": 2792
         },
         "2025": {
           "mesure": 1451,
           "interpolation": 0,
-          "extrapolation": 2385,
+          "extrapolation": 2670,
           "foret_aleatoire": 910,
-          "knn_idw": 3077
+          "knn_idw": 2792
         }
       }
     },
@@ -426,10 +426,10 @@
       },
       "cam": {
         "mesure": 12498,
-        "interpolation": 10951,
-        "extrapolation": 14009,
+        "interpolation": 11128,
+        "extrapolation": 17584,
         "foret_aleatoire": 9100,
-        "knn_idw": 31672
+        "knn_idw": 27920
       }
     },
     "sections_par_nombre_d_annees_mesurees": {
@@ -468,7 +468,8 @@
       "extrapolation / extrapolation": 905,
       "extrapolation / interpolation": 2,
       "extrapolation / mice": 217,
-      "geo_knn / geo_knn": 3247,
+      "geo_knn / extrapolation": 455,
+      "geo_knn / geo_knn": 2792,
       "interpolation / extrapolation": 519,
       "interpolation / interpolation": 76,
       "interpolation / mice": 141
@@ -482,26 +483,26 @@
         "n_original_coherent": true,
         "sections_completes_coherentes": true,
         "completees_negatives": 0,
-        "completees_nulles": 14,
+        "completees_nulles": 0,
         "completees_superieures_a_100": null,
         "mesurees_nulles": 0
       },
       "cam": {
         "valeurs_mesurees": 12498,
-        "mesurees_modifiees_par_la_completion": 788,
-        "ecart_max_sur_valeur_mesuree": 76.0,
+        "mesurees_modifiees_par_la_completion": 0,
+        "ecart_max_sur_valeur_mesuree": 0.0,
         "valeurs_encore_manquantes": 0,
         "n_original_coherent": true,
         "sections_completes_coherentes": true,
         "completees_negatives": 0,
-        "completees_nulles": 133,
+        "completees_nulles": 9,
         "completees_superieures_a_100": 0,
         "mesurees_nulles": 1
       }
     },
     "extrapolation_par_recopie": {
       "djma": 3078,
-      "cam": 6453
+      "cam": 8811
     },
     "distribution_des_valeurs_publiees": {
       "djma": {
@@ -664,9 +665,9 @@
     "pct_camions_publie_sans_djma": {
       "sections": 455,
       "valeurs": 798,
-      "valeurs_remplacees_par_la_completion": 788,
-      "ecart_absolu_median_points": 4.1,
-      "ecart_absolu_max_points": 76.0,
+      "valeurs_remplacees_par_la_completion": 0,
+      "ecart_absolu_median_points": 0.0,
+      "ecart_absolu_max_points": 0.0,
       "blocs": 27
     }
   },

@@ -2,7 +2,7 @@
   "genere_le": "2026-11-17",
   "code": {
     "jumeau_cirano": "0.1.0",
-    "commit": "996bd969a230"
+    "commit": "37cceac8d77d"
   },
   "echantillon": null,
   "bloc_km": 50.0,
@@ -96,9 +96,9 @@
   },
   "entrees": {
     "data/raw/DebitCirculation.gpkg": "baf712b491992a8caaec9d176db808c19ac36f421e61a2805002a98c419a4679",
-    "data/processed/debits_completes.gpkg": "51dd30ee461ea52171d5eaba0b76df288c0ba19523deeb419a813ba67cd51641",
+    "data/processed/debits_completes.gpkg": "b24c1cd49f385e5394e197decbcb9504312bac41e6847b7249e2ef61fcfccef5",
     "data/raw/ReseauRoutier_RTSS.gpkg": "768890656fc33e59c8328359b1274ba91a5151f8707f422c08a4831e6dd2ec3c",
-    "data/processed/reseau_multi_routes.gpkg": "c16fa9e1d8dc45b21292c81e0d5fc87a2aa6bf0aa4f0e0ad51d3fee359eac4ad"
+    "data/processed/reseau_multi_routes.gpkg": "9d30c6eb4029e1b655804166ed62c8c1ab8dda8aca7c2c83e1d7223fa2d21af9"
   },
   "controles": {
     "sections": 7823,
@@ -130,7 +130,7 @@
     },
     "pct_camions": {
       "cibles": 12498,
-      "valeurs_ecrasees_par_la_completion": 788,
+      "valeurs_ecrasees_par_la_completion": 0,
       "methodes": {
         "knn_idw": 31672,
         "mesure": 12498,
