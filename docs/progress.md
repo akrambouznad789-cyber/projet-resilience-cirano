@@ -313,3 +313,24 @@ ordre : échantillon (couloir Montréal–Québec), puis tout le Québec ; fiche
 - Le graphe reste non orienté, sans les connecteurs d'accès des villes : les tables décrivent le réseau routier, pas les itinéraires du Module 3.
 - `tables.json` cite le commit du code ; des tables produites depuis un arbre modifié portent le suffixe `-dirty`.
 - Comme le script de l'atlas, la commande complète ne tourne pas en CI : elle demande `reseau_multi_routes.gpkg`, hors git. Ses fonctions y tournent, sur données synthétiques et sur les fichiers publics suivis.
+
+## Terrain ML · phase 4 · Carte des pistes de recherche (2026-11-17)
+
+Branche `feature/ml-pistes`, posée sur `feature/ml-tables` et non sur `main` : la carte part de l'atlas, qu'elle cite et vers lequel elle renvoie. Ses coûts de calcul viennent des temps mesurés en phase 3 (branche `feature/calage-rapide`). La phase ne comporte aucun script : la règle du plan préalable ne s'applique pas, la méthode est décrite ici.
+
+**Méthode** — partir des cibles de l'atlas et des limites écrites dans ce journal ; écarter toute question des labos 1 à 4, même voisine ; pour chaque piste, sept rubriques en dix lignes au plus (question, données, cible, validation sans fuite, base de comparaison, coût sur ce portable, risque) ; classer selon quatre critères annoncés ; ne rien calculer.
+
+**Fait**
+- `docs/pistes_ml.md` : dix pistes classées, trois recommandées (ablations du Module 3, localisation des postes de l'ENR, demande régionale), cinq idées notées en chemin et laissées aux labos ou aux pistes, la frontière avec les labos 1 à 4.
+- L'atlas renvoie à la carte (en-tête et section des cibles).
+
+**Chiffres**
+- 124 nombres dans la page. Tous se retrouvent dans l'atlas, ses agrégats, les tables ou ce journal, sauf quatre : la mémoire du portable et le seuil de 30 min (cahier des charges de la course), le rayon de 15 km (`modele/preparation.py`), et 46 971 paires de liaisons (307 × 306 / 2).
+- Les coûts sont des estimations tirées de durées mesurées : 29 ms par évaluation, 75 s par validation croisée, 2 min 15 s par calage complet (phase 3) ; 0,29 s par fermeture (API, phase 6) ; 2 min 30 pour `jumeau preparer` et 17 min pour `jumeau scenarios` (phases 2 à 4).
+
+**Revue critique**
+- Le classement est un jugement, pas une mesure : ses critères sont écrits, leur pondération ne l'est pas.
+- Deux pistes frôlent des questions réservées. La piste 7 (anomalies) n'utilise qu'une année à la fois, pour ne pas devenir une prévision des séries (labo 3) ; la piste 8 (complétion du DJMA le long du réseau) exclut les réseaux de neurones sur graphe (labo 4). Le chercheur peut juger la frontière trop mince et les écarter.
+- La piste 10 dépend de données que le ministère n'a pas encore fournies ; toute nouvelle donnée passe d'abord par l'accord du Pr Trépanier.
+- La durée de `jumeau scenarios` date d'avant l'accélération : les coûts des pistes 6 et 9 sont probablement surestimés.
+- Aucune piste n'a été essayée, même sommairement. Leurs chances de succès ne sont pas évaluées ici.

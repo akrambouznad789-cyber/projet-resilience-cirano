@@ -1,4 +1,4 @@
-[← README](../README.md) · [Journal du projet](progress.md) · **Atlas des données pour l'apprentissage automatique**
+[← README](../README.md) · [Journal du projet](progress.md) · **Atlas des données pour l'apprentissage automatique** · [Carte des pistes de recherche](pistes_ml.md)
 
 ---
 
@@ -162,7 +162,7 @@ Fonds de carte Natural Earth (domaine public), polices libres, dans `data/refere
 
 ## Cibles possibles et tâches ouvertes
 
-La taille effective est le nombre de blocs de 50 km qu'occupent les exemples. Les valeurs complétées ne comptent jamais comme exemples.
+La taille effective est le nombre de blocs de 50 km qu'occupent les exemples. Les valeurs complétées ne comptent jamais comme exemples. La [carte des pistes](pistes_ml.md) tire de ces cibles dix questions de recherche, classées, au-delà de celles des labos.
 
 | Cible | Tâche | Exemples | Taille effective | Piège de fuite propre à la cible |
 |---|---|---|---|---|
