@@ -492,3 +492,6 @@ Branche `feature/retours-prof-module1`, partie de `main` (`d98455e`). Quatre ret
 - Les R² de la forêt aléatoire (0,306 ; 0,187) datent d'avant le correctif et n'ont pas été recalculés (labo 1).
 - m4 reste fragile pour les camions : il retient le % d'un seul segment, et un petit changement de DJMA peut faire basculer ce segment (Sherbrooke – Cookshire).
 - Le rapport d'équipe (hors Git) et le portfolio CPCS décrivent encore l'ancienne règle.
+
+**Décision d'Akram (2026-11-17)**
+- Publication : fusion de `feature/retours-prof-module1` dans `main` telle quelle, correction du KNN comprise, puis envoi de `main` et de la branche.
