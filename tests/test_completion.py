@@ -99,6 +99,7 @@ def test_controle_accepte_une_sortie_conforme(completion):
 
 @pytest.mark.parametrize("defaut, message", [
     ("zero", "≤ 0 malgré une mesure"),
+    ("publiee", "valeur publiée modifiée"),
     ("hors", "hors de l'intervalle mesuré"),
     ("manquante", "valeurs manquantes"),
 ])
@@ -106,7 +107,10 @@ def test_controle_refuse_une_sortie_fautive(completion, defaut, message):
     djma_brut, cam_brut = serie({2017: 1800, 2018: 1700}), serie({2017: 9.2, 2018: 6.0})
     djma = completion._extrapoler_extremites_detail(djma_brut, ANNEES)[0]
     cam, _ = completion._extrapoler_extremites_detail(cam_brut, ANNEES, borner=False)   # ancienne règle
-    if defaut == "hors":
+    if defaut == "publiee":
+        cam = completion._extrapoler_extremites_detail(cam_brut, ANNEES)[0]
+        cam[rang(2018)[0]] = 7.0
+    elif defaut == "hors":
         cam = completion._extrapoler_extremites_detail(cam_brut, ANNEES)[0]
         cam[rang(2016)[0]] = 12.4
     elif defaut == "manquante":

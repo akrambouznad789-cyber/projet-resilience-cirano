@@ -40,6 +40,10 @@ la tendance locale est gardée tant qu'elle reste dans cet intervalle. L'ancienn
 règle (plancher à 0 seulement) reste disponible : _extrapoler_extremites_detail(
 ..., borner=False). controler_completion() vérifie ces règles avant l'écriture.
 
+Le même jour : une section sans DJMA publié mais avec un % de camions publié
+(455 sections) garde sa propre série de % camions ; la phase 2 n'emprunte plus
+aux voisines que son DJMA (avant : 788 valeurs publiées remplacées).
+
 MÉTHODES
 ---------------------------
 Phase 1 — Complétion temporelle (≥ 1 valeur connue par métrique) :
@@ -55,6 +59,7 @@ MICE — pour segments avec DJMA connu mais 0 valeur %cam :
 Phase 2 — Complétion géographique (0 valeur DJMA) :
   - KNN spatial k=5, priorité même index_agreg (N ou O)
   - IDW (inverse distance weighting, poids = 1/distance²)
+  - %cam emprunté aux voisines seulement si la section n'a aucun %cam publié
 
 ENTRÉE
 ------
@@ -529,6 +534,12 @@ def phase2_geographique(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     idx_cibles   = gdf.index[mask_knn].tolist()
     arbre        = cKDTree(coords_src)
 
+    # Une section sans DJMA publié peut avoir un % camions publié (455 sections) : sa série
+    # de % camions, complétée en phase 1 à partir de ses propres mesures, est gardée.
+    # Avant le 2026-11-17, les voisines l'écrasaient (788 valeurs publiées remplacées).
+    cam_publie = gdf["n_cam_original"] > 0
+    n_cam_gardes = int((mask_knn & cam_publie).sum())
+
     n_traites = 0
     for coord, type_cible, idx_seg in zip(coords_cible, types_cibles, idx_cibles):
         idx_voisins, poids, _ = voisins_ponderes(coord, type_cible, coords_src, types_src, src_idx, arbre)
@@ -536,17 +547,18 @@ def phase2_geographique(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         for col in DJMA_COLS:
             vals = gdf.loc[idx_voisins, col].values.astype(float)
             gdf.at[idx_seg, col] = round(float(np.dot(poids, vals)), 0)
-        for col in CAM_COLS:
-            vals = gdf.loc[idx_voisins, col].values.astype(float)
-            gdf.at[idx_seg, col] = round(float(np.dot(poids, vals)), 1)
-
         gdf.at[idx_seg, "methode_djma"] = "geo_knn"
-        gdf.at[idx_seg, "methode_cam"]  = "geo_knn"
+        if not cam_publie.at[idx_seg]:
+            for col in CAM_COLS:
+                vals = gdf.loc[idx_voisins, col].values.astype(float)
+                gdf.at[idx_seg, col] = round(float(np.dot(poids, vals)), 1)
+            gdf.at[idx_seg, "methode_cam"] = "geo_knn"
         n_traites += 1
         if n_traites % 500 == 0:
             print(f"  ...{n_traites}/{mask_knn.sum()} segments traités")
 
-    print(f"  Complétion géographique terminée : {n_traites} segments.")
+    print(f"  Complétion géographique terminée : {n_traites} segments "
+          f"({n_cam_gardes} gardent leur propre % camions publié).")
     return gdf
 
 
@@ -563,8 +575,9 @@ def controler_completion(gdf: gpd.GeoDataFrame, brut: pd.DataFrame) -> None:
 
       1. plus aucune valeur manquante ;
       2. DJMA > 0 et %cam dans [0, 100] ;
-      3. aucune valeur complétée ≤ 0 sur une section où le MTQ a mesuré une valeur > 0 ;
-      4. sections interpolées ou extrapolées : chaque valeur complétée reste dans
+      3. les valeurs publiées par le MTQ restent intactes ;
+      4. aucune valeur complétée ≤ 0 sur une section où le MTQ a mesuré une valeur > 0 ;
+      5. sections interpolées ou extrapolées : chaque valeur complétée reste dans
          l'intervalle [min, max] des valeurs mesurées sur la section.
     """
     print("\n[Contrôles] Règles de la complétion...")
@@ -586,6 +599,7 @@ def controler_completion(gdf: gpd.GeoDataFrame, brut: pd.DataFrame) -> None:
             signaler(nom, "DJMA ≤ 0", (v <= 0).any(axis=1))
         else:
             signaler(nom, "% camions hors de [0, 100]", ((v < 0) | (v > 100)).any(axis=1))
+        signaler(nom, "valeur publiée modifiée", (~complete & (np.abs(v - b) > 1e-6)).any(axis=1))
         mesure_positive = (np.nan_to_num(b, nan=0.0) > 0).any(axis=1)
         signaler(nom, "valeur complétée ≤ 0 malgré une mesure > 0",
                  (complete & (v <= 0)).any(axis=1) & mesure_positive)
