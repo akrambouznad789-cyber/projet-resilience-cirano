@@ -107,7 +107,8 @@ L'artefact du modèle (itinéraires, demande par paire de lieux) dérive des mic
 uv sync --all-extras --group dev                                  # Python 3.12, PyTorch CPU
 uv run jumeau reseau                                              # graphe RTSS, routes, sections (données MTMD)
 uv run jumeau preparer                                            # artefact : nécessite l'ENR (ENR_DIR)
-uv run jumeau calibrer --objectif configs/objectifs/equilibre.yaml
+uv run jumeau calibrer --objectif configs/objectifs/equilibre.yaml   # validation croisée, calage, bootstrap (≈ 2 min 15)
+uv run jumeau calibrer --echantillon                                 # même calage sur le couloir Montréal–Québec (≈ 20 s, jamais publié)
 uv run jumeau scenarios                                           # 570 fermetures et robustesse (≈ 17 min)
 uv run python scripts/visualisation_jumeau.py --publique          # pages locale et publique
 uv run jumeau exporter && JUMEAU_ARTEFACT=outputs/jumeau/service uv run jumeau api

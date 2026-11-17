@@ -30,8 +30,8 @@ def deviance_poisson(predit: torch.Tensor, observe: torch.Tensor, poids: torch.T
 
 def probabilites_postes(p: torch.Tensor, e: Enquete) -> torch.Tensor:
     """q_ks : probabilité de franchir le poste s, sachant le passage au poste d'interception (une par ligne)."""
-    num = torch.sparse.mm(e.numerateur, p[:, None])[:, 0]
-    den = torch.sparse.mm(e.denominateur, p[:, None])[:, 0]
+    num = e.produit_numerateur(p)
+    den = e.produit_denominateur(p)
     return num / den.clamp(min=EPS)
 
 
@@ -44,7 +44,7 @@ def nll_enquete(p: torch.Tensor, e: Enquete, poids: torch.Tensor, erreur: torch.
     q = (erreur + (1 - 2 * erreur) * probabilites_postes(p, e)).clamp(EPS, 1 - EPS)
     w = (poids * e.n)[e.groupe]
     ll = e.observe * torch.log(q) + (1 - e.observe) * torch.log(1 - q)
-    camions = torch.zeros_like(poids).index_add(0, e.groupe, torch.ones_like(q)).gt(0) * poids * e.n
+    camions = e.groupe_informatif * poids * e.n
     return -(w * ll).sum() / camions.sum().clamp(min=EPS)
 
 

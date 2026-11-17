@@ -157,6 +157,7 @@ class ConfigModele(Schema):
     chemins: ParamChemins
     parametres_initiaux: ParametresModele
     calibration: ParamCalibration
+    publier: bool = True        # `jumeau calibrer` écrit docs/jumeau/modele_public_<objectif>.json (essais : false)
 
 
 class Objectif(Schema):

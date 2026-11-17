@@ -37,6 +37,7 @@ Volets 1 et 2 (venv `~/.venvs/portfolio`) :
 
 Volet 3, le jumeau (paquet `src/jumeau_cirano/`, environnement `uv`, Python 3.12) :
 - `uv run jumeau reseau` → `uv run jumeau preparer` (ENR) → `uv run jumeau calibrer` → `uv run jumeau scenarios`
+- Calage sur l'échantillon (mise au point, ablations) : `uv run jumeau calibrer --echantillon` → `outputs/jumeau/echantillon/` (ENR, jamais publié) ; un essai hors production prend une config avec `publier: false`
 - Page technique : `uv run python scripts/visualisation_jumeau.py --publique`
 - Page de présentation : `uv run python scripts/visualisation_demo.py` (lit la page publique, ni artefact ni ENR)
 - Noms publics dans les pages et le README : Module 1 (Estimation du trafic par liaison), Module 2 (Valorisation économique du fret), Module 3 (Jumeau numérique et analyse de résilience). Les chemins et le code gardent `volet`.

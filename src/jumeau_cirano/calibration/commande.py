@@ -3,14 +3,16 @@ commande.py
 ===========
 `jumeau preparer` : artefact du modèle (demande ENR, chemins, postes, sections) dans outputs/jumeau/artefact/.
 
-`jumeau calibrer [--objectif configs/objectifs/<nom>.yaml] [--rapide]` :
+`jumeau calibrer [--objectif configs/objectifs/<nom>.yaml] [--rapide] [--echantillon]` :
 1. validation croisée à 5 plis (blocs spatiaux de sections × postes d'interception entiers),
    pour le modèle calé et les bases de comparaison B0 et B1
 2. calibration finale sur toutes les observations
 3. bootstrap (poids de Poisson, départ à chaud) : intervalles à 95 % des paramètres
 4. suivi MLflow + outputs/jumeau/calibration.json (local) + docs/jumeau/modele_public.json (paramètres et
-   métriques seulement : aucune donnée de l'ENR)
+   métriques seulement : aucune donnée de l'ENR ; seulement si la configuration a `publier: true`)
 `--rapide` : étape 2 seulement.
+`--echantillon` : sous-artefact du couloir de l'échantillon (modele/echantillon.py), construit au besoin ;
+résultats dans outputs/jumeau/echantillon/, jamais publiés.
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ import argparse
 import json
 import time
 from datetime import date
+from pathlib import Path
 
 import mlflow
 import numpy as np
@@ -34,8 +37,9 @@ from jumeau_cirano.calibration.validation import (
     selection_entrainement,
     tout_ou_rien,
 )
-from jumeau_cirano.config import DIR_CONFIGS, RACINE, ConfigModele, Objectif, charger, chemin_absolu
+from jumeau_cirano.config import DIR_CONFIGS, RACINE, ConfigModele, ConfigReseau, Objectif, charger, chemin_absolu
 from jumeau_cirano.modele.affectation import ModeleAffectation
+from jumeau_cirano.modele.echantillon import echantillonner, routes_dans_emprise
 from jumeau_cirano.modele.preparation import preparer
 from jumeau_cirano.modele.tenseurs import Artefact, charger_artefact
 
@@ -93,24 +97,41 @@ def bootstrap(cfg: ConfigModele, art: Artefact, objectif: Objectif, final: Model
     return pd.DataFrame(tirages)
 
 
+def artefact_echantillon(cfg: ConfigModele, dossier: Path) -> Path:
+    """Sous-artefact du couloir de l'échantillon, construit à partir de l'artefact complet s'il manque."""
+    cible = dossier / "artefact_echantillon"
+    if not (cible / "meta.json").exists():
+        cr = charger(cfg.reseau, ConfigReseau)
+        meta = echantillonner(dossier / "artefact", cible, routes_dans_emprise(cr), cr.echantillon)
+        print(f"      échantillon « {cr.echantillon.nom} » : {meta['routes']} routes, {meta['paires']:,} paires, "
+              f"{meta['chemins']:,} itinéraires, {meta['groupes']:,} groupes de camions")
+    return cible
+
+
 def executer(args: argparse.Namespace) -> None:
     """Calibre le modèle selon l'objectif choisi et enregistre tout dans MLflow."""
     cfg = charger(args.config or DIR_CONFIGS / "modele.yaml", ConfigModele)
     objectif = charger(args.objectif or cfg.calibration.objectif, Objectif)
+    echantillon = bool(getattr(args, "echantillon", False))
     dossier = chemin_absolu(cfg.dossier_sortie)
     if not (dossier / "artefact" / "meta.json").exists():
         print("[0] artefact absent : préparation")
         preparer(cfg)
+    artefact, sortie = dossier / "artefact", dossier
+    if echantillon:
+        artefact, sortie = artefact_echantillon(cfg, dossier), dossier / "echantillon"
+        sortie.mkdir(parents=True, exist_ok=True)
     torch.manual_seed(cfg.calibration.graine)
-    art = charger_artefact(dossier / "artefact")
-    print(f"[1/4] objectif « {objectif.nom} » ; {len(art.observees)} sections mesurées, "
-          f"{int(art.enquete.n.sum()):,} camions enquêtés, {art.donnees.chemin_route.shape[0]:,} itinéraires")
+    art = charger_artefact(artefact)
+    print(f"[1/4] objectif « {objectif.nom} »{' (échantillon)' if echantillon else ''} ; {len(art.observees)} sections "
+          f"mesurées, {int(art.enquete.n.sum()):,} camions enquêtés, {art.donnees.chemin_route.shape[0]:,} itinéraires")
 
     mlflow.set_tracking_uri(f"sqlite:///{dossier / 'mlflow.db'}")
     if mlflow.get_experiment_by_name("jumeau-affectation") is None:
         mlflow.create_experiment("jumeau-affectation", artifact_location=(dossier / "mlartifacts").as_uri())
     mlflow.set_experiment("jumeau-affectation")
-    with mlflow.start_run(run_name=f"{objectif.nom} {'rapide' if args.rapide else 'complet'}"):
+    nom_essai = f"{objectif.nom} {'rapide' if args.rapide else 'complet'}{' · échantillon' if echantillon else ''}"
+    with mlflow.start_run(run_name=nom_essai):
         mlflow.log_params({"objectif": objectif.nom, "poids_comptages": objectif.poids_comptages,
                            "poids_enquete": objectif.poids_enquete, **cfg.calibration.model_dump(),
                            **{f"chemins_{k}": v for k, v in cfg.chemins.model_dump().items()}})
@@ -139,7 +160,7 @@ def executer(args: argparse.Namespace) -> None:
         if not args.rapide and cfg.calibration.bootstrap:
             print(f"[4/4] bootstrap ({cfg.calibration.bootstrap} tirages)")
             tirages = bootstrap(cfg, art, objectif, final)
-            tirages.to_parquet(dossier / f"bootstrap_{objectif.nom}.parquet")      # stabilité des scénarios
+            tirages.to_parquet(sortie / f"bootstrap_{objectif.nom}.parquet")       # stabilité des scénarios
             ic = {k: [float(tirages[k].quantile(0.025)), float(tirages[k].quantile(0.975))] for k in tirages}
 
         resultat = {"genere_le": date.today().isoformat(), "objectif": objectif.model_dump(),
@@ -149,12 +170,14 @@ def executer(args: argparse.Namespace) -> None:
                                      "camions_enquetes": int(art.enquete.n.sum()),
                                      "itineraires": int(art.donnees.chemin_route.shape[0])}}
         texte = json.dumps(resultat, ensure_ascii=False, indent=2, default=str)
-        (dossier / f"calibration_{objectif.nom}.json").write_text(texte, encoding="utf-8")
-        public = RACINE / "docs" / "jumeau" / f"modele_public_{objectif.nom}.json"
-        public.parent.mkdir(parents=True, exist_ok=True)
-        public.write_text(texte, encoding="utf-8")
-        state = dossier / f"modele_{objectif.nom}.pt"
+        (sortie / f"calibration_{objectif.nom}.json").write_text(texte, encoding="utf-8")
+        state = sortie / f"modele_{objectif.nom}.pt"
         torch.save(final.state_dict(), state)
-        mlflow.log_artifact(str(dossier / f"calibration_{objectif.nom}.json"))
+        mlflow.log_artifact(str(sortie / f"calibration_{objectif.nom}.json"))
         mlflow.log_artifact(str(state))
-        print(f"      → {dossier / f'calibration_{objectif.nom}.json'}\n      → {public}")
+        print(f"      → {sortie / f'calibration_{objectif.nom}.json'}")
+        if cfg.publier and not echantillon:
+            public = RACINE / "docs" / "jumeau" / f"modele_public_{objectif.nom}.json"
+            public.parent.mkdir(parents=True, exist_ok=True)
+            public.write_text(texte, encoding="utf-8")
+            print(f"      → {public}")
