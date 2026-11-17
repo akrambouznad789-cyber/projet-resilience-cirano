@@ -1,0 +1,291 @@
+{
+  "genere_le": "2026-11-17",
+  "code": {
+    "jumeau_cirano": "0.1.0",
+    "commit": "996bd969a230"
+  },
+  "echantillon": null,
+  "bloc_km": 50.0,
+  "crs": "EPSG:32198",
+  "tampon_rattachement_m": 30.0,
+  "tables": {
+    "sections_annees": {
+      "lignes": 78230,
+      "colonnes": [
+        "ide_sectn_trafc",
+        "annee",
+        "djma_cible",
+        "djma_complete",
+        "djma_mesure",
+        "djma_methode",
+        "djma_ecrase",
+        "djma_n_mesures",
+        "pct_camions_cible",
+        "pct_camions_complete",
+        "pct_camions_mesure",
+        "pct_camions_methode",
+        "pct_camions_ecrase",
+        "pct_camions_n_mesures",
+        "djme",
+        "djmh",
+        "camions_cible",
+        "num_route",
+        "classe_rtss",
+        "type_route",
+        "type_route_source",
+        "longueur_m",
+        "x",
+        "y",
+        "bloc_50km"
+      ]
+    },
+    "noeuds": {
+      "lignes": 16460,
+      "colonnes": [
+        "id_noeud",
+        "x",
+        "y",
+        "degre",
+        "jonction_nouee",
+        "ecart_jonction_m",
+        "bloc_50km"
+      ]
+    },
+    "aretes": {
+      "lignes": 22655,
+      "colonnes": [
+        "id_lien",
+        "u",
+        "v",
+        "longueur_m",
+        "num_route",
+        "classe_rtss",
+        "type_route",
+        "cote_chaussee",
+        "estime",
+        "x",
+        "y",
+        "bloc_50km"
+      ]
+    },
+    "aretes_sections": {
+      "lignes": 46583,
+      "colonnes": [
+        "id_lien",
+        "ide_sectn_trafc",
+        "longueur_commune_m",
+        "bloc_section"
+      ]
+    },
+    "aretes_annees": {
+      "lignes": 218700,
+      "colonnes": [
+        "id_lien",
+        "annee",
+        "n_sections",
+        "djma_cible",
+        "djma_part_mesuree",
+        "djma_complete",
+        "pct_camions_cible",
+        "pct_camions_part_mesuree",
+        "pct_camions_complete",
+        "camions_cible",
+        "camions_part_mesuree"
+      ]
+    }
+  },
+  "entrees": {
+    "data/raw/DebitCirculation.gpkg": "baf712b491992a8caaec9d176db808c19ac36f421e61a2805002a98c419a4679",
+    "data/processed/debits_completes.gpkg": "51dd30ee461ea52171d5eaba0b76df288c0ba19523deeb419a813ba67cd51641",
+    "data/raw/ReseauRoutier_RTSS.gpkg": "768890656fc33e59c8328359b1274ba91a5151f8707f422c08a4831e6dd2ec3c",
+    "data/processed/reseau_multi_routes.gpkg": "c16fa9e1d8dc45b21292c81e0d5fc87a2aa6bf0aa4f0e0ad51d3fee359eac4ad"
+  },
+  "controles": {
+    "sections": 7823,
+    "annees": [
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025
+    ],
+    "blocs": 182,
+    "djma": {
+      "cibles": 37344,
+      "valeurs_ecrasees_par_la_completion": 0,
+      "methodes": {
+        "mesure": 37344,
+        "knn_idw": 32470,
+        "recopie": 3078,
+        "extrapolation": 2852,
+        "interpolation": 2486
+      },
+      "sections_avec_cible": 4576,
+      "blocs_avec_cible": 159
+    },
+    "pct_camions": {
+      "cibles": 12498,
+      "valeurs_ecrasees_par_la_completion": 788,
+      "methodes": {
+        "knn_idw": 31672,
+        "mesure": 12498,
+        "interpolation": 10951,
+        "foret_aleatoire": 9100,
+        "extrapolation": 7556,
+        "recopie": 6453
+      },
+      "sections_avec_cible": 4121,
+      "blocs_avec_cible": 149
+    },
+    "blocs_validation": 149,
+    "exemples": {
+      "djma": {
+        "lignes": 37344,
+        "sections": 4576,
+        "blocs": 159,
+        "colonnes": [
+          "ide_sectn_trafc",
+          "annee",
+          "djma_cible",
+          "pct_camions_cible",
+          "pct_camions_complete",
+          "pct_camions_mesure",
+          "pct_camions_methode",
+          "pct_camions_ecrase",
+          "pct_camions_n_mesures",
+          "num_route",
+          "classe_rtss",
+          "type_route",
+          "type_route_source",
+          "longueur_m",
+          "x",
+          "y",
+          "bloc_50km"
+        ],
+        "lignes_ou_djme_et_djmh_sont_publies": 33105
+      },
+      "pct_camions": {
+        "lignes": 12498,
+        "sections": 4121,
+        "blocs": 149,
+        "colonnes": [
+          "ide_sectn_trafc",
+          "annee",
+          "djma_cible",
+          "djma_complete",
+          "djma_mesure",
+          "djma_methode",
+          "djma_ecrase",
+          "djma_n_mesures",
+          "pct_camions_cible",
+          "djme",
+          "djmh",
+          "num_route",
+          "classe_rtss",
+          "type_route",
+          "type_route_source",
+          "longueur_m",
+          "x",
+          "y",
+          "bloc_50km"
+        ]
+      },
+      "camions": {
+        "lignes": 11693,
+        "sections": 3666,
+        "blocs": 149,
+        "colonnes": [
+          "ide_sectn_trafc",
+          "annee",
+          "camions_cible",
+          "num_route",
+          "classe_rtss",
+          "type_route",
+          "type_route_source",
+          "longueur_m",
+          "x",
+          "y",
+          "bloc_50km"
+        ]
+      }
+    },
+    "type_route": {
+      "Autoroute": 2947,
+      "Collectrice": 1789,
+      "Nationale": 1516,
+      "Régionale": 1121,
+      "Inconnu": 312,
+      "Autre": 138
+    },
+    "type_route_source": {
+      "code_rtss": 7436,
+      "aucune": 312,
+      "meme_numero": 75
+    },
+    "type_route_source_sections_avec_djma_publie": {
+      "code_rtss": 4478,
+      "aucune": 69,
+      "meme_numero": 29
+    },
+    "noeuds_noues_par_le_projet": 10846,
+    "seuil_jonction_estimee_m": 2.0,
+    "noeuds_jonction_estimee": 1222,
+    "ecart_jonction_m": {
+      "max_aux_extremites_communes": 0.59,
+      "jonctions_estimees": {
+        "mediane": 19.3,
+        "decile_9": 59.9,
+        "max": 159.3
+      }
+    },
+    "sections_sur_le_graphe": 7326,
+    "paires_lien_section": 46583,
+    "paires_lien_section_de_blocs_differents": 1732,
+    "liens_par_section_mediane": 5.0,
+    "aretes_avec_section": 21870,
+    "aretes_avec_cible_djma": 19905,
+    "aretes_etiquetees_par_annee": {
+      "djma": {
+        "2016": 18029,
+        "2017": 18171,
+        "2018": 18361,
+        "2019": 18206,
+        "2020": 17614,
+        "2021": 17503,
+        "2022": 17452,
+        "2023": 18256,
+        "2024": 18660,
+        "2025": 18757
+      },
+      "pct_camions": {
+        "2016": 8048,
+        "2017": 7420,
+        "2018": 7794,
+        "2019": 7999,
+        "2020": 6550,
+        "2021": 7551,
+        "2022": 7199,
+        "2023": 8423,
+        "2024": 9083,
+        "2025": 8715
+      },
+      "camions": {
+        "2016": 8048,
+        "2017": 7420,
+        "2018": 7794,
+        "2019": 7999,
+        "2020": 6550,
+        "2021": 7217,
+        "2022": 6891,
+        "2023": 7970,
+        "2024": 8769,
+        "2025": 8391
+      }
+    }
+  }
+}

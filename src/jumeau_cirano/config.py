@@ -173,3 +173,15 @@ class ConfigScenarios(Schema):
     valeur_par_tonne: float
     cout_horaire_camion: float
     robustesse_tirages: int
+
+
+# ---------------------------------------------------------------------------
+# Tables d'apprentissage (configs/tables.yaml)
+# ---------------------------------------------------------------------------
+
+class ConfigTables(Schema):
+    reseau: str
+    dossier_sortie: str
+    meta_publique: str | None = None      # copie de meta.json (tout le Québec), suivie par git
+    bloc_km: float
+    blocs_validation_attendus: int
