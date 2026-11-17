@@ -10,14 +10,16 @@ Pour chaque arc, le DJMA agrégé est calculé de 4 façons à partir de ses seg
 
 | Méthode | Logique | Médiane (véh./jour) | Minimum | Maximum |
 |---|---|---|---|---|
-| **m1** | Moyenne simple des segments | 11 947 | 488 | 182 999 |
-| **m2** | Pondérée par longueur de segment | 14 318 | 486 | 179 145 |
-| **m3** | Pondérée par type d'axe routier (hiérarchie MTQ) | 12 183 | 529 | 182 999 |
-| **m4** | 80e percentile par rang (nearest-rank) : valeur réelle du segment classé à la position `round(0,8 × n)`, sans interpolation ni moyenne | 15 351 | 530 | 185 912 |
+| **m1** | Moyenne simple des segments | 11 899 | 488 | 176 809 |
+| **m2** | Pondérée par longueur de segment | 14 123 | 486 | 173 206 |
+| **m3** | Pondérée par type d'axe routier (hiérarchie MTQ) | 12 183 | 529 | 176 809 |
+| **m4** | 80e percentile par rang (nearest-rank) : valeur réelle du segment classé à la position `round(0,8 × n)`, sans interpolation ni moyenne | 15 351 | 530 | 179 122 |
 
 m4 donne systématiquement les valeurs les plus élevées : c'est la conséquence directe de sa conception (80e percentile, pour représenter des conditions de circulation chargées), là où m1-m3 visent une tendance centrale.
 
 > **Correctifs du 28 octobre 2026.** Une relecture du code a trouvé deux erreurs, corrigées depuis. (1) m3 lisait la classe routière dans la liste des sous-routes RTSS de l'arc au lieu de celle de chaque segment ; la classe vient maintenant du RTSS, par le code de sous-route du segment (95 % des segments retrouvés). (2) Le script de routage ajoutait ses lignes à chaque exécution au lieu de les remplacer : m2 mêlait des valeurs de trois exécutions successives. Effet sur les 285 arcs mesurés : médiane de m2 14 216 → 14 318, de m3 12 152 → 12 183 ; m1 et m4 ne changent pas. La complétion des 19 arcs sans segment compare aussi désormais les vrais tracés (voir [Résultats](resultats.md)).
+
+> **Correctif du 17 novembre 2026.** La complétion des comptages borne désormais l'extrapolation à l'intervalle mesuré de chaque section et ne remplace plus les % de camions publiés (voir [Complétion](completion.md)). Les rattachements ne changent pas, seules les valeurs 2025 des sections. Effet sur les 285 arcs mesurés : médiane de m1 11 947 → 11 899, de m2 14 318 → 14 123 ; m3 et m4 ne changent pas. Les maximums baissent (m4 : 185 912 → 179 122) : sur l'arc le plus chargé, Laval – Ville de Mont-Royal, des sections mesurées de 2016 à 2018 (175 000 → 177 000) étaient prolongées à la hausse jusqu'à 184 333 en 2025 ; elles restent maintenant à 177 000, et leurs voisines complétées par KNN baissent avec elles. Pour les camions par jour (m4), 165 des 304 arcs changent, avec un écart médian de −0,8 % ; deux liaisons vers le Vermont, qui avaient 0 camion par jour, en ont 186. Comme m4 retient le % de camions d'un seul segment, un petit changement de DJMA peut faire basculer le segment retenu : Sherbrooke – Cookshire passe ainsi de 1 299 à 274 camions par jour (11,7 % estimé par le RandomForest → 2,4 %, la mesure de 2024 reportée sur 2025).
 
 ```python
 def calculer_m1(segments):

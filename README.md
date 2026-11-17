@@ -102,7 +102,7 @@ Le modèle ne prédit pas mieux les débits que le routage simple ; son apport e
 
 ## Terrain pour l'apprentissage automatique
 
-*Novembre 2026.* Avant d'entraîner de nouveaux modèles sur ces données, il faut savoir lesquelles sont des mesures. L'[atlas des données](docs/donnees_ml.md) répond valeur par valeur : 47,7 % des DJMA et 16,0 % des % de camions sont publiés par le ministère, le reste a été complété par le Module 1, et 788 valeurs publiées ont même été remplacées par la complétion. Chaque cible possible y reçoit sa taille effective, comptée en blocs de 50 km, et son piège de fuite.
+*Novembre 2026.* Avant d'entraîner de nouveaux modèles sur ces données, il faut savoir lesquelles sont des mesures. L'[atlas des données](docs/donnees_ml.md) répond valeur par valeur : 47,7 % des DJMA et 16,0 % des % de camions sont publiés par le ministère, le reste a été complété par le Module 1. L'audit a aussi trouvé 788 valeurs publiées remplacées par la complétion, et des extrapolations tombées à 0 camion : les deux défauts sont corrigés depuis le 17 novembre 2026. Chaque cible possible y reçoit sa taille effective, comptée en blocs de 50 km, et son piège de fuite.
 
 | Brique | Ce qu'elle apporte |
 |---|---|
