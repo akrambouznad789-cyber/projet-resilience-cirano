@@ -20,19 +20,19 @@ Pseudo-code
                           recensement (DR, 4 premiers chiffres), puis sur la province ;
                           comtés américains → Gazetteer 2020
 4. rattacher_noeuds()     point québécois → nœud municipal le plus proche du graphe ;
-                          point hors Québec → nœuds frontières candidats ;
-                          agreger_divisions() refait le rattachement au niveau DR,
-                          pour comparaison (affichage seulement, le routage reste en SDR)
+                          point hors Québec → nœuds frontières candidats
 5. router_camions()       plus court chemin (km OSRM) entre nœuds ; pour un bout hors
                           Québec, la frontière qui minimise la distance totale ;
                           cumul des camions et des tonnes par arc et par groupe
 6. valider_postes()       part des camions interceptés à un poste dont le chemin
-                          calculé passe par l'arc de ce poste
+                          calculé passe par l'arc de ce poste ; position du poste
+                          sur la ligne droite de sa liaison, pour la carte
 7. exporter()             JSON compact injecté dans le gabarit HTML
 
-Les étapes « $ par tonne », « actualisation » et « valeur annuelle par arc » sont
-calculées dans la page (JavaScript), pour que les $/t et le facteur d'indice
-restent modifiables à la volée.
+La carte montre le graphe (lignes droites entre les nœuds) et le trafic m4 du
+Module 1, figé. Les étapes « $ par tonne », « actualisation » et « valeur annuelle
+par arc » sont calculées dans la page (JavaScript) : un prix par tonne et un
+facteur d'actualisation restent modifiables à la volée.
 
 Données ENR : lues hors du dépôt (variable d'environnement ENR_DIR), jamais
 copiées dans Git. La page complète contient des agrégats tirés de l'ENR (flux
@@ -102,7 +102,7 @@ PROVINCES: dict[str, str] = {
     "61": "Territoires du Nord-Ouest", "62": "Nunavut",
 }
 DETOUR_ROUTIER = 1.2      # distance routière ≈ 1,2 × vol d'oiseau, hors Québec
-TOL_ARC_M      = 300      # simplification des tracés OSRM pour l'affichage
+DECALAGE_SENS_M = 2500    # les deux sens d'un poste, posés de part et d'autre sur la ligne de la liaison
 TOP_PAIRES     = 5        # paires O-D affichées par arc
 
 # Nœuds frontières candidats selon la province ou le pays du lieu hors Québec.
@@ -369,12 +369,8 @@ def cle_lieu(prov: pd.Series, sdr: pd.Series, comte: pd.Series) -> pd.Series:
     return cle
 
 
-def localiser_points(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """SDR 2001 de même code, sinon division de recensement (DR), sinon province.
-
-    Renvoie aussi les points représentatifs des DR touchées, pour le rattachement
-    au niveau DR (comparaison des deux granularités).
-    """
+def localiser_points(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """SDR 2001 de même code, sinon division de recensement (DR), sinon province."""
     sdr, comtes = charger_references_geo()
     rep = sdr.copy()
     rep["geometry"] = rep.geometry.representative_point()
@@ -427,12 +423,7 @@ def localiser_points(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.D
     df["o_pt"] = df["cle_cp"].map(vers_id).astype("Int64")
     df["d_pt"] = df["cle_cd"].map(vers_id).astype("Int64")
     df["localise"] = df["o_pt"].notna() & df["d_pt"].notna()
-
-    divisions = (points.dropna(subset=["dr"]).drop_duplicates("dr")[["dr", "prov"]]
-                       .rename(columns={"dr": "pid"}).reset_index(drop=True))
-    centre = dr.geometry.loc[divisions["pid"].str[1:]]
-    divisions["lon"], divisions["lat"] = centre.x.to_numpy(), centre.y.to_numpy()
-    return df, points, divisions
+    return df, points
 
 
 # ---------------------------------------------------------------------------
@@ -563,8 +554,14 @@ def cumuler_par_arc(df: pd.DataFrame, arcs: gpd.GeoDataFrame, noms: dict[str, st
 # 6. Postes d'enquête et validation du routage
 # ---------------------------------------------------------------------------
 
-def valider_postes(df: pd.DataFrame, traces: gpd.GeoDataFrame) -> tuple[list[dict], dict]:
-    """Accroche chaque poste QC au tracé le plus proche et mesure si le chemin calculé y passe."""
+def valider_postes(df: pd.DataFrame, traces: gpd.GeoDataFrame,
+                   arcs: gpd.GeoDataFrame) -> tuple[list[dict], dict]:
+    """Accroche chaque poste QC au tracé le plus proche et mesure si le chemin calculé y passe.
+
+    Pour la carte, qui montre le graphe, le poste est aussi posé sur la ligne droite de sa
+    liaison (lon_g, lat_g), décalé le long de la ligne selon son sens.
+    """
+    lignes = arcs.to_crs(CRS_QC).set_index("ID_ARC").geometry
     postes_qc = df[df["dcs_code"].str.startswith("QC")]
     libelles = postes_qc.groupby("dcs_code")["wp_dcs"].first().str.upper().str.strip()
     resultats, details = [], []
@@ -578,6 +575,10 @@ def valider_postes(df: pd.DataFrame, traces: gpd.GeoDataFrame) -> tuple[list[dic
         point = gpd.GeoSeries(gpd.points_from_xy([lon], [lat]), crs=CRS_WGS84).to_crs(CRS_QC).iloc[0]
         distances = traces.geometry.distance(point)
         arc = int(traces.loc[distances.idxmin(), "ID_ARC"])
+        ligne = lignes.loc[arc]
+        cote = 0 if not sens else (1 if sens.group(1).startswith(("NORTH", "EAST")) else -1)
+        le_long = min(max(ligne.project(point) + cote * DECALAGE_SENS_M, 0.0), ligne.length)
+        pose = gpd.GeoSeries([ligne.interpolate(le_long)], crs=CRS_QC).to_crs(CRS_WGS84).iloc[0]
 
         ici = postes_qc[postes_qc["dcs_code"] == code]
         routes = ici[ici["route"]]
@@ -589,7 +590,8 @@ def valider_postes(df: pd.DataFrame, traces: gpd.GeoDataFrame) -> tuple[list[dic
             "code": code, "localite": nom, "libelle": libelle.title(),
             "route": route.group(1) if route else "", "sens": sens.group(1).split("/")[1].title() if sens else "",
             "troncon": contenu.split(":", 1)[1].strip().title() if ":" in contenu else "",
-            "lon": lon, "lat": lat, "arc": arc, "dist_arc_km": round(float(distances.min()) / 1000, 1),
+            "lon": lon, "lat": lat, "lon_g": round(pose.x, 4), "lat_g": round(pose.y, 4),
+            "arc": arc, "dist_arc_km": round(float(distances.min()) / 1000, 1),
             "nobs": int(len(ici)), "n3": round(float(ici["n3"].sum())),
             "pct_vides": round(float(ici["vide"].mean()), 3),
             "t_par_charge": round(float(charges["kg"].mean() / 1000), 1) if len(charges) else None,
@@ -661,41 +663,6 @@ def agreger_noeuds(df: pd.DataFrame, points: pd.DataFrame, noeuds: gpd.GeoDataFr
     return liste_noeuds, list(zip(rattache, poids))
 
 
-def agreger_divisions(points: pd.DataFrame, divisions: pd.DataFrame, rattache: list) -> tuple[dict, dict, dict]:
-    """Rattachement au niveau DR, pour comparer les deux granularités.
-
-    Chaque DR québécoise va au nœud municipal le plus proche de son point
-    représentatif ; une DR hors Québec, à la frontière la plus retenue par ses
-    SDR. Le routage, lui, reste au niveau SDR : on mesure seulement la part des
-    bouts québécois qui changeraient de nœud.
-    """
-    pts = points.assign(noeud=[r[0] for r in rattache], n3=[r[1] for r in rattache])
-    pts = pts[pts["dr"].notna() & (pts["n3"] > 0)]
-    par_dr = pts.groupby("dr").agg(n3=("n3", "sum"), nsdr=("pid", "size"))
-    principale = pts.sort_values("n3").groupby("dr")["nom"].last()        # SDR qui pèse le plus
-    frontiere = (pts.groupby(["dr", "noeud"])["n3"].sum().reset_index()
-                    .sort_values("n3").drop_duplicates("dr", keep="last").set_index("dr")["noeud"])
-
-    div = divisions.set_index("pid").loc[par_dr.index]
-    au_qc = div["prov"] == "CA-QC"
-    div["noeud"] = div["noeud"].where(au_qc, frontiere.reindex(div.index))
-    qc = pts[pts["prov"] == "CA-QC"]
-    change = qc["noeud"].to_numpy() != div["noeud"].reindex(qc["dr"]).to_numpy()
-    stats = {
-        "n_sdr_qc": int(len(qc)), "n_dr_qc": int(au_qc.sum()),
-        "noeuds_sdr": int(qc["noeud"].nunique()), "noeuds_dr": int(div.loc[au_qc, "noeud"].nunique()),
-        "part_change": round(float(qc["n3"][change].sum() / qc["n3"].sum()), 4),
-    }
-    couche = {
-        "code": div.index.str[1:].tolist(), "lon": div["lon"].round(4).tolist(), "lat": div["lat"].round(4).tolist(),
-        "prov": div["prov"].tolist(), "principale": principale.reindex(div.index).tolist(),
-        "nsdr": par_dr["nsdr"].astype(int).tolist(), "n3": par_dr["n3"].round().astype(int).tolist(),
-        "noeud": div["noeud"].tolist(),
-        "dist": [None if pd.isna(v) else round(float(v), 1) for v in div["dist_noeud_km"]],
-    }
-    return couche, stats, {pid: i for i, pid in enumerate(div.index)}
-
-
 def fond_de_carte() -> dict:
     """Natural Earth 50 m (provinces/États, océan, lacs), simplifié pour le web."""
     emprise = box(-175, 0, -20, 85)
@@ -716,22 +683,14 @@ def fond_de_carte() -> dict:
 
 
 def couche_arcs(arcs: gpd.GeoDataFrame) -> dict:
-    """Tracés OSRM simplifiés (repli : ligne droite) + DJMA du volet 1 par arc."""
-    traces = gpd.read_file(FICHIER_TRACES, layer="trace_osrm").drop_duplicates("ID_ARC").set_index("ID_ARC")
-    sortie = arcs.to_crs(CRS_QC).copy()
-    for i, r in sortie.iterrows():
-        t = traces.geometry.get(r.ID_ARC)
-        if t is not None and not t.is_empty:
-            sortie.at[i, "geometry"] = t.simplify(TOL_ARC_M)
-    sortie = sortie.to_crs(CRS_WGS84)
+    """Le graphe du Module 1 : ligne droite entre les deux nœuds de chaque liaison, trafic m4."""
+    sortie = arcs.to_crs(CRS_WGS84)
     props = {
         "id": sortie["ID_ARC"].astype(int), "a": sortie["VILLE_A"], "b": sortie["VILLE_B"],
         "km": sortie["longueur_trace_km"].fillna(sortie["DIST_KM"]).round(1), "statut": sortie["statut"],
+        "djma_m4": sortie["djma_m4"].round(), "cam_m4": sortie["djma_cam_m4"].round(),
+        "pct_cam_m4": sortie["pct_cam_m4"].round(1),
     }
-    for m in (1, 2, 3, 4):
-        props[f"djma_m{m}"] = sortie[f"djma_m{m}"].round()
-        props[f"cam_m{m}"] = sortie[f"djma_cam_m{m}"].round()
-    props["pct_cam_m4"] = sortie["pct_cam_m4"].round(1)
     tableau = gpd.GeoDataFrame(pd.DataFrame(props), geometry=sortie.geometry, crs=CRS_WGS84)
     tableau = tableau.astype({c: object for c in tableau.columns if c != "geometry"})
     tableau = tableau.where(pd.notna(tableau), None)
@@ -775,7 +734,7 @@ def extraits_code() -> dict[str, str]:
         "statcan": inspect.getsource(verifier_statcan),
         "population": inspect.getsource(classer_population),
         "localisation": inspect.getsource(cle_lieu) + "\n\n" + inspect.getsource(localiser_points),
-        "rattachement": inspect.getsource(rattacher_noeuds) + "\n\n" + inspect.getsource(agreger_divisions),
+        "rattachement": inspect.getsource(rattacher_noeuds),
         "routage": inspect.getsource(router_camions) + "\n\n" + inspect.getsource(cumuler_par_arc),
         "postes": inspect.getsource(valider_postes),
         "chargement": inspect.getsource(charger_enr) + "\n\n" + inspect.getsource(groupe_marchandise),
@@ -790,7 +749,6 @@ def version_publique(donnees: dict) -> dict:
     publique = dict(donnees)
     publique["flux"] = {k: [] for k in donnees["flux"]}
     publique["points"] = {k: [] for k in donnees["points"]}
-    publique["divisions"] = {k: [] for k in donnees["divisions"]}
     publique["noeuds"] = [{**n, "n3": 0, "t3": 0, "n3_vides": 0, "n3_local": 0, "npts": 0} for n in donnees["noeuds"]]
     publique["meta"] = {**donnees["meta"], "publique": True}
     return publique
@@ -812,21 +770,19 @@ def main(publique: bool = False) -> None:
     print("[1/7] ENR")
     df = classer_population(charger_enr())
     print("[2/7] localisation des SDR 2001 et des comtés")
-    df, points, divisions = localiser_points(df)
+    df, points = localiser_points(df)
     print("[3/7] graphe et rattachement aux nœuds")
     G, arcs, noeuds = charger_graphe()
     points = rattacher_noeuds(points, noeuds)
-    divisions = rattacher_noeuds(divisions, noeuds)
     noms = dict(zip(noeuds["ID"], noeuds["NOM"]))
     print("[4/7] routage")
     df, routes = router_camions(df, points, G)
     par_arc = cumuler_par_arc(df, arcs, noms)
     print("[5/7] postes d'enquête")
     traces = gpd.read_file(FICHIER_TRACES, layer="trace_osrm").drop_duplicates("ID_ARC")
-    postes, synthese_postes = valider_postes(df, traces)
+    postes, synthese_postes = valider_postes(df, traces, arcs)
     print("[6/7] agrégats d'affichage")
     liste_noeuds, rattache = agreger_noeuds(df, points, noeuds)
-    couche_dr, stats_dr, index_dr = agreger_divisions(points, divisions, rattache)
 
     garde = df[df["garde"]]
     bouts = pd.concat([garde[["o_pt", "n3"]].rename(columns={"o_pt": "pt"}),
@@ -850,7 +806,6 @@ def main(publique: bool = False) -> None:
         "n_localises_garde": int(garde["localise"].sum()),
         "n_points": int(len(points)),
         "qualite_bouts": qualite_bouts,
-        "niveau_dr": stats_dr,
         "n_local": int(df["local"].sum()), "n3_local": round(float(df.loc[df["local"], "n3"].sum())),
         "n_route": int(df["route"].sum()), "n3_route": round(float(df.loc[df["route"], "n3"].sum())),
         "n_paires_routees": int(routes["arcs"].map(len).gt(0).sum()),
@@ -872,9 +827,7 @@ def main(publique: bool = False) -> None:
             "qual": points["qual"].tolist(), "prov": points["prov"].tolist(), "nom": points["nom"].tolist(),
             "noeud": [r[0] for r in rattache], "n3": [r[1] for r in rattache],
             "dist": [None if pd.isna(v) else round(float(v), 1) for v in points["dist_noeud_km"]],
-            "dr": [index_dr.get(v) for v in points["dr"]],
         },
-        "divisions": couche_dr,
         "flux": agreger_flux(df),
         "postes": postes,
         "code": extraits_code(),
