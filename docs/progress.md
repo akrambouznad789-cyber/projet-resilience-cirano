@@ -513,3 +513,6 @@ Branche `feature/module2-simplifie`, partie de `main` (`68a79e6`). Retours d'Akr
 - Les postes sont placés sur la ligne droite de leur liaison : une schématisation, la position réelle reste approximative (localité saisie à la main).
 - La question du directeur de recherche (étendre la valeur des postes aux liaisons par proximité plutôt que par trajet) reste ouverte comme vérification simple ; elle n'est pas calculée.
 - En capture sans affichage avec temps virtuel, les étapes 5 et 8 de la nouvelle page sortaient vides, celles de l'ancienne non. Aucune erreur JavaScript ; la carte est complète en temps réel (attente de 7 s) ou avec un minuteur actif. C'est un artefact du temps virtuel, pas un défaut de la page.
+
+**Décision d'Akram (2026-11-17)**
+- Publication : fusion de `feature/module2-simplifie` dans `main`, puis envoi.
