@@ -495,3 +495,21 @@ Branche `feature/retours-prof-module1`, partie de `main` (`d98455e`). Quatre ret
 
 **Décision d'Akram (2026-11-17)**
 - Publication : fusion de `feature/retours-prof-module1` dans `main` telle quelle, correction du KNN comprise, puis envoi de `main` et de la branche.
+
+## Module 2 : page simplifiée pour la présentation (2026-11-17)
+
+Branche `feature/module2-simplifie`, partie de `main` (`68a79e6`). Retours d'Akram et du directeur de recherche sur la page du Module 2 : le graphe doit primer sur les tracés routiers ; m1 à m3 relèvent d'une étude de sensibilité, m4 est figé ; les étapes 3, 4 et 5 multipliaient les bascules (taille et couleur des postes, SDR/DR, couleur des arcs, poids d'expansion) et les ratios ; les étapes 6 et 7 avaient trop de paramètres.
+
+**Fait**
+- `visualisation_volet2.py` : les liaisons sont les lignes droites du graphe (déjà dans `graphe_routier_djma`), avec le trafic m4 seulement ; chaque poste est aussi posé sur la ligne de sa liaison (`lon_g`, `lat_g`, ±2,5 km selon le sens) ; la comparaison SDR/DR est retirée (`agreger_divisions`, couche `divisions`), le repli de localisation sur la DR reste.
+- Gabarit : m4 et `adjwgt3` figés ; un seul prix par tonne (3 000 $/t) et un seul facteur 2017 → 2026 ; étape 3 sans bascule (liaisons enquêtées en trait épais, postes colorés par la part de vides, taille = camions enquêtés, légende de référence) ; étape 4 en une seule vue (municipalité → nœud → cercle du nœud) avec « Pourquoi ces municipalités ? » ; étape 5 en une seule lecture (épaisseur = trajets par an routés) avec la vérification de 51 % en une phrase ; « trajets par an » expliqué aux étapes 1 et 2 (494 trajets réels par fiche en moyenne).
+- `docs/volet2.md` : tableau des étapes, prix unique, comparaison SDR/DR retirée.
+
+**Chiffres**
+- Mêmes résultats qu'avant : sur les 297 liaisons valorisées, le $ par camion est identique (mêmes `par_arc`, mêmes camions par jour m4) ; seule la présentation change.
+- Page publique : toujours sans flux ni lieux, nœuds sans décompte ; 1,0 Mo (1,2 Mo avant).
+
+**Revue critique**
+- Les postes sont placés sur la ligne droite de leur liaison : une schématisation, la position réelle reste approximative (localité saisie à la main).
+- La question du directeur de recherche (étendre la valeur des postes aux liaisons par proximité plutôt que par trajet) reste ouverte comme vérification simple ; elle n'est pas calculée.
+- En capture sans affichage avec temps virtuel, les étapes 5 et 8 de la nouvelle page sortaient vides, celles de l'ancienne non. Aucune erreur JavaScript ; la carte est complète en temps réel (attente de 7 s) ou avec un minuteur actif. C'est un artefact du temps virtuel, pas un défaut de la page.
