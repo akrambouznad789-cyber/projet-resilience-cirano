@@ -549,3 +549,38 @@ Branche `feature/module2-suivre-poste`, partie de `main` (`107fab7`). Retour d'A
 - L'échelle commune rend petits les cercles des postes peu enquêtés ; elle permet en revanche de comparer les postes entre eux, et la légende ne change pas.
 - Deux cercles superposés demandent une lecture apprise : la légende l'explique, mais l'effet sur un lecteur non averti n'est pas mesuré.
 - Vérifié en captures sans affichage (moteur Canvas forcé, sombre, clair, largeur 900 px, vue rapprochée sur Québec), étapes 3 à 5. Pas encore vérifié : le rendu MapLibre dans un vrai navigateur (dont l'ordre de dessin des cercles superposés, réglé par `circle-sort-key`) et le mode « Comparer deux étapes ».
+
+## Module 2 : une seule symbologie d'une étape à l'autre (2026-11-23)
+
+Même branche, après le commit `1550a4e` (l'étape 4 suit un poste, validée par Akram). Deux demandes d'Akram : l'étape 4 doit partir de tous les postes, puis laisser choisir sur la carte celui qu'on suit ; et la symbologie du Module 2 doit être la même d'une étape à l'autre (« si le poste c'est des losanges mauves, la symbologie doit être conservée au fil des couches »). Le Module 1 est jugé assez cohérent ; ses couleurs restent à revoir plus tard.
+
+**Ce qui était incohérent**
+- Le poste était un cercle bleu (dégradé selon la part de vides) à l'étape 3, un losange violet à l'étape 4.
+- Le bleu, l'orange et le vert désignaient des catégories de camions à l'étape 2, le chargement et la livraison à l'étape 4.
+- Le nœud était un point blanc aux étapes 0 et 5 à 8, un petit point gris à l'étape 3, un point gris clair à l'étape 4.
+- Des barres du panneau reprenaient le bleu ou l'orange pour des listes sans rapport.
+
+**Choix d'Akram** (deux questions) : le bleu et l'orange sont réservés au chargement et à la livraison ; la part de vides quitte la carte de l'étape 3 (elle reste dans le tableau, la fiche du poste, l'info-bulle et la tuile).
+
+**Fait**
+- Jeton `poste` dans `jetons.json` (#b866b0 en sombre, #a8489e en clair) ; `palette.js` régénéré par `theme_pages.py`.
+- Gabarit :
+  - les postes sont des losanges mauves (un marqueur HTML par poste, aire selon les camions enquêtés) aux étapes 3 et 4 ; une couche invisible porte le survol et le clic ; les liaisons des postes sont mauves à l'étape 3 ;
+  - les nœuds prennent le symbole du Module 1 (point blanc cerclé, plus petit au zoom) à toutes les étapes, estompés (opacité 0,35) quand ils ne servent que de repère : étapes 1 à 4. Le moteur Canvas de la page gère maintenant `circle-stroke-opacity` ;
+  - les lignes de désir des étapes 1 et 2 sont grises (gris clair : arrêtés au Québec ; gris moyen : arrêtés hors Québec ; vert : transit ; pâle : écartés), au-dessus du graphe estompé ; la barre et la légende de l'étape 2 suivent ;
+  - étape 4 locale : sans poste choisi, tous les losanges, un menu (« — Choisir un poste — ») et un exemple à cliquer (Saint-Augustin-de-Desmaures, A-40 Est) ; avec un poste suivi, les autres losanges sont estompés et restent cliquables, et un bouton ramène à tous les postes. Le poste choisi à l'étape 3 est repris à l'étape 4 ;
+  - les barres « arrêtés hors Québec » et celles des fiches passent en gris ;
+  - légendes communes : le même losange, le même nœud et les mêmes cercles qu'à la carte.
+- `docs/volet2.md` : ligne de l'étape 4 et tableau « Lire les cartes du Module 2 ».
+
+**Chiffres**
+- Mauve validé au script du skill dataviz, toutes paires, contre le bleu et l'orange des lieux. Sombre : écart daltonien 8,6, vision normale 18,0, contraste ≥ 3:1, bande de luminosité respectée. Clair : écart daltonien 10,5, vision normale 20,2. Le violet précédent (#bd93f9) échouait : trop clair pour la bande, et 7,7 d'écart avec le bleu pour un œil protanope.
+- Page publique : 1,05 Mo, toujours sans lieux, flux ni camions par poste.
+- 72 tests réussis.
+
+**Revue critique**
+- Les deux gris des retenus (arrêtés au Québec, arrêtés hors Québec) se distinguent mal sur la carte ; la distinction est surtout portée par la barre et la tuile « 22,2 % du poids : arrêtés hors Québec ».
+- Les nœuds blancs cerclés ressemblent à des anneaux en thème clair, comme au Module 1 ; c'est le prix de l'alignement sur le Module 1.
+- Le Module 1 colore encore ses nœuds frontières en orange et ses nœuds intermédiaires en vert : entre les deux modules, l'orange et le vert n'ont pas le même sens. À traiter avec les couleurs du Module 1.
+- En capture sans affichage, l'étape 1 sort vide (artefact du temps virtuel déjà connu, couche de plus de 4 000 lignes) ; elle s'affiche avec un minuteur actif.
+- Pas encore vérifié : le rendu MapLibre dans un vrai navigateur (survol et clic des losanges, ordre des cercles superposés) et le mode « Comparer deux étapes ».

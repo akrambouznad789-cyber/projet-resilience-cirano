@@ -26,13 +26,28 @@ valeur annuelle d'une liaison = camions par jour (Module 1) × $ moyen par camio
 | 1 | Enquête brute | Toutes les fiches de l'enquête, partout au Canada. Aucune ne contient de montant en dollars. | 114 734 camions |
 | 2 | Cibler le Québec | On garde les camions qui chargent ou livrent au Québec, où qu'ils aient été arrêtés, et ceux dont le trajet traverse le Québec. | 37 603 camions, dont 9 057 vides |
 | 3 | Postes d'enquête | Les lieux où les camions ont été arrêtés au Québec. Le poste sert seulement à vérifier le routage (étape 5) : la valeur d'une liaison vient des camions qui y passent. | 49 postes |
-| 4 | Localiser | Chaque camion arrêté a déclaré où il charge et où il livre, par un code de municipalité de 2001. Chaque lieu est rattaché au nœud le plus proche du réseau ; hors Québec, à un point frontière. Les camions ne sont pas fusionnés : chacun garde sa paire de nœuds. La version locale suit un poste à la fois (par défaut Saint-Augustin-de-Desmaures, A-40 Est) pour montrer d'où viennent ses camions et où ils vont. | 100 % des lieux canadiens au code exact |
+| 4 | Localiser | Chaque camion arrêté a déclaré où il charge et où il livre, par un code de municipalité de 2001. Chaque lieu est rattaché au nœud le plus proche du réseau ; hors Québec, à un point frontière. Les camions ne sont pas fusionnés : chacun garde sa paire de nœuds. La version locale part de tous les postes ; un clic sur l'un d'eux montre d'où viennent ses camions et où ils vont. | 100 % des lieux canadiens au code exact |
 | 5 | Faire rouler | Chaque camion suit le plus court chemin sur le réseau. Il compte sur toutes les liaisons de son trajet, pas seulement là où on l'a arrêté. | 36 879 camions routés |
 | 6 | Donner un prix | Un prix par tonne transforme le tonnage en dollars. En attendant les prix par groupe de marchandises de Statistique Canada (Cadre de données sur le transport de marchandises), le même prix vaut pour toutes. | provisoire : 3 000 $/t |
 | 7 | Actualiser | Les prix sont ramenés en dollars de 2026 avec l'indice des prix des produits industriels. | provisoire |
 | 8 | Valeur par liaison | $ moyen par camion × camions par jour (m4) × 365. | provisoire |
 
 Les étapes 6 à 8 sont calculées directement dans la page : on peut y modifier le prix par tonne et le facteur d'actualisation, et la carte se recalcule. Un onglet « Logique » affiche le code réel de chaque étape.
+
+### Lire les cartes du Module 2
+
+Chaque objet garde le même symbole à toutes les étapes où il paraît.
+
+| Objet | Symbole | Étapes |
+|---|---|---|
+| Poste d'enquête | losange mauve, taille selon les camions enquêtés | 3, 4 |
+| Liaison où un poste a enquêté | trait mauve épais | 3 |
+| Lieu de chargement / de livraison | cercle bleu / orange, taille selon les trajets par an | 4 |
+| Trajet ramassage → livraison | ligne grise (verte pour un transit, pâle si le camion est écarté) | 1, 2 |
+| Nœud du graphe | point blanc cerclé, comme au Module 1 ; estompé quand il ne sert que de repère | toutes |
+| Liaison du graphe | trait gris, ou couleur de sa donnée : bleu pour le trafic, or pour les dollars | toutes |
+
+Le bleu et l'orange ne désignent que le chargement et la livraison ; la part de camions vides d'un poste est dans le tableau de l'étape 3.
 
 ### Ce que la carte révèle déjà
 

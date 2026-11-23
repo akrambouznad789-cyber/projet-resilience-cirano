@@ -15,7 +15,7 @@
   } catch (e) {}
   document.documentElement.dataset.theme = t === "clair" ? "clair" : "sombre";
 })();
-const PALETTES = {"sombre":{"terre":"#22232d","eau":"#141b2b","bord":"#3a3c4e","qc":"#7c819b","reseau":"#565a72","encre":"#f8f8f2","encre2":"#c3c6d4","muet":"#9a9fb8","vide":"#4b4e63","pale":"#343746","contour":"#191a21","noeud":"#f8f8f2","noeud_transparent":"rgba(57,135,229,0.45)","noeud_bord":"#86b6ef","rattache":"#7c819b","selection":"#bd93f9","bleu":["#1c5cab","#2a78d6","#5598e7","#86b6ef","#cde2fb"],"or":["#875600","#b37600","#dc9600","#f0c35b","#f8e2a8"],"div":["#f6b896","#ec835a","#a8441c","#4b4e63","#1c5cab","#5598e7","#b7d3f6"],"cat":["#3987e5","#d95926","#199e70"],"ecarte":"#6b6f86","vert":"#199e70","orange":"#d95926","rtss":{"auto":"#8a8fa8","nat":"#73778f","reg":"#5f6379","col":"#4f5266","autre":"#43465a"},"qual":{"sdr":"#86b6ef","dr":"#256abf","comte":"#3fc493","etat":"#1b6e52","prov":"#d95926"},"chemin":["#ec835a","#a8441c","#256abf","#86b6ef"],"methodes":{"c":"#3987e5","i":"#b7d3f6","e":"#f0c35b"},"statut":{"ok":"#5598e7","hors":"#6b6f86"}},"clair":{"terre":"#f1efe6","eau":"#bcdcf2","bord":"#d9d5c7","qc":"#8e99a6","reseau":"#c9c5b8","encre":"#17181b","encre2":"#4f4e4a","muet":"#7f7d76","vide":"#bdbab1","pale":"#dcd9d0","contour":"#ffffff","noeud":"#ffffff","noeud_transparent":"rgba(42,120,214,0.45)","noeud_bord":"#1b5aa6","rattache":"#8e99a6","selection":"#17181b","bleu":["#a9c8ef","#6fa5e4","#3f86d9","#1f5fae","#0d2d52"],"or":["#f8e2a8","#f0c35b","#dc9600","#a66d00","#6b4600"],"div":["#b8401c","#e9845c","#f4c3a8","#c8c6bf","#a9c8ef","#4a8ddb","#1c4f95"],"cat":["#2a78d6","#eb6834","#1baf7a"],"ecarte":"#a9a69c","vert":"#1baf7a","orange":"#eb6834","rtss":{"auto":"#a29d91","nat":"#b5b0a4","reg":"#c6c2b7","col":"#d0ccc2","autre":"#dad7cf"},"qual":{"sdr":"#1f5fae","dr":"#86b6ef","comte":"#1baf7a","etat":"#9fdcc3","prov":"#eb6834"},"chemin":["#e9845c","#f4c3a8","#a9c8ef","#3f86d9"],"methodes":{"c":"#1f5fae","i":"#86b6ef","e":"#f0c35b"},"statut":{"ok":"#3f86d9","hors":"#8e8b82"}}};
+const PALETTES = {"sombre":{"terre":"#22232d","eau":"#141b2b","bord":"#3a3c4e","qc":"#7c819b","reseau":"#565a72","encre":"#f8f8f2","encre2":"#c3c6d4","muet":"#9a9fb8","vide":"#4b4e63","pale":"#343746","contour":"#191a21","noeud":"#f8f8f2","noeud_transparent":"rgba(57,135,229,0.45)","noeud_bord":"#86b6ef","rattache":"#7c819b","selection":"#bd93f9","poste":"#b866b0","bleu":["#1c5cab","#2a78d6","#5598e7","#86b6ef","#cde2fb"],"or":["#875600","#b37600","#dc9600","#f0c35b","#f8e2a8"],"div":["#f6b896","#ec835a","#a8441c","#4b4e63","#1c5cab","#5598e7","#b7d3f6"],"cat":["#3987e5","#d95926","#199e70"],"ecarte":"#6b6f86","vert":"#199e70","orange":"#d95926","rtss":{"auto":"#8a8fa8","nat":"#73778f","reg":"#5f6379","col":"#4f5266","autre":"#43465a"},"qual":{"sdr":"#86b6ef","dr":"#256abf","comte":"#3fc493","etat":"#1b6e52","prov":"#d95926"},"chemin":["#ec835a","#a8441c","#256abf","#86b6ef"],"methodes":{"c":"#3987e5","i":"#b7d3f6","e":"#f0c35b"},"statut":{"ok":"#5598e7","hors":"#6b6f86"}},"clair":{"terre":"#f1efe6","eau":"#bcdcf2","bord":"#d9d5c7","qc":"#8e99a6","reseau":"#c9c5b8","encre":"#17181b","encre2":"#4f4e4a","muet":"#7f7d76","vide":"#bdbab1","pale":"#dcd9d0","contour":"#ffffff","noeud":"#ffffff","noeud_transparent":"rgba(42,120,214,0.45)","noeud_bord":"#1b5aa6","rattache":"#8e99a6","selection":"#17181b","poste":"#a8489e","bleu":["#a9c8ef","#6fa5e4","#3f86d9","#1f5fae","#0d2d52"],"or":["#f8e2a8","#f0c35b","#dc9600","#a66d00","#6b4600"],"div":["#b8401c","#e9845c","#f4c3a8","#c8c6bf","#a9c8ef","#4a8ddb","#1c4f95"],"cat":["#2a78d6","#eb6834","#1baf7a"],"ecarte":"#a9a69c","vert":"#1baf7a","orange":"#eb6834","rtss":{"auto":"#a29d91","nat":"#b5b0a4","reg":"#c6c2b7","col":"#d0ccc2","autre":"#dad7cf"},"qual":{"sdr":"#1f5fae","dr":"#86b6ef","comte":"#1baf7a","etat":"#9fdcc3","prov":"#eb6834"},"chemin":["#e9845c","#f4c3a8","#a9c8ef","#3f86d9"],"methodes":{"c":"#1f5fae","i":"#86b6ef","e":"#f0c35b"},"statut":{"ok":"#3f86d9","hors":"#8e8b82"}}};
 const THEME = document.documentElement.dataset.theme;
 const PALETTE = PALETTES[THEME];
 function basculerTheme() {
@@ -165,8 +165,13 @@ table.tab{border-collapse:collapse;width:100%;font-size:.76rem}
 .tab input:focus{border-color:var(--usd);outline:none;box-shadow:0 0 0 2px var(--usd-soft)}
 .tab .mini{display:inline-block;height:7px;border-radius:2px;background:var(--s1);vertical-align:middle;margin-right:6px}
 .param{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:.8rem}
-.marq-poste{width:20px;height:20px;display:grid;place-items:center;cursor:default}
-.marq-poste i{display:block;width:12px;height:12px;transform:rotate(45deg);border-radius:2px;box-sizing:border-box}
+/* Poste d'enquête : losange mauve, le même à toutes les étapes. Le survol et le clic passent par la couche
+   « postes » (invisible) de la carte ; le marqueur n'est qu'un dessin. */
+.marq-poste{display:grid;place-items:center;pointer-events:none;transition:opacity .2s}
+.marq-poste i{display:block;transform:rotate(45deg);border-radius:1.5px;box-sizing:border-box}
+.marq-poste.estompe{opacity:.3}
+.marq-poste.sel i,.marq-poste.suivi i{box-shadow:0 0 0 2px var(--halo)}
+.lien{border:0;background:none;padding:0;font:inherit;color:inherit;font-weight:700;text-decoration:underline;cursor:pointer}
 .suivi-choix{width:100%;font:inherit;font-size:.82rem;border:1px solid var(--rule-strong);border-radius:6px;padding:6px 8px;margin-top:6px}
 .param input{width:96px;font:inherit;font-family:var(--mono);font-size:.8rem;text-align:right;border:1px solid var(--rule-strong);border-radius:6px;padding:4px 6px}
 .selection{border:1px solid var(--ink);border-radius:var(--r);padding:12px 13px;display:flex;flex-direction:column;gap:8px}
@@ -263,6 +268,9 @@ const CATS = [
   ["transit", "Traversent le Québec sans y charger ni livrer"],
   ["ecarte", "Ne touchent pas le Québec : écartés"],
 ];
+// Couleurs des catégories sur la carte de l'étape 2 : gris clair et gris moyen pour les retenus, vert pour les
+// transits, gris pâle pour les écartés (le bleu et l'orange sont réservés aux lieux de chargement et de livraison)
+const COUL_CAT = [C.encre2, C.muet, C.vert, C.ecarte];
 const QUAL = [["sdr", "SDR 2001 exacte"], ["dr", "Repli : division de recensement (DR)"], ["prov", "Repli : province"],
               ["comte", "Comté américain"], ["etat", "État américain (comté absent)"]];
 
@@ -291,22 +299,22 @@ const NOEUDS = D.noeuds, noeudParId = new Map(NOEUDS.map(n => [n.id, n]));
 const POSTES = D.postes;
 const nobsArc = new Map(PA.ids.map((id, i) => [id, PA.nobs[i].reduce((a, b) => a + b, 0)]));
 const LIAISONS_POSTES = new Set(POSTES.map(p => p.arc));     // liaisons où au moins un poste a enquêté
-// Étape 4 (version locale) : on suit un poste. Par défaut, le plus enquêté de ceux dont les camions
-// restent surtout au Québec (au moins 80 % des trajets par an) : un poste frontalier comme Les Cèdres
-// montrerait surtout l'Ontario et les États-Unis.
+// Étape 4 (version locale) : elle part de tous les postes ; on en choisit un sur la carte ou dans le menu.
+// Exemple proposé : le plus enquêté des postes dont les camions restent surtout au Québec (au moins 80 %
+// des trajets par an) ; un poste frontalier comme Les Cèdres montrerait surtout l'Ontario et les États-Unis.
 const PP = D.par_poste || {};
 const SUIVI_DISPO = !PUBLIQUE && Object.keys(PP).length > 0;
-const PART_QC_DEFAUT = 0.8;
+const PART_QC_EXEMPLE = 0.8;
 function partQuebec(code) {
   const T = PP[code]; let qc = 0, tot = 0;
   if (T) for (let r = 0; r < T.o.length; r++) { tot += T.n3[r]; if (P.prov[T.o[r]] === "CA-QC" && P.prov[T.d[r]] === "CA-QC") qc += T.n3[r]; }
   return tot > 0 ? qc / tot : 0;
 }
-const POSTE_DEFAUT = (() => {
+const POSTE_EXEMPLE = (() => {
   const tri = [...POSTES].filter(p => PP[p.code]).sort((a, b) => b.nobs - a.nobs);
-  return (tri.find(p => partQuebec(p.code) >= PART_QC_DEFAUT) || tri[0])?.code ?? null;
+  return (tri.find(p => partQuebec(p.code) >= PART_QC_EXEMPLE) || tri[0])?.code ?? null;
 })();
-const posteSuivi = () => (S.selPoste && PP[S.selPoste]) ? S.selPoste : POSTE_DEFAUT;
+const posteSuivi = () => (S.selPoste && PP[S.selPoste]) ? S.selPoste : null;
 const suiviCache = new Map();
 function suivrePoste(code) {
   // Camions routés du poste : lieux de départ et d'arrivée (trajets par an), nœuds où ils sont rattachés
@@ -615,7 +623,7 @@ const MoteurCanvas = (() => {
             ctx.beginPath(); ctx.arc(f.pt[0] * W + ox, f.pt[1] * W + oy, r, 0, 2 * Math.PI);
             ctx.globalAlpha = evaluer(pa["circle-opacity"] ?? 1, f, etat, z);
             ctx.fillStyle = evaluer(pa["circle-color"] ?? "#000", f, etat, z); ctx.fill();
-            if (sw > 0) { ctx.globalAlpha = 1; ctx.lineWidth = sw; ctx.strokeStyle = evaluer(pa["circle-stroke-color"] ?? "#fff", f, etat, z); ctx.stroke(); }
+            if (sw > 0) { ctx.globalAlpha = evaluer(pa["circle-stroke-opacity"] ?? 1, f, etat, z); ctx.lineWidth = sw; ctx.strokeStyle = evaluer(pa["circle-stroke-color"] ?? "#fff", f, etat, z); ctx.stroke(); }
           }
         }
       }
@@ -748,6 +756,22 @@ const largeurFlux = (champ) => {
     : ["interpolate", ["linear"], ["sqrt", ["get", "n"]], 30, 0.3, 150, 1, 500, 3, 1500, 8];
   return ["interpolate", ["linear"], ["zoom"], 3, ["*", 0.55, w], 6, ["*", 1, w], 9, ["*", 1.8, w]];
 };
+// Symbologie commune du Module 2 (une forme et une couleur par objet, à toutes les étapes) :
+//   poste d'enquête = losange mauve (C.poste) · lieu de chargement / de livraison = cercle bleu / orange
+//   trajet ramassage → livraison = ligne grise (vert : transit) · nœud = point blanc cerclé, comme au Module 1
+//   liaison = trait gris, ou couleur de sa donnée (bleu : trafic, or : dollars)
+const CONTOUR_NOEUD = THEME === "sombre" ? C.terre : C.encre2;               // même contour qu'au Module 1
+const tailleNoeud = (muni, autre) => ["match", ["get", "type"], "municipalite", muni, autre];
+const SYMBOLE_NOEUD = {
+  "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, tailleNoeud(2.6, 3.6), 8, tailleNoeud(2, 2.8), 11, tailleNoeud(1.6, 2.2)],
+  "circle-color": C.noeud, "circle-stroke-color": CONTOUR_NOEUD,
+  "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 0.8, 11, 1.2],
+};
+const OPACITE_REPERE = 0.35;     // nœuds et liaisons qui ne servent que de repère à l'étape
+function noeudsEstompes(map, oui) {
+  map.setPaintProperty("noeuds", "circle-opacity", oui ? OPACITE_REPERE : 1);
+  map.setPaintProperty("noeuds", "circle-stroke-opacity", oui ? OPACITE_REPERE : 1);
+}
 function construireCouches(map) {
   map.addSource("ocean", { type: "geojson", data: D.fond.ocean });
   map.addSource("lacs", { type: "geojson", data: D.fond.lacs });
@@ -757,10 +781,6 @@ function construireCouches(map) {
   map.addLayer({ id: "admin", type: "line", source: "admin", paint: { "line-color": C.bord, "line-width": 0.8 } });
   map.addLayer({ id: "admin-qc", type: "line", source: "admin", filter: ["==", ["get", "qc"], true],
                  paint: { "line-color": C.qc, "line-width": 1.4 } });
-
-  map.addSource("flux", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-  map.addLayer({ id: "flux", type: "line", source: "flux", layout: { "line-cap": "round", "line-sort-key": ["get", "n"] },
-                 paint: { "line-color": C.cat[0], "line-opacity": 0.3, "line-width": largeurFlux("n") } });
 
   map.addSource("arcs", { type: "geojson", data: D.arcs, promoteId: "id" });
   map.addLayer({ id: "arcs-fond", type: "line", source: "arcs", layout: { "line-cap": "round", "line-join": "round" },
@@ -777,6 +797,11 @@ function construireCouches(map) {
                  paint: { "line-color": C.encre, "line-width": ["interpolate", ["linear"], ["zoom"], 4, 4, 8, 8], "line-opacity": 0.85 } });
   map.addLayer({ id: "arcs-hit", type: "line", source: "arcs", paint: { "line-color": "#000", "line-opacity": 0, "line-width": 12 } });
 
+  // Étapes 1 et 2 : lignes de désir ramassage → livraison, au-dessus du graphe estompé
+  map.addSource("flux", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  map.addLayer({ id: "flux", type: "line", source: "flux", layout: { "line-cap": "round", "line-sort-key": ["get", "n"] },
+                 paint: { "line-color": C.encre2, "line-opacity": 0.3, "line-width": largeurFlux("n") } });
+
   // Étape 4 : les camions du poste suivi (version locale)
   const vide = { type: "FeatureCollection", features: [] };
   map.addSource("suivi-liens", { type: "geojson", data: vide });
@@ -792,21 +817,17 @@ function construireCouches(map) {
                  paint: { "circle-radius": ["get", "r"], "circle-color": ["match", ["get", "role"], 0, C.cat[0], C.cat[1]],
                           "circle-stroke-color": C.contour, "circle-stroke-width": 1.2 } });
 
+  // Nœud du graphe : le symbole du Module 1, à toutes les étapes (estompé quand il n'est qu'un repère)
   map.addSource("noeuds", { type: "geojson", data: noeudsGeojson() });
-  map.addLayer({ id: "noeuds", type: "circle", source: "noeuds",
-                 paint: { "circle-radius": 2.6, "circle-color": C.noeud, "circle-stroke-color": C.encre2, "circle-stroke-width": 1 } });
-  // Nœuds où partent ou arrivent les camions du poste : point gris plein, taille fixe (pas d'anneau, dans les deux thèmes)
+  map.addLayer({ id: "noeuds", type: "circle", source: "noeuds", paint: SYMBOLE_NOEUD });
+  // Étape 4 : les nœuds où partent ou arrivent les camions du poste suivi, au même symbole, non estompés
   map.addSource("suivi-noeuds", { type: "geojson", data: vide });
-  map.addLayer({ id: "suivi-noeuds", type: "circle", source: "suivi-noeuds",
-                 paint: { "circle-radius": 2.8, "circle-color": C.encre2, "circle-stroke-color": C.contour, "circle-stroke-width": 1 } });
+  map.addLayer({ id: "suivi-noeuds", type: "circle", source: "suivi-noeuds", paint: SYMBOLE_NOEUD });
 
+  // Postes : zone de survol et de clic seulement (invisible) ; le losange est un marqueur (ajouterPostes)
   map.addSource("postes", { type: "geojson", data: postesGeojson() });
   map.addLayer({ id: "postes", type: "circle", source: "postes",
-                 paint: { "circle-radius": ["get", "r"], "circle-color": C.encre, "circle-opacity": 0.85,
-                          "circle-stroke-color": C.contour, "circle-stroke-width": 1.4 } });
-  map.addLayer({ id: "postes-sel", type: "circle", source: "postes", filter: ["==", ["get", "code"], ""],
-                 paint: { "circle-radius": ["+", ["get", "r"], 4], "circle-color": "rgba(0,0,0,0)",
-                          "circle-stroke-color": C.encre, "circle-stroke-width": 2 } });
+                 paint: { "circle-radius": ["get", "r"], "circle-color": "#000", "circle-opacity": 0 } });
 
   map.addControl(new MOTEUR.NavigationControl({ showCompass: false }), "top-right");
   map.addControl(new MOTEUR.ScaleControl({ unit: "metric" }), "bottom-left");
@@ -823,7 +844,6 @@ function noeudsGeojson() {
 // Poste : posé sur la ligne de sa liaison (lon_g, lat_g) ; aire proportionnelle aux camions enquêtés
 const NOBS_MAX = Math.max(...POSTES.map(p => p.nobs));
 const rayonPoste = n => 3 + 11 * Math.sqrt(n / NOBS_MAX);
-const COULEUR_VIDES = () => ["step", ["get", "vides"], C.bleu[0], 0.2, C.bleu[1], 0.3, C.bleu[2], 0.4, C.bleu[3], 0.5, C.bleu[4]];
 function postesGeojson() {
   return { type: "FeatureCollection", features: POSTES.map(p => ({
     type: "Feature", properties: { code: p.code, r: rayonPoste(p.nobs), vides: p.pct_vides },
@@ -847,7 +867,7 @@ function suiviGeojson(code) {
   });
   s.nd.forEach((n, id) => {
     const nn = noeudParId.get(id);
-    if (nn) noeuds.push({ type: "Feature", properties: { id, n }, geometry: { type: "Point", coordinates: [nn.lon, nn.lat] } });
+    if (nn) noeuds.push({ type: "Feature", properties: { id, type: nn.type, n }, geometry: { type: "Point", coordinates: [nn.lon, nn.lat] } });
   });
   const fc = f => ({ type: "FeatureCollection", features: f });
   return { lieux: fc(lieux), liens: fc(liens), noeuds: fc(noeuds) };
@@ -871,6 +891,7 @@ function fluxGeojson() {
 const VILLES = ["Montréal", "Québec", "Gatineau", "Sherbrooke", "Trois-Rivières", "Saguenay", "Rimouski", "Rouyn-Noranda",
                 "Val-d'Or", "Sept-Îles", "Baie-Comeau", "Gaspé", "Drummondville", "Saint-Georges", "Chibougamau", "Rivière-du-Loup"];
 function ajouterEtiquettes(map) {
+  ajouterPostes(map);                       // d'abord les losanges : les noms de villes passent devant
   map._etiquettes = [];
   NOEUDS.forEach(n => {
     const ville = VILLES.includes(n.nom), fr = n.type.startsWith("frontiere");
@@ -880,22 +901,26 @@ function ajouterEtiquettes(map) {
     el.appendChild(document.createElement("span")).textContent = n.nom;
     map._etiquettes.push(new MOTEUR.Marker({ element: el, anchor: "left" }).setLngLat([n.lon, n.lat]).addTo(map));
   });
-  // Étape 4 : le poste suivi, en losange (seul objet de cette forme). La rotation va sur l'enfant :
-  // les deux moteurs écrivent la position dans le transform du conteneur.
-  const el = document.createElement("div");
-  el.className = "marq-poste";
-  el.style.display = "none";
-  const losange = el.appendChild(document.createElement("i"));
-  losange.style.background = C.selection;
-  losange.style.border = `2px solid ${C.contour}`;
-  const p0 = POSTES[0];
-  map._marqPoste = new MOTEUR.Marker({ element: el }).setLngLat(p0 ? [p0.lon_g, p0.lat_g] : [0, 0]).addTo(map);
+}
+// Postes d'enquête : un losange mauve par poste (marqueur HTML), le même aux étapes 3 et 4. Demi-diagonale du
+// losange = rayon de sa zone de survol (couche « postes ») ; aire ∝ camions enquêtés. La rotation va sur l'enfant :
+// les deux moteurs écrivent la position dans le transform du conteneur. Du plus grand au plus petit : le petit devant.
+function ajouterPostes(map) {
+  map._postes = new Map();
+  [...POSTES].sort((a, b) => b.nobs - a.nobs).forEach(p => {
+    const cote = rayonPoste(p.nobs) * Math.SQRT2, el = document.createElement("div");
+    el.className = "marq-poste";
+    el.style.display = "none";
+    el.style.setProperty("--halo", C.encre);
+    const losange = el.appendChild(document.createElement("i"));
+    Object.assign(losange.style, { width: cote + "px", height: cote + "px", background: C.poste, border: `1.5px solid ${C.contour}` });
+    map._postes.set(p.code, new MOTEUR.Marker({ element: el }).setLngLat([p.lon_g, p.lat_g]).addTo(map));
+  });
 }
 
 // ---------- Application d'une étape sur une carte ----------
 const vis = (map, ids, on) => ids.forEach(id => map.setLayoutProperty(id, "visibility", on ? "visible" : "none"));
-const COUCHES = ["flux", "arcs-fond", "arcs", "arcs-sel", "noeuds", "postes", "postes-sel",
-                 "suivi-liens", "suivi-lieux", "suivi-noeuds"];
+const COUCHES = ["flux", "arcs-fond", "arcs", "arcs-sel", "noeuds", "postes", "suivi-liens", "suivi-lieux", "suivi-noeuds"];
 let LEGENDE = {};
 
 function etatArcs(map, valeurs, bornes, palette, options = {}) {
@@ -918,10 +943,24 @@ function appliquerEtape(map, k) {
   vis(map, COUCHES, false);
   map._etiquettes.forEach(m => { m.getElement().style.display = (k === 1 || k === 2) ? "none" : ""; });
   map.setFilter("arcs-sel", ["==", ["get", "id"], S.selection ?? -1]);
-  map.setFilter("postes-sel", ["==", ["get", "code"], S.selPoste ?? ""]);
-  const suivi = k === 4 && SUIVI_DISPO;
-  map.setPaintProperty("arcs-fond", "line-opacity", suivi ? 0.5 : 0.9);    // graphe estompé : les rattachements ressortent
-  if (map._marqPoste) map._marqPoste.getElement().style.display = suivi ? "" : "none";
+
+  // Postes : losanges aux étapes 3 et 4 (à l'étape 4, version locale seulement : rien à suivre sans l'ENR).
+  // Étape 4 : sans poste choisi, tous les postes ; avec un poste suivi, les autres estompés et toujours cliquables.
+  const avecPostes = k === 3 || (k === 4 && SUIVI_DISPO);
+  const suivi = k === 4 && SUIVI_DISPO ? posteSuivi() : null;
+  map._postes.forEach((m, code) => {
+    const el = m.getElement();
+    el.style.display = avecPostes ? "" : "none";
+    el.classList.toggle("sel", k === 3 && code === S.selPoste);
+    el.classList.toggle("suivi", code === suivi);
+    el.classList.toggle("estompe", !!suivi && code !== suivi);
+  });
+  if (avecPostes) on.add("postes");
+
+  // Repères : le graphe reste visible, estompé, quand il ne porte pas la lecture de l'étape
+  const repere = k === 3 || (!PUBLIQUE && (k === 1 || k === 2)) || (k === 4 && SUIVI_DISPO);
+  noeudsEstompes(map, repere);
+  map.setPaintProperty("arcs-fond", "line-opacity", repere ? 0.5 : 0.9);
 
   if (k === 0) {
     const vals = new Map(ARCS.map(p => [p.id, p.cam_m4]));
@@ -931,50 +970,38 @@ function appliquerEtape(map, k) {
                    bornes: b, palette: C.bleu, vals, fmt: fmt };
     ["arcs", "noeuds", "arcs-sel"].forEach(x => on.add(x));
   }
-  if (PUBLIQUE && (k === 1 || k === 2 || k === 4)) {
-    ["arcs-fond", "noeuds"].forEach(x => on.add(x));
-  } else if (k === 1 || k === 2) {
+  if (k === 1 || k === 2 || k === 4) ["arcs-fond", "noeuds"].forEach(x => on.add(x));      // le graphe, en repère
+  if (!PUBLIQUE && (k === 1 || k === 2)) {
+    // Lignes de désir ramassage → livraison : grises (le bleu et l'orange sont réservés aux lieux de l'étape 4)
     const champ = k === 1 && S.vue[1] === "nobs" ? "nobs" : "n";
     map.setPaintProperty("flux", "line-width", largeurFlux(champ));
     if (k === 1) {
       map.setFilter("flux", null);
-      map.setPaintProperty("flux", "line-color", C.cat[0]);
+      map.setPaintProperty("flux", "line-color", C.encre2);
       map.setPaintProperty("flux", "line-opacity", 0.16);
     } else {
       const v = S.vue[2];
       map.setFilter("flux", v === "gardes" ? ["<", ["get", "c"], 3] : v === "ecartes" ? ["==", ["get", "c"], 3] : null);
-      map.setPaintProperty("flux", "line-color", ["match", ["get", "c"], 0, C.cat[0], 1, C.cat[1], 2, C.cat[2], C.ecarte]);
+      map.setPaintProperty("flux", "line-color", ["match", ["get", "c"], 0, COUL_CAT[0], 1, COUL_CAT[1], 2, COUL_CAT[2], COUL_CAT[3]]);
       map.setPaintProperty("flux", "line-opacity", ["case", ["==", ["get", "c"], 3], v === "ecartes" ? 0.3 : 0.1, 0.42]);
     }
     on.add("flux");
   }
   if (k === 3) {
-    // Les liaisons enquêtées, toutes en trait épais ; chaque poste posé dessus, coloré par sa part de vides
-    etatArcs(map, new Map(ARCS.map(p => [p.id, LIAISONS_POSTES.has(p.id) ? 1 : null])), [], [C.selection], { largeurs: [3.2] });
-    map.setPaintProperty("postes", "circle-color", COULEUR_VIDES());
-    ["arcs", "arcs-sel", "noeuds", "postes", "postes-sel"].forEach(x => on.add(x));
+    // Les liaisons où un poste a enquêté, en trait mauve épais ; chaque poste, un losange posé dessus
+    etatArcs(map, new Map(ARCS.map(p => [p.id, LIAISONS_POSTES.has(p.id) ? 1 : null])), [], [C.poste], { largeurs: [3.2] });
+    ["arcs", "arcs-sel", "noeuds"].forEach(x => on.add(x));
   }
   if (suivi) {
-    // Un seul poste (losange) : les lieux où ses camions chargent et livrent, chacun rattaché à son nœud
-    const code = posteSuivi(), p = POSTES.find(x => x.code === code);
-    if (map._suivi !== code) {
-      const g = suiviGeojson(code);
+    // Un poste suivi : les lieux où ses camions chargent et livrent, chacun rattaché à son nœud
+    if (map._suivi !== suivi) {
+      const g = suiviGeojson(suivi);
       map.getSource("suivi-lieux").setData(g.lieux);
       map.getSource("suivi-liens").setData(g.liens);
       map.getSource("suivi-noeuds").setData(g.noeuds);
-      map._suivi = code;
+      map._suivi = suivi;
     }
-    if (p && map._marqPoste) {
-      map._marqPoste.setLngLat([p.lon_g, p.lat_g]);
-      map._marqPoste.getElement().title = `Poste d'enquête : ${p.localite} · ${[p.route, p.sens].filter(Boolean).join(" ")}`;
-    }
-    ["arcs-fond", "noeuds", "suivi-liens", "suivi-lieux", "suivi-noeuds"].forEach(x => on.add(x));
-  }
-  if (map.getLayer("noeuds")) {
-    const discret = k === 3 || suivi;
-    map.setPaintProperty("noeuds", "circle-radius", discret ? 1.8 : 2.6);
-    map.setPaintProperty("noeuds", "circle-color", discret ? C.muet : C.noeud);
-    map.setPaintProperty("noeuds", "circle-stroke-color", C.encre2);
+    ["suivi-liens", "suivi-lieux", "suivi-noeuds"].forEach(x => on.add(x));
   }
   if (k === 5) {
     // Une seule lecture : l'épaisseur dit combien de trajets de l'année passent sur la liaison
@@ -1053,6 +1080,20 @@ function legendeArcs(L) {
   if (L.faible) lignes.push(`<div class="leg"><svg viewBox="0 0 30 12" aria-hidden="true"><line x1="2" y1="6" x2="28" y2="6" stroke="${L.palette[Math.min(2, n - 1)]}" stroke-opacity=".45" stroke-width="3"/></svg><span>Trait pâle : moins de ${SEUIL_OBS} camions enquêtés</span><span class="n"></span></div>`);
   return `<div class="legende"><h3>${esc(L.titre)}</h3><p class="sous">${esc(L.sous)}</p>${lignes.join("")}</div>`;
 }
+// Légendes communes : les mêmes symboles que sur la carte, aux étapes où l'objet paraît
+const svgLeg = (inner) => `<svg viewBox="0 0 30 14" aria-hidden="true">${inner}</svg>`;
+// Losange de demi-diagonale « demi » centré en (cx, cy) : un carré de côté demi × √2 tourné de 45°
+const losangeSvg = (cx, cy, demi) => `<rect x="${(cx - demi / Math.SQRT2).toFixed(2)}" y="${(cy - demi / Math.SQRT2).toFixed(2)}" width="${(demi * Math.SQRT2).toFixed(2)}" height="${(demi * Math.SQRT2).toFixed(2)}" rx="1" transform="rotate(45 ${cx} ${cy})" fill="${C.poste}" stroke="${C.contour}" stroke-width="1.2"/>`;
+function legendePostes() {
+  const refs = [100, 500, 1500].filter(n => n <= NOBS_MAX);
+  return `<div class="leg">${svgLeg(losangeSvg(15, 7, 6))}<span>Poste d'enquête</span><span class="n">${fmt(POSTES.length)}</span></div>
+    <p class="sous" style="margin-top:6px">Taille du losange : nombre de camions enquêtés au poste</p>
+    <svg viewBox="0 0 230 40" style="width:230px;max-width:100%;height:auto" role="img" aria-label="Losanges de référence : ${refs.map(fmt).join(", ")} camions enquêtés">${refs.map((n, j) => {
+      const r = rayonPoste(n), x = 18 + j * 72;
+      return losangeSvg(x, 37 - r, r) + `<text x="${(x + r + 4).toFixed(1)}" y="36" style="font-size:10px;fill:var(--muted)">${fmt(n)}</text>`;
+    }).join("")}</svg>`;
+}
+const legNoeud = (lib, n = "") => `<div class="leg">${svgLeg(`<circle cx="15" cy="7" r="3" fill="${C.noeud}" stroke="${CONTOUR_NOEUD}" stroke-width="1"/>`)}<span>${lib}</span><span class="n">${n}</span></div>`;
 function listeBarres(lignes, couleur, max) {
   const m = max ?? Math.max(...lignes.map(l => l.v), 1);
   return `<div class="liste-barres">${lignes.map(l => `<div class="lb" ${l.attr || ""}><span class="nom" title="${esc(l.nom)}">${esc(l.nom)}</span>
@@ -1073,7 +1114,7 @@ function blocSelection() {
       <span>$ par an</span><span>${dollars(c.valeurAn)}</span>
     </div>
     ${top.length ? `<h3 style="font-size:.82rem;font-family:var(--body);margin-top:4px">Principales paires de nœuds sur cette liaison</h3>
-      ${listeBarres(top.map(([n, s]) => ({ nom: n, v: s, lib: pct(s, 0) })), C.cat[0], 1)}` : ""}
+      ${listeBarres(top.map(([n, s]) => ({ nom: n, v: s, lib: pct(s, 0) })), C.encre2, 1)}` : ""}
     ${comp.length ? `<h3 style="font-size:.82rem;font-family:var(--body);margin-top:4px">Tonnes par an, par marchandise</h3>${listeBarres(comp.slice(0, 8), C.bleu[2])}` : ""}
     <button type="button" class="ferme" data-fermer="1">Désélectionner</button></div>`;
 }
@@ -1111,8 +1152,8 @@ function rendreLecture() {
       ${tuile(compact(M.n3_garde), "trajets par an représentés")}${tuile(pct(partHors), "du poids : arrêtés hors Québec")}</div>`;
     h += `<div class="bloc"><h3>Les 4 catégories</h3>
       <div class="barre-empilee" role="img" aria-label="Répartition des camions enquêtés">${cats.map((n, i) =>
-        `<div style="flex:${n};background:${i < 3 ? C.cat[i] : "var(--panel)"}" title="${esc(CATS[i][1])} : ${fmt(n)}"></div>`).join("")}</div>
-      ${CATS.map(([c, l], i) => `<div class="leg"><svg viewBox="0 0 30 12" aria-hidden="true"><rect x="2" y="1" width="26" height="10" rx="2" fill="${i < 3 ? C.cat[i] : C.pale}"/></svg><span>${esc(l)}</span><span class="n">${fmt(cats[i])}</span></div>`).join("")}</div>`;
+        `<div style="flex:${n};background:${i < 3 ? COUL_CAT[i] : "var(--panel)"}" title="${esc(CATS[i][1])} : ${fmt(n)}"></div>`).join("")}</div>
+      ${CATS.map(([c, l], i) => `<div class="leg"><svg viewBox="0 0 30 12" aria-hidden="true"><rect x="2" y="1" width="26" height="10" rx="2" fill="${i < 3 ? COUL_CAT[i] : C.pale}"/></svg><span>${esc(l)}</span><span class="n">${fmt(cats[i])}</span></div>`).join("")}</div>`;
     if (!PUBLIQUE) {
       h += `<div class="bloc"><h3>Afficher</h3>${segment("vue2", [["gardes", "Retenus"], ["tous", "Retenus et écartés"], ["ecartes", "Écartés"]], S.vue[2])}</div>`;
       h += puces();
@@ -1123,35 +1164,27 @@ function rendreLecture() {
     const tri = [...POSTES].sort((a, b) => b.nobs - a.nobs);
     const enquetes = POSTES.reduce((a, q) => a + q.nobs, 0);
     const videsMoy = POSTES.reduce((a, q) => a + q.nobs * q.pct_vides, 0) / enquetes;
-    const classeVides = v => [0.2, 0.3, 0.4, 0.5].filter(b => v >= b).length;
-    const refs = [100, 500, 1500].filter(n => n <= NOBS_MAX);
-    h += tete(`${POSTES.length} postes d'enquête au Québec`, `Les lieux où les enquêteurs ont arrêté les camions. Ils couvrent ${fmt(LIAISONS_POSTES.size)} liaisons du graphe, tracées en trait épais ; chaque poste est posé sur sa liaison.`);
+    h += tete(`${POSTES.length} postes d'enquête au Québec`, `Les lieux où les enquêteurs ont arrêté les camions. Ils couvrent ${fmt(LIAISONS_POSTES.size)} liaisons du graphe, tracées en trait mauve épais ; chaque poste est posé sur sa liaison.`);
     h += `<div class="tuiles">${tuile(fmt(POSTES.length), "postes d'enquête au Québec")}${tuile(`${fmt(LIAISONS_POSTES.size)} / ${fmt(ARCS.length)}`, "liaisons où au moins un poste a enquêté")}
       ${tuile(fmt(enquetes), "camions enquêtés à ces postes")}${tuile(pct(videsMoy, 0), "d'entre eux roulaient vides")}</div>`;
     h += `<p class="note"><b>À quoi sert le poste ?</b> Il dit seulement où le camion a été interrogé. Le lien entre un poste et sa liaison sert à vérifier le routage, à l'étape 5 ; la valeur d'une liaison viendra des camions qui y passent, pas du poste qui s'y trouve.${SUIVI_DISPO ? " Choisir un poste, puis passer à l'étape suivante pour voir d'où viennent ses camions et où ils vont." : ""}</p>`;
-    h += `<div class="legende"><h3>Lire la carte</h3>
-      <div class="leg"><svg viewBox="0 0 30 12" aria-hidden="true"><line x1="2" y1="6" x2="28" y2="6" stroke="${C.selection}" stroke-width="4" stroke-linecap="round"/></svg><span>Liaison où un poste a enquêté</span><span class="n">${fmt(LIAISONS_POSTES.size)}</span></div>
-      <p class="sous" style="margin-top:8px">Couleur du cercle : part des camions enquêtés au poste qui roulaient vides</p>
-      ${["moins de 20 %", "20 à 30 %", "30 à 40 %", "40 à 50 %", "50 % et plus"].map((l, i) =>
-        `<div class="leg"><svg viewBox="0 0 30 12" aria-hidden="true"><circle cx="15" cy="6" r="5" fill="${C.bleu[i]}" stroke="${C.contour}"/></svg><span>${l}</span><span class="n">${POSTES.filter(q => classeVides(q.pct_vides) === i).length}</span></div>`).join("")}
-      <p class="sous" style="margin-top:8px">Taille du cercle : nombre de camions enquêtés au poste</p>
-      <svg viewBox="0 0 230 46" style="width:100%;max-width:260px;height:auto" role="img" aria-label="Cercles de référence : ${refs.map(fmt).join(", ")} camions enquêtés">${refs.map((n, j) => {
-        const r = rayonPoste(n), x = 22 + j * 74;
-        return `<circle cx="${x}" cy="${44 - r}" r="${r}" fill="none" stroke="${C.encre2}" stroke-width="1.2"/><text x="${x + r + 4}" y="42" style="font-size:10px;fill:var(--muted)">${fmt(n)}</text>`;
-      }).join("")}</svg></div>`;
+    h += `<div class="legende"><h3>Lire la carte</h3>${legendePostes()}
+      <div class="leg" style="margin-top:6px">${svgLeg(`<line x1="2" y1="7" x2="28" y2="7" stroke="${C.poste}" stroke-width="4" stroke-linecap="round"/>`)}<span>Liaison où un poste a enquêté</span><span class="n">${fmt(LIAISONS_POSTES.size)}</span></div>
+      ${legNoeud("Nœud du graphe (repère)")}
+      <p class="sous" style="margin-top:8px">La part de camions vides de chaque poste est dans le tableau ci-dessous.</p></div>`;
     if (S.selPoste) {
       const q = POSTES.find(x => x.code === S.selPoste);
       h += `<div class="selection"><h3>${esc(q.localite)} · ${esc(q.route)} ${esc(q.sens)}</h3><p class="sous">${esc(q.troncon)} · ${esc(q.code)}</p>
         <div class="kv"><span>Camions enquêtés</span><span>${fmt(q.nobs)}</span><span>Trajets par an représentés</span><span>${fmt(q.n3)}</span>
         <span>Part de vides</span><span>${pct(q.pct_vides)}</span><span>Chargement moyen</span><span>${q.t_par_charge ?? "–"} t</span>
         <span>Liaison du poste</span><span>${esc(parId.get(q.arc)?.a)} – ${esc(parId.get(q.arc)?.b)}</span></div>
-        ${listeBarres(q.top.map(([n, s]) => ({ nom: n, v: s, lib: pct(s, 0) })), C.bleu[2], 1)}
+        ${listeBarres(q.top.map(([n, s]) => ({ nom: n, v: s, lib: pct(s, 0) })), C.encre2, 1)}
         <button type="button" class="ferme" data-fermer="1">Désélectionner</button></div>`;
     }
     h += `<div class="bloc"><h3>Postes, du plus enquêté au moins enquêté</h3><table class="tab"><thead><tr><th>Poste</th><th>Route</th><th>Enquêtés</th><th>Vides</th></tr></thead><tbody>
       ${tri.map(q => `<tr class="cliquable" data-poste="${q.code}"><td>${esc(q.localite)}</td><td>${esc(q.route)} ${esc(q.sens.slice(0, 1))}</td><td>${fmt(q.nobs)}</td><td>${pct(q.pct_vides, 0)}</td></tr>`).join("")}
       </tbody></table></div>`;
-    h += `<div class="bloc"><h3>Camions retenus mais arrêtés hors Québec</h3>${listeBarres(M.hors_qc_par_prov.map(([q, n]) => ({ nom: { ON: "Ontario", BC: "Colombie-Britannique", NB: "Nouveau-Brunswick", NF: "Terre-Neuve", MB: "Manitoba", AB: "Alberta", SK: "Saskatchewan", NS: "Nouvelle-Écosse", PE: "Î.-P.-É." }[q] || q, v: n, lib: fmt(n) })), C.cat[1])}</div>`;
+    h += `<div class="bloc"><h3>Camions retenus mais arrêtés hors Québec</h3>${listeBarres(M.hors_qc_par_prov.map(([q, n]) => ({ nom: { ON: "Ontario", BC: "Colombie-Britannique", NB: "Nouveau-Brunswick", NF: "Terre-Neuve", MB: "Manitoba", AB: "Alberta", SK: "Saskatchewan", NS: "Nouvelle-Écosse", PE: "Î.-P.-É." }[q] || q, v: n, lib: fmt(n) })), COUL_CAT[1])}</div>`;
     h += `<p class="note attention">Positions <b>approximatives</b> : chaque poste est placé d'après la localité notée par l'enquête, puis posé sur la liaison dont il est le plus proche.</p>`;
   }
   if (k === 4) {
@@ -1161,35 +1194,45 @@ function rendreLecture() {
     const pasFusion = `<p class="note"><b>Les camions ne sont pas fusionnés.</b> Chacun garde sa paire de nœuds, départ et arrivée : c'est elle qui est routée sur le graphe à l'étape suivante.</p>`;
     const pourquoi = `<p class="note"><b>Pourquoi ces municipalités ?</b> Le poste dit seulement où le camion a été arrêté. Sa municipalité de départ et sa municipalité d'arrivée disent d'où il vient et où il va : c'est ce qui permet de savoir sur quelles liaisons son chargement compte.</p>`;
     const frontiere = `<p class="note">Hors Québec, le camion entre au Québec ou en sort par le point frontière qui lui donne le trajet le plus court. ${pct(us, 0)} des ramassages et livraisons sont aux États-Unis, localisés au comté ou à l'État.</p>`;
-    if (SUIVI_DISPO) {
-      const code = posteSuivi(), p = POSTES.find(x => x.code === code), s = suivrePoste(code);
+    const code = SUIVI_DISPO ? posteSuivi() : null;
+    const menu = `<div class="bloc"><h3>Poste suivi</h3><p class="sous">Choisir dans la liste, ou cliquer sur un losange de la carte.</p>
+      <select id="suivi-poste" class="suivi-choix" aria-label="Poste suivi"><option value=""${code ? "" : " selected"}>— Choisir un poste —</option>${[...POSTES].sort((a, b) => b.nobs - a.nobs).filter(x => PP[x.code]).map(x =>
+        `<option value="${esc(x.code)}"${x.code === code ? " selected" : ""}>${esc(x.localite)} · ${esc(x.route)} ${esc(x.sens)} (${fmt(x.nobs)} enquêtés)</option>`).join("")}</select></div>`;
+    if (SUIVI_DISPO && !code) {
+      // Vue de départ : tous les postes ; on en choisit un sur la carte, dans le menu, ou l'exemple proposé
+      const ex = POSTES.find(x => x.code === POSTE_EXEMPLE);
+      h += tete("Choisir un poste d'enquête", "Les camions arrêtés à un poste ont déclaré où ils chargent et où ils livrent. Cliquer sur un poste (losange) pour voir ces lieux, et le nœud du graphe auquel chacun est rattaché.");
+      h += menu;
+      if (ex) h += `<p class="note">Exemple : <button type="button" class="lien" data-poste="${esc(ex.code)}">${esc(ex.localite)} (${esc([ex.route, ex.sens].filter(Boolean).join(" "))})</button>, le plus enquêté des postes dont les camions restent surtout au Québec.</p>`;
+      h += `<div class="legende"><h3>Lire la carte</h3>${legendePostes()}${legNoeud("Nœud du graphe (repère)")}</div>`;
+      h += `<div class="bloc"><h3>Sur l'ensemble de l'enquête</h3><div class="tuiles">${global}</div></div>`;
+      h += pasFusion + pourquoi + frontiere;
+    } else if (SUIVI_DISPO) {
+      const p = POSTES.find(x => x.code === code), s = suivrePoste(code);
       const tri = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]);
       const top = (m) => tri(m).slice(0, 5).map(([i, v]) => ({ nom: P.nom[i], v, lib: compact(v) }));
       const maxTop = Math.max(1, ...[...s.dep.values(), ...s.arr.values()]);
       const ou = [p.route, p.sens].filter(Boolean).join(" ");
       h += tete(`Les camions du poste ${esc(p.localite)}`, `Chaque camion arrêté à ce poste${ou ? ` (${esc(ou)})` : ""} a déclaré où il charge et où il livre. Chacun de ces lieux est rattaché au nœud du graphe le plus proche : le camion part et arrive ainsi à des nœuds, et peut rouler sur le graphe à l'étape suivante.`);
-      h += `<div class="bloc"><h3>Poste suivi</h3><p class="sous">Choisir dans la liste, ou cliquer sur un poste à l'étape 3. Par défaut : le plus enquêté des postes dont les camions restent surtout au Québec.</p>
-        <select id="suivi-poste" class="suivi-choix" aria-label="Poste suivi">${[...POSTES].sort((a, b) => b.nobs - a.nobs).filter(x => PP[x.code]).map(x =>
-          `<option value="${esc(x.code)}"${x.code === code ? " selected" : ""}>${esc(x.localite)} · ${esc(x.route)} ${esc(x.sens)} (${fmt(x.nobs)} enquêtés)</option>`).join("")}</select></div>`;
+      h += menu + `<p><button type="button" class="lien" data-fermer="1">Revenir à tous les postes</button></p>`;
       h += `<div class="tuiles">${tuile(fmt(s.nobs), "camions enquêtés ici, routés sur le graphe")}${tuile(compact(s.n3), "trajets par an qu'ils représentent")}
         ${tuile(fmt(s.dep.size), "lieux de chargement")}${tuile(fmt(s.arr.size), "lieux de livraison")}</div>`;
       // Légende : une forme par objet (losange = poste, cercle plein = lieu, point blanc = nœud, trait = rattachement)
       const deux = [...s.dep.keys()].filter(i => s.arr.has(i)).length;
-      const svg = (inner) => `<svg viewBox="0 0 30 14" aria-hidden="true">${inner}</svg>`;
       const disque = (c, r) => `<circle cx="15" cy="7" r="${r}" fill="${c}" stroke="${C.contour}" stroke-width="1.2"/>`;
       const refs = [1000, 10000, 100000].filter(n => n <= NLIEU_MAX);
       h += `<div class="legende"><h3>Lire la carte</h3>
-        <div class="leg">${svg(`<rect x="10" y="2" width="10" height="10" rx="1.5" transform="rotate(45 15 7)" fill="${C.selection}" stroke="${C.contour}" stroke-width="1.5"/>`)}<span>Le poste : où ces camions ont été arrêtés</span><span class="n"></span></div>
-        <div class="leg">${svg(disque(C.cat[0], 5))}<span>Lieu de chargement : des camions en partent</span><span class="n">${fmt(s.dep.size)}</span></div>
-        <div class="leg">${svg(disque(C.cat[1], 5))}<span>Lieu de livraison : des camions y arrivent</span><span class="n">${fmt(s.arr.size)}</span></div>
-        <div class="leg">${svg(disque(C.cat[1], 6) + disque(C.cat[0], 3.4))}<span>Les deux, pour des camions différents : deux cercles superposés, le plus petit devant</span><span class="n">${fmt(deux)}</span></div>
+        <div class="leg">${svgLeg(losangeSvg(15, 7, 6))}<span>Le poste suivi : où ces camions ont été arrêtés (les autres, estompés)</span><span class="n"></span></div>
+        <div class="leg">${svgLeg(disque(C.cat[0], 5))}<span>Lieu de chargement : des camions en partent</span><span class="n">${fmt(s.dep.size)}</span></div>
+        <div class="leg">${svgLeg(disque(C.cat[1], 5))}<span>Lieu de livraison : des camions y arrivent</span><span class="n">${fmt(s.arr.size)}</span></div>
+        <div class="leg">${svgLeg(disque(C.cat[1], 6) + disque(C.cat[0], 3.4))}<span>Les deux, pour des camions différents : deux cercles superposés, le plus petit devant</span><span class="n">${fmt(deux)}</span></div>
         <p class="sous" style="margin-top:8px">Taille d'un cercle : trajets par an, même échelle pour tous les postes</p>
         <svg viewBox="0 0 230 34" style="width:230px;max-width:100%;height:auto" role="img" aria-label="Cercles de référence : ${refs.map(fmt).join(", ")} trajets par an">${refs.map((n, j) => {
           const r = rayonLieu(n), x = 16 + j * 72;
           return `<circle cx="${x}" cy="${31 - r}" r="${r}" fill="none" stroke="${C.encre2}" stroke-width="1.2"/><text x="${x + r + 4}" y="30" style="font-size:10px;fill:var(--muted)">${fmt(n)}</text>`;
         }).join("")}</svg>
-        <div class="leg" style="margin-top:6px">${svg(`<line x1="2" y1="7" x2="28" y2="7" stroke="${C.encre2}" stroke-width="1.2"/>`)}<span>Rattachement du lieu au nœud le plus proche (trait pâle hors Québec : vers la frontière où le camion entre ou sort)</span><span class="n"></span></div>
-        <div class="leg">${svg(`<circle cx="15" cy="7" r="3" fill="${C.encre2}" stroke="${C.contour}" stroke-width="1"/>`)}<span>Nœud du graphe où ces camions partent ou arrivent</span><span class="n">${fmt(s.nd.size)}</span></div>
+        <div class="leg" style="margin-top:6px">${svgLeg(`<line x1="2" y1="7" x2="28" y2="7" stroke="${C.encre2}" stroke-width="1.2"/>`)}<span>Rattachement du lieu au nœud le plus proche (trait pâle hors Québec : vers la frontière où le camion entre ou sort)</span><span class="n"></span></div>
+        ${legNoeud("Nœud du graphe où ces camions partent ou arrivent (les autres, estompés)", fmt(s.nd.size))}
         <p class="sous" style="margin-top:8px">Aucun camion ne part et n'arrive au même endroit : ces trajets sont exclus (même nœud aux deux bouts).</p></div>`;
       h += `<div class="bloc"><h3>D'où ils viennent (lieux de chargement)</h3>${listeBarres(top(s.dep), C.cat[0], maxTop)}</div>`;
       h += `<div class="bloc"><h3>Où ils vont (lieux de livraison)</h3>${listeBarres(top(s.arr), C.cat[1], maxTop)}</div>`;
@@ -1324,7 +1367,10 @@ function brancherLecture() {
   prix?.addEventListener("change", () => { const v = parseFloat(prix.value); if (isFinite(v) && v >= 0) { S.prixTonne = v; toutRafraichir(); } });
   fac?.addEventListener("change", () => { const v = parseFloat(fac.value); if (isFinite(v) && v > 0) { S.facteur = v; toutRafraichir(); } });
   zone.querySelectorAll("[data-poste]").forEach(el => el.addEventListener("click", () => choisirPoste(el.dataset.poste)));
-  zone.querySelector("#suivi-poste")?.addEventListener("change", e => choisirPoste(e.target.value));
+  zone.querySelector("#suivi-poste")?.addEventListener("change", e => {
+    if (e.target.value) choisirPoste(e.target.value);
+    else { S.selPoste = null; S.selection = null; toutRafraichir(); }        // « — Choisir un poste — » : tous les postes
+  });
   zone.querySelectorAll("[data-arc]").forEach(el => el.addEventListener("click", () => choisirArc(+el.dataset.arc, true)));
   zone.querySelectorAll("[data-fermer]").forEach(el => el.addEventListener("click", () => { S.selection = null; S.selPoste = null; toutRafraichir(); }));
 }
@@ -1389,7 +1435,7 @@ function contenuBulle(map, f, k) {
   }
   if (L === "postes") {
     const p = POSTES.find(x => x.code === f.properties.code);
-    return `<strong>${esc(p.localite)} · ${esc(p.route)} ${esc(p.sens)}</strong><div class="note" style="margin:0 0 4px">${esc(p.troncon)}</div>${l("Camions enquêtés", fmt(p.nobs))}${l("Vides", pct(p.pct_vides))}${l("Trajets par an représentés", fmt(p.n3))}`;
+    return `<strong>${esc(p.localite)} · ${esc(p.route)} ${esc(p.sens)}</strong><div class="note" style="margin:0 0 4px">${esc(p.troncon)}</div>${l("Camions enquêtés", fmt(p.nobs))}${l("Vides", pct(p.pct_vides))}${l("Trajets par an représentés", fmt(p.n3))}${k === 4 && SUIVI_DISPO && p.code !== posteSuivi() ? `<div class="note">Cliquer pour voir d'où viennent ses camions et où ils vont</div>` : ""}`;
   }
   return "";
 }
