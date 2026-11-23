@@ -650,3 +650,6 @@ Branche `feature/module3-temps-module1`, partie de `main` (`318531d`). Le Module
 - L'intervalle de β hors autoroute s'élargit (borne haute −0,25 → −0,16).
 - Les liaisons urbaines de repli sont plus lentes qu'avant (rues à 40 km/h) : leur fermeture coûte moins d'heures, et le classement autour de Montréal bouge. C'est l'effet attendu d'un temps plus réaliste, mais il dépend de l'hypothèse des 40 km/h.
 - Les tables et l'atlas du ML ne changent que par leurs empreintes de fichiers ; ils sont régénérés après le commit du code.
+
+**Décision d'Akram (2026-11-23)**
+- Fusion de `feature/module3-temps-module1` dans `main` (nouveau calage et nouveaux scénarios), sans envoi sur GitHub.
