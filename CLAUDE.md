@@ -39,6 +39,7 @@ Volets 1 et 2 (venv `~/.venvs/portfolio`) :
 
 Volet 3, le jumeau (paquet `src/jumeau_cirano/`, environnement `uv`, Python 3.12) :
 - `uv run jumeau reseau` → `uv run jumeau preparer` (ENR) → `uv run jumeau calibrer` → `uv run jumeau scenarios`
+- `jumeau reseau` lit le temps de parcours du Module 1 (`temps_parcours_liaisons.py`, puis `calcul_djma_methodes.py`) pour ses routes de repli OSRM : le lancer après eux
 - Calage sur l'échantillon (mise au point, ablations) : `uv run jumeau calibrer --echantillon` → `outputs/jumeau/echantillon/` (ENR, jamais publié) ; un essai hors production prend une config avec `publier: false`
 - Page technique : `uv run python scripts/visualisation_jumeau.py --publique`
 - Page de présentation : `uv run python scripts/visualisation_demo.py` (lit la page publique, ni artefact ni ENR)

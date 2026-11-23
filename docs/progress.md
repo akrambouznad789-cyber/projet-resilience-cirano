@@ -622,3 +622,34 @@ Branche `feature/temps-parcours`, partie de `main` (`5aae53a`). Demande du direc
 
 **Décision d'Akram (2026-11-23)**
 - Fusion de `feature/temps-parcours` dans `main`, sans envoi sur GitHub. Le Module 3 n'utilise pas encore ces temps.
+
+## Module 3 : les routes de repli reprennent le temps du Module 1 (2026-11-23)
+
+Branche `feature/module3-temps-module1`, partie de `main` (`318531d`). Le Module 3 trace 252 liaisons sur le RTSS ; les 55 autres gardent leur tracé OSRM comme route unique, qui roulait à 70 km/h fixes, sans km d'autoroute. Choix d'Akram : leur donner le temps et la part d'autoroute que le Module 1 mesure sur ce même tracé, avec les mêmes vitesses, pour un coût d'itinéraire cohérent partout.
+
+**Fait**
+- `donnees/liaisons.py` : `charger_temps_module1()` lit `temps_min` et `part_autoroute` dans `graphe_routier_djma.gpkg` (erreur claire si le temps du Module 1 n'a pas été calculé).
+- `reseau/commande.py` : `route_osrm()` construit la route de repli : temps du Module 1, km d'autoroute = part × km, repli à 70 km/h seulement si le Module 1 n'a pas de temps. Colonne `temps_source` dans la couche `routes` ; le rapport du réseau le dit.
+- Correctif trouvé en relançant : `jumeau preparer` plantait depuis la simplification du Module 2 (`89d62cd`, 2026-11-17), qui a retiré la troisième valeur rendue par `localiser_points()` (les divisions de recensement, que le Module 3 n'utilisait pas). Une ligne de `donnees/demande.py` ; la localisation des lieux n'a pas changé.
+- 3 tests ; pages technique et de présentation, paquet de l'API, fiche du modèle, README, carte des pistes et atlas (chiffres cités) mis à jour ; ligne d'ordre des commandes dans `CLAUDE.md`.
+- État d'avant archivé hors Git : `archives_locales/jumeau_avant_temps_module1_2026-11-23/`.
+
+**Chiffres**
+- Réseau : les 404 routes RTSS sont identiques à l'archive ; les 55 routes de repli prennent le temps du Module 1 (rapport médian 1,13 ; de 0,85 à 1,77), et 17 reçoivent des km d'autoroute (119 km). Échantillon d'abord : 29 routes de repli, toutes au temps du Module 1.
+- Artefact : 259 166 itinéraires (257 952 avant), couverture des postes 67 % (69 %).
+- Calage « équilibre » (2 min 23) : μ 0,0780 → 0,0784 [0,071 ; 0,085] ; β hors autoroute −0,270 → −0,277 [−0,29 ; −0,16] ; ε 0,27 → 0,32. Validation croisée : R² log 0,531 → 0,538 (B0 0,552, B1 0,544 → 0,552) ; NLL de l'enquête 2,032 → 2,136 (B0 2,183 → 2,239, B1 2,215 → 2,264).
+- Préréglages : « comptages » μ 0,060 → 0,060, β hors autoroute +4,4 → +4,2 ; « enquête » μ 0,099 → 0,097, ε 0,27 → 0,32.
+- Scénarios (18 min 19) : τ de Kendall 0,865 entre l'ancien et le nouveau classement des liaisons ; 9 des 10 premières et 19 des 20 premières restent. En tête : Gatineau – Ontario-Sud (2,05 → 2,09 M h), Cabano – Nouveau-Brunswick (1,87 → 1,97), Rivière-du-Loup – Cabano (1,86 → 1,96), Saint-Zotique – Ontario-Sud (2,03 → 1,88). Sort du top 10 : Brossard – Saint-Bruno-de-Montarville (13e). Robustesse : τ moyen 0,989 (0,994), minimum 0,967, top 20 retrouvé à 100 %.
+- 17 liaisons bougent de plus de 50 rangs, dont 5 seulement ont une route de repli ; les autres sont leurs voisines, surtout autour de Montréal (Candiac – Delson 19e → 155e, quand Delson – Saint-Constant passe de 2,7 à 4,0 min). Total des heures perdues sur les 307 fermetures : 61,1 → 55,6 M h.
+- Exemple de la page de présentation, Saint-Hyacinthe – Drummondville : 1,17 → 1,14 M h, 13e → 9e.
+- 81 tests réussis ; `ruff` propre.
+
+**Revue critique**
+- La vraisemblance de l'enquête baisse pour tous les modèles, bases comprises : l'effet vient des itinéraires (le seuil de 1,6 × le meilleur temps en garde d'autres) et de la couverture des postes, pas du calage. Le modèle reste devant B0 sur l'enquête, de 0,10 nat au lieu de 0,15.
+- ε monte à 0,32 : la localisation des postes reste le premier levier (piste 2 de la carte des pistes).
+- L'intervalle de β hors autoroute s'élargit (borne haute −0,25 → −0,16).
+- Les liaisons urbaines de repli sont plus lentes qu'avant (rues à 40 km/h) : leur fermeture coûte moins d'heures, et le classement autour de Montréal bouge. C'est l'effet attendu d'un temps plus réaliste, mais il dépend de l'hypothèse des 40 km/h.
+- Les tables et l'atlas du ML ne changent que par leurs empreintes de fichiers ; ils sont régénérés après le commit du code.
+
+**Décision d'Akram (2026-11-23)**
+- Fusion de `feature/module3-temps-module1` dans `main` (nouveau calage et nouveaux scénarios), sans envoi sur GitHub.

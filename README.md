@@ -85,16 +85,16 @@ Les mêmes pages se lisent aussi directement sur GitHub, dans [`docs/`](docs/don
   </a>
 </p>
 
-**[Ouvrir le jumeau →](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/jumeau/)** Cinq étapes, avec la même barre à gauche que les deux autres modules : le réseau à plusieurs routes, le modèle, sa calibration, une fermeture, le classement des liaisons critiques. La version locale ajoute des curseurs : la page refait le calcul en direct sur les 258 000 itinéraires (23 ms).
+**[Ouvrir le jumeau →](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/jumeau/)** Cinq étapes, avec la même barre à gauche que les deux autres modules : le réseau à plusieurs routes, le modèle, sa calibration, une fermeture, le classement des liaisons critiques. La version locale ajoute des curseurs : la page refait le calcul en direct sur les 259 000 itinéraires (23 ms).
 
 | Résultat | Valeur |
 |---|---|
 | Routes, pour 307 liaisons | 459 (111 liaisons à deux ou trois routes) |
 | Cibles de calibration | 680 sections mesurées en 2025 et 37 235 camions de l'enquête |
-| R² en log sur des sections mises de côté | 0,53, contre 0,55 pour le routage du Module 2 : **pas meilleur sur les débits** |
-| Vraisemblance de l'enquête mise de côté | 2,03 nat par camion, contre 2,18 : nettement meilleur sur le choix des routes |
-| Liaison la plus critique | Gatineau–Ontario-Sud : 2,05 M heures équivalentes par an de fermeture |
-| Stabilité du classement (bootstrap) | τ de Kendall 0,994 |
+| R² en log sur des sections mises de côté | 0,54, contre 0,55 pour le routage du Module 2 : **pas meilleur sur les débits** |
+| Vraisemblance de l'enquête mise de côté | 2,14 nat par camion, contre 2,24 : meilleur sur le choix des routes |
+| Liaison la plus critique | Gatineau–Ontario-Sud : 2,09 M heures équivalentes par an de fermeture |
+| Stabilité du classement (bootstrap) | τ de Kendall 0,989 |
 
 Le modèle ne prédit pas mieux les débits que le routage simple ; son apport est de répartir les camions entre itinéraires, sans quoi aucun report ne se simule. Les hypothèses, les métriques et les limites sont dans la **[fiche du modèle](docs/jumeau.md)**, et chaque décision, chiffres à l'appui, dans le [journal du projet](docs/progress.md).
 
@@ -233,7 +233,7 @@ This research project (Polytechnique Montréal and CIRANO, with Transport Canada
 - **Phase 1, completed:** each link receives its real traffic (annual average daily traffic and truck share) from 7,823 provincial count segments. Missing years are filled with machine learning (random forests, validated on held-out data). 304 of 307 links (99%) are covered.
 - **Phase 2, in progress:** a national roadside truck survey (114,734 trucks, 2006-2007) is replayed on the network to estimate what each truck carries, then the annual value of goods on each link. An [interactive map](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/volet2/carte_interactive.html) walks through the method step by step. Dollar values are still provisional.
 
-- **Phase 3, the digital twin:** up to three alternative routes per link are found on the provincial road network, and a path-size logit route-choice model is calibrated with PyTorch on 2025 truck counts and on the survey (composite likelihood with a learned misclassification rate, spatial cross-validation, bootstrap intervals). It does not beat simple routing on counts (log R² 0.53 vs 0.55) but clearly wins on the survey likelihood, and it is what makes rerouting simulations possible. Every link is closed in turn to rank critical links (stable ranking, Kendall τ 0.994). The [twin page](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/jumeau/) runs the same model in the browser; a FastAPI service in a Docker image, tested in CI, exposes it to the official CIRANO digital twin. See the [model card](docs/jumeau.md).
+- **Phase 3, the digital twin:** up to three alternative routes per link are found on the provincial road network, and a path-size logit route-choice model is calibrated with PyTorch on 2025 truck counts and on the survey (composite likelihood with a learned misclassification rate, spatial cross-validation, bootstrap intervals). It does not beat simple routing on counts (log R² 0.54 vs 0.55) but wins on the survey likelihood, and it is what makes rerouting simulations possible. Every link is closed in turn to rank critical links (stable ranking, Kendall τ 0.989). The [twin page](https://akrambouznad789-cyber.github.io/projet-resilience-cirano/docs/jumeau/) runs the same model in the browser; a FastAPI service in a Docker image, tested in CI, exposes it to the official CIRANO digital twin. See the [model card](docs/jumeau.md).
 - **Groundwork for machine learning:** a [data atlas](docs/donnees_ml.md) separates, value by value, what the ministry publishes from what the project imputed; reproducible learning tables (`jumeau tables`) only ever use published values as targets; Module 3 calibration now runs ten times faster (2 min 15 s instead of 22 min 34 s) with the same model and loss; and a [research map](docs/pistes_ml.md) ranks ten leak-free research directions.
 
 Tools: Python (GeoPandas, Shapely, scikit-learn, NetworkX, PyTorch, MLflow, FastAPI), OSRM routing, QGIS, MapLibre and JavaScript, Docker, GitHub Actions, GitHub Pages.
