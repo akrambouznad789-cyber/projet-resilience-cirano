@@ -584,3 +584,7 @@ Même branche, après le commit `1550a4e` (l'étape 4 suit un poste, validée pa
 - Le Module 1 colore encore ses nœuds frontières en orange et ses nœuds intermédiaires en vert : entre les deux modules, l'orange et le vert n'ont pas le même sens. À traiter avec les couleurs du Module 1.
 - En capture sans affichage, l'étape 1 sort vide (artefact du temps virtuel déjà connu, couche de plus de 4 000 lignes) ; elle s'affiche avec un minuteur actif.
 - Pas encore vérifié : le rendu MapLibre dans un vrai navigateur (survol et clic des losanges, ordre des cercles superposés) et le mode « Comparer deux étapes ».
+
+**Décision d'Akram (2026-11-23)**
+- Fusion de `feature/module2-suivre-poste` dans `main` (suivi d'un poste à l'étape 4, symbologie commune du Module 2), sans envoi sur GitHub.
+- Prochaine modification : un temps de parcours sur chaque arc du Module 1 (demande du directeur de recherche), calculé au routage avec les vitesses camion du Module 3.
