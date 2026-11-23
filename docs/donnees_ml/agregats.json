@@ -1,5 +1,5 @@
 {
-  "genere_le": "2026-11-17",
+  "genere_le": "2026-11-23",
   "fichiers": {
     "data/raw/DebitCirculation.gpkg": {
       "octets": 31047680,
@@ -60,13 +60,13 @@
       }
     },
     "data/processed/graphe_routier.gpkg": {
-      "octets": 12378112,
-      "sha256": "21d9ecbd8064253743e2ed700995fdfeff222db5989aa2900d459657f2ac0d58",
+      "octets": 12386304,
+      "sha256": "a6c14ee42f22b203b4da4579996c594bc612d106ed4b827b43e8e551e562e7d9",
       "suivi_par_git": true,
       "couches": {
         "arcs_enrichis": {
           "lignes": 307,
-          "champs": 21,
+          "champs": 25,
           "geometrie": "LineString",
           "crs_declare": true
         },
@@ -85,13 +85,13 @@
       }
     },
     "data/processed/graphe_routier_djma.gpkg": {
-      "octets": 1019904,
-      "sha256": "fb579e901ab09168f0271c7b55ed7a9a5ff7ea78faebbbd63fd43672c3632503",
+      "octets": 1024000,
+      "sha256": "2512e7ec8a191ec3d7aa8d4b6f61231862dbb048faf6d318795757470594848d",
       "suivi_par_git": true,
       "couches": {
         "arcs_enrichis_djma": {
           "lignes": 307,
-          "champs": 40,
+          "champs": 44,
           "geometrie": "LineString",
           "crs_declare": true
         }
@@ -99,7 +99,7 @@
     },
     "data/processed/reseau_multi_routes.gpkg": {
       "octets": 58707968,
-      "sha256": "9d30c6eb4029e1b655804166ed62c8c1ab8dda8aca7c2c83e1d7223fa2d21af9",
+      "sha256": "643e62483b5aa731850d8d7bb7549849a14473c169d7c81233ad454c8f881f5d",
       "suivi_par_git": false,
       "couches": {
         "liens_rtss": {
@@ -128,7 +128,7 @@
         },
         "routes": {
           "lignes": 459,
-          "champs": 24,
+          "champs": 25,
           "geometrie": "Unknown",
           "crs_declare": true
         },
@@ -154,7 +154,7 @@
     },
     "data/processed/reseau_multi_routes_echantillon.gpkg": {
       "octets": 34426880,
-      "sha256": "816ccba1bb2d8be964f9fb95559e55be135ef7d5dc3ad993222230d9306598bc",
+      "sha256": "7eecd32ce236489544390f3b14bba2019f0e361af53342719fd93edddcdd2dcc",
       "suivi_par_git": false,
       "couches": {
         "liens_rtss": {
@@ -183,7 +183,7 @@
         },
         "routes": {
           "lignes": 268,
-          "champs": 24,
+          "champs": 25,
           "geometrie": "Unknown",
           "crs_declare": true
         },
