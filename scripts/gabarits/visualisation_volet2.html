@@ -143,6 +143,9 @@ table.tab{border-collapse:collapse;width:100%;font-size:.76rem}
 .tab input:focus{border-color:var(--usd);outline:none;box-shadow:0 0 0 2px var(--usd-soft)}
 .tab .mini{display:inline-block;height:7px;border-radius:2px;background:var(--s1);vertical-align:middle;margin-right:6px}
 .param{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:.8rem}
+.marq-poste{width:20px;height:20px;display:grid;place-items:center;cursor:default}
+.marq-poste i{display:block;width:12px;height:12px;transform:rotate(45deg);border-radius:2px;box-sizing:border-box}
+.suivi-choix{width:100%;font:inherit;font-size:.82rem;border:1px solid var(--rule-strong);border-radius:6px;padding:6px 8px;margin-top:6px}
 .param input{width:96px;font:inherit;font-family:var(--mono);font-size:.8rem;text-align:right;border:1px solid var(--rule-strong);border-radius:6px;padding:4px 6px}
 .selection{border:1px solid var(--ink);border-radius:var(--r);padding:12px 13px;display:flex;flex-direction:column;gap:8px}
 .selection h3{font-family:var(--display);font-size:1rem}
@@ -266,6 +269,47 @@ const NOEUDS = D.noeuds, noeudParId = new Map(NOEUDS.map(n => [n.id, n]));
 const POSTES = D.postes;
 const nobsArc = new Map(PA.ids.map((id, i) => [id, PA.nobs[i].reduce((a, b) => a + b, 0)]));
 const LIAISONS_POSTES = new Set(POSTES.map(p => p.arc));     // liaisons où au moins un poste a enquêté
+// Étape 4 (version locale) : on suit un poste. Par défaut, le plus enquêté de ceux dont les camions
+// restent surtout au Québec (au moins 80 % des trajets par an) : un poste frontalier comme Les Cèdres
+// montrerait surtout l'Ontario et les États-Unis.
+const PP = D.par_poste || {};
+const SUIVI_DISPO = !PUBLIQUE && Object.keys(PP).length > 0;
+const PART_QC_DEFAUT = 0.8;
+function partQuebec(code) {
+  const T = PP[code]; let qc = 0, tot = 0;
+  if (T) for (let r = 0; r < T.o.length; r++) { tot += T.n3[r]; if (P.prov[T.o[r]] === "CA-QC" && P.prov[T.d[r]] === "CA-QC") qc += T.n3[r]; }
+  return tot > 0 ? qc / tot : 0;
+}
+const POSTE_DEFAUT = (() => {
+  const tri = [...POSTES].filter(p => PP[p.code]).sort((a, b) => b.nobs - a.nobs);
+  return (tri.find(p => partQuebec(p.code) >= PART_QC_DEFAUT) || tri[0])?.code ?? null;
+})();
+const posteSuivi = () => (S.selPoste && PP[S.selPoste]) ? S.selPoste : POSTE_DEFAUT;
+const suiviCache = new Map();
+function suivrePoste(code) {
+  // Camions routés du poste : lieux de départ et d'arrivée (trajets par an), nœuds où ils sont rattachés
+  if (suiviCache.has(code)) return suiviCache.get(code);
+  const T = PP[code], dep = new Map(), arr = new Map(), nd = new Map(), vers = new Map();
+  let nobs = 0, n3 = 0;
+  const ajouter = (m, k, v) => m.set(k, (m.get(k) || 0) + v);
+  if (T) for (let r = 0; r < T.o.length; r++) {
+    const v = T.n3[r];
+    nobs += T.nobs[r]; n3 += v;
+    ajouter(dep, T.o[r], v); ajouter(arr, T.d[r], v);
+    ajouter(nd, T.no[r], v); ajouter(nd, T.nd[r], v);
+    ajouter(vers, T.o[r] + ">" + T.no[r], v); ajouter(vers, T.d[r] + ">" + T.nd[r], v);
+  }
+  const s = { code, dep, arr, nd, vers, nobs, n3 };
+  suiviCache.set(code, s);
+  return s;
+}
+// Taille d'un lieu : trajets par an pour un rôle (chargement ou livraison), sur une échelle commune à tous
+// les postes (aire proportionnelle) : les cercles se comparent d'un poste à l'autre et la légende ne bouge pas
+const NLIEU_MAX = SUIVI_DISPO ? Math.max(1, ...Object.keys(PP).map(c => {
+  const s = suivrePoste(c);
+  return Math.max(0, ...s.dep.values(), ...s.arr.values());
+})) : 1;
+const rayonLieu = n => 2.5 + 14 * Math.sqrt(n / NLIEU_MAX);
 const SEUIL_OBS = 30;
 
 // Paires (ramassage, livraison, catégorie) : géométrie calculée une fois
@@ -696,10 +740,6 @@ function construireCouches(map) {
   map.addLayer({ id: "flux", type: "line", source: "flux", layout: { "line-cap": "round", "line-sort-key": ["get", "n"] },
                  paint: { "line-color": C.cat[0], "line-opacity": 0.3, "line-width": largeurFlux("n") } });
 
-  map.addSource("rattache", { type: "geojson", data: rattacheGeojson() });
-  map.addLayer({ id: "rattache", type: "line", source: "rattache",
-                 paint: { "line-color": C.rattache, "line-opacity": ["case", ["get", "ext"], 0.18, 0.6], "line-width": ["case", ["get", "ext"], 0.5, 0.8] } });
-
   map.addSource("arcs", { type: "geojson", data: D.arcs, promoteId: "id" });
   map.addLayer({ id: "arcs-fond", type: "line", source: "arcs", layout: { "line-cap": "round", "line-join": "round" },
                  paint: { "line-color": C.reseau, "line-width": 1.1, "line-opacity": 0.9 } });
@@ -715,15 +755,28 @@ function construireCouches(map) {
                  paint: { "line-color": C.encre, "line-width": ["interpolate", ["linear"], ["zoom"], 4, 4, 8, 8], "line-opacity": 0.85 } });
   map.addLayer({ id: "arcs-hit", type: "line", source: "arcs", paint: { "line-color": "#000", "line-opacity": 0, "line-width": 12 } });
 
-  map.addSource("points", { type: "geojson", data: pointsGeojson() });
-  map.addLayer({ id: "points", type: "circle", source: "points",
-                 paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 1.8, 8, 4],
-                          "circle-color": C.qual.sdr,
-                          "circle-stroke-color": C.contour, "circle-stroke-width": 0.6 } });
+  // Étape 4 : les camions du poste suivi (version locale)
+  const vide = { type: "FeatureCollection", features: [] };
+  map.addSource("suivi-liens", { type: "geojson", data: vide });
+  // Rattachement d'un lieu à son nœud : seul type de trait (pâle hors Québec, vers la frontière)
+  map.addLayer({ id: "suivi-liens", type: "line", source: "suivi-liens", layout: { "line-cap": "round" },
+                 paint: { "line-color": C.encre2,
+                          "line-opacity": ["match", ["get", "t"], 2, 0.22, 0.75],
+                          "line-width": ["match", ["get", "t"], 2, 0.6, 1] } });
+  // Lieux : un cercle par rôle (chargement bleu, livraison orange), opaque ; quand un lieu a les deux rôles,
+  // le plus petit cercle est devant (entités triées par rayon décroissant ; MapLibre : clé de tri)
+  map.addSource("suivi-lieux", { type: "geojson", data: vide });
+  map.addLayer({ id: "suivi-lieux", type: "circle", source: "suivi-lieux", layout: { "circle-sort-key": ["get", "s"] },
+                 paint: { "circle-radius": ["get", "r"], "circle-color": ["match", ["get", "role"], 0, C.cat[0], C.cat[1]],
+                          "circle-stroke-color": C.contour, "circle-stroke-width": 1.2 } });
 
   map.addSource("noeuds", { type: "geojson", data: noeudsGeojson() });
   map.addLayer({ id: "noeuds", type: "circle", source: "noeuds",
                  paint: { "circle-radius": 2.6, "circle-color": C.noeud, "circle-stroke-color": C.encre2, "circle-stroke-width": 1 } });
+  // Nœuds où partent ou arrivent les camions du poste : point gris plein, taille fixe (pas d'anneau, dans les deux thèmes)
+  map.addSource("suivi-noeuds", { type: "geojson", data: vide });
+  map.addLayer({ id: "suivi-noeuds", type: "circle", source: "suivi-noeuds",
+                 paint: { "circle-radius": 2.8, "circle-color": C.encre2, "circle-stroke-color": C.contour, "circle-stroke-width": 1 } });
 
   map.addSource("postes", { type: "geojson", data: postesGeojson() });
   map.addLayer({ id: "postes", type: "circle", source: "postes",
@@ -740,30 +793,9 @@ function construireCouches(map) {
   ajouterEtiquettes(map);
 }
 
-// Municipalité (ou comté) → nœud du graphe où elle est rattachée
-function rattacheGeojson() {
-  const f = [];
-  const ligne = (lon, lat, id, prov) => {
-    const n = id && noeudParId.get(id);
-    if (n) f.push({ type: "Feature", properties: { ext: prov !== "CA-QC" }, geometry: { type: "LineString", coordinates: [[lon, lat], [n.lon, n.lat]] } });
-  };
-  for (let i = 0; i < P.lon.length; i++) if (P.n3[i]) ligne(P.lon[i], P.lat[i], P.noeud[i], P.prov[i]);
-  return { type: "FeatureCollection", features: f };
-}
-function pointsGeojson() {
-  const f = [];
-  for (let i = 0; i < P.lon.length; i++) {
-    if (!P.n3[i]) continue;
-    f.push({ type: "Feature", properties: { i, qual: P.qual[i], n3: P.n3[i] },
-             geometry: { type: "Point", coordinates: [P.lon[i], P.lat[i]] } });
-  }
-  return { type: "FeatureCollection", features: f };
-}
-// Cercle d'un nœud : aire proportionnelle aux trajets par an qui y partent ou y arrivent
-const N3MAX = Math.max(1, ...NOEUDS.map(n => n.n3));
 function noeudsGeojson() {
   return { type: "FeatureCollection", features: NOEUDS.map(n => ({
-    type: "Feature", properties: { id: n.id, type: n.type, n3: n.n3, r: 2.5 + 30 * Math.sqrt(n.n3 / N3MAX) },
+    type: "Feature", properties: { id: n.id, type: n.type, n3: n.n3 },
     geometry: { type: "Point", coordinates: [n.lon, n.lat] } })) };
 }
 // Poste : posé sur la ligne de sa liaison (lon_g, lat_g) ; aire proportionnelle aux camions enquêtés
@@ -774,6 +806,29 @@ function postesGeojson() {
   return { type: "FeatureCollection", features: POSTES.map(p => ({
     type: "Feature", properties: { code: p.code, r: rayonPoste(p.nobs), vides: p.pct_vides },
     geometry: { type: "Point", coordinates: [p.lon_g, p.lat_g] } })) };
+}
+// Étape 4 : les camions d'un poste. Un cercle par lieu et par rôle (0 chargement, 1 livraison), aire ∝ trajets
+// par an, sur une échelle commune à tous les postes ; triés du plus grand au plus petit (le petit devant)
+function suiviGeojson(code) {
+  const s = suivrePoste(code);
+  const lieux = [], liens = [], noeuds = [];
+  [[s.dep, 0], [s.arr, 1]].forEach(([m, role]) => m.forEach((n, i) => {
+    const r = rayonLieu(n);
+    lieux.push({ type: "Feature", properties: { i, role, n, dep: s.dep.get(i) || 0, arr: s.arr.get(i) || 0, r, s: -r },
+                 geometry: { type: "Point", coordinates: [P.lon[i], P.lat[i]] } });
+  }));
+  lieux.sort((a, b) => b.properties.r - a.properties.r);
+  s.vers.forEach((n, k) => {                                                     // rattachement du lieu à son nœud
+    const [i, id] = k.split(">"), nn = noeudParId.get(id);
+    if (nn) liens.push({ type: "Feature", properties: { t: P.prov[+i] === "CA-QC" ? 1 : 2, n },   // 2 : hors Québec → frontière
+                         geometry: { type: "LineString", coordinates: [[P.lon[+i], P.lat[+i]], [nn.lon, nn.lat]] } });
+  });
+  s.nd.forEach((n, id) => {
+    const nn = noeudParId.get(id);
+    if (nn) noeuds.push({ type: "Feature", properties: { id, n }, geometry: { type: "Point", coordinates: [nn.lon, nn.lat] } });
+  });
+  const fc = f => ({ type: "FeatureCollection", features: f });
+  return { lieux: fc(lieux), liens: fc(liens), noeuds: fc(noeuds) };
 }
 function fluxGeojson() {
   const champ = new Float64Array(paires.length), obs = new Float64Array(paires.length);
@@ -803,11 +858,22 @@ function ajouterEtiquettes(map) {
     el.appendChild(document.createElement("span")).textContent = n.nom;
     map._etiquettes.push(new MOTEUR.Marker({ element: el, anchor: "left" }).setLngLat([n.lon, n.lat]).addTo(map));
   });
+  // Étape 4 : le poste suivi, en losange (seul objet de cette forme). La rotation va sur l'enfant :
+  // les deux moteurs écrivent la position dans le transform du conteneur.
+  const el = document.createElement("div");
+  el.className = "marq-poste";
+  el.style.display = "none";
+  const losange = el.appendChild(document.createElement("i"));
+  losange.style.background = C.selection;
+  losange.style.border = `2px solid ${C.contour}`;
+  const p0 = POSTES[0];
+  map._marqPoste = new MOTEUR.Marker({ element: el }).setLngLat(p0 ? [p0.lon_g, p0.lat_g] : [0, 0]).addTo(map);
 }
 
 // ---------- Application d'une étape sur une carte ----------
 const vis = (map, ids, on) => ids.forEach(id => map.setLayoutProperty(id, "visibility", on ? "visible" : "none"));
-const COUCHES = ["flux", "rattache", "arcs-fond", "arcs", "arcs-sel", "points", "noeuds", "postes", "postes-sel"];
+const COUCHES = ["flux", "arcs-fond", "arcs", "arcs-sel", "noeuds", "postes", "postes-sel",
+                 "suivi-liens", "suivi-lieux", "suivi-noeuds"];
 let LEGENDE = {};
 
 function etatArcs(map, valeurs, bornes, palette, options = {}) {
@@ -831,6 +897,9 @@ function appliquerEtape(map, k) {
   map._etiquettes.forEach(m => { m.getElement().style.display = (k === 1 || k === 2) ? "none" : ""; });
   map.setFilter("arcs-sel", ["==", ["get", "id"], S.selection ?? -1]);
   map.setFilter("postes-sel", ["==", ["get", "code"], S.selPoste ?? ""]);
+  const suivi = k === 4 && SUIVI_DISPO;
+  map.setPaintProperty("arcs-fond", "line-opacity", suivi ? 0.5 : 0.9);    // graphe estompé : les rattachements ressortent
+  if (map._marqPoste) map._marqPoste.getElement().style.display = suivi ? "" : "none";
 
   if (k === 0) {
     const vals = new Map(ARCS.map(p => [p.id, p.cam_m4]));
@@ -863,14 +932,26 @@ function appliquerEtape(map, k) {
     map.setPaintProperty("postes", "circle-color", COULEUR_VIDES());
     ["arcs", "arcs-sel", "noeuds", "postes", "postes-sel"].forEach(x => on.add(x));
   }
-  if (k === 4 && !PUBLIQUE) {
-    map.setPaintProperty("noeuds", "circle-radius", ["get", "r"]);
-    map.setPaintProperty("noeuds", "circle-color", C.noeud_transparent);
-    map.setPaintProperty("noeuds", "circle-stroke-color", C.noeud_bord);
-    ["arcs-fond", "noeuds", "points", "rattache"].forEach(x => on.add(x));
-  } else if (map.getLayer("noeuds")) {
-    map.setPaintProperty("noeuds", "circle-radius", k === 3 ? 1.8 : 2.6);
-    map.setPaintProperty("noeuds", "circle-color", k === 3 ? C.muet : C.noeud);
+  if (suivi) {
+    // Un seul poste (losange) : les lieux où ses camions chargent et livrent, chacun rattaché à son nœud
+    const code = posteSuivi(), p = POSTES.find(x => x.code === code);
+    if (map._suivi !== code) {
+      const g = suiviGeojson(code);
+      map.getSource("suivi-lieux").setData(g.lieux);
+      map.getSource("suivi-liens").setData(g.liens);
+      map.getSource("suivi-noeuds").setData(g.noeuds);
+      map._suivi = code;
+    }
+    if (p && map._marqPoste) {
+      map._marqPoste.setLngLat([p.lon_g, p.lat_g]);
+      map._marqPoste.getElement().title = `Poste d'enquête : ${p.localite} · ${[p.route, p.sens].filter(Boolean).join(" ")}`;
+    }
+    ["arcs-fond", "noeuds", "suivi-liens", "suivi-lieux", "suivi-noeuds"].forEach(x => on.add(x));
+  }
+  if (map.getLayer("noeuds")) {
+    const discret = k === 3 || suivi;
+    map.setPaintProperty("noeuds", "circle-radius", discret ? 1.8 : 2.6);
+    map.setPaintProperty("noeuds", "circle-color", discret ? C.muet : C.noeud);
     map.setPaintProperty("noeuds", "circle-stroke-color", C.encre2);
   }
   if (k === 5) {
@@ -1025,6 +1106,7 @@ function rendreLecture() {
     h += tete(`${POSTES.length} postes d'enquête au Québec`, `Les lieux où les enquêteurs ont arrêté les camions. Ils couvrent ${fmt(LIAISONS_POSTES.size)} liaisons du graphe, tracées en trait épais ; chaque poste est posé sur sa liaison.`);
     h += `<div class="tuiles">${tuile(fmt(POSTES.length), "postes d'enquête au Québec")}${tuile(`${fmt(LIAISONS_POSTES.size)} / ${fmt(ARCS.length)}`, "liaisons où au moins un poste a enquêté")}
       ${tuile(fmt(enquetes), "camions enquêtés à ces postes")}${tuile(pct(videsMoy, 0), "d'entre eux roulaient vides")}</div>`;
+    h += `<p class="note"><b>À quoi sert le poste ?</b> Il dit seulement où le camion a été interrogé. Le lien entre un poste et sa liaison sert à vérifier le routage, à l'étape 5 ; la valeur d'une liaison viendra des camions qui y passent, pas du poste qui s'y trouve.${SUIVI_DISPO ? " Choisir un poste, puis passer à l'étape suivante pour voir d'où viennent ses camions et où ils vont." : ""}</p>`;
     h += `<div class="legende"><h3>Lire la carte</h3>
       <div class="leg"><svg viewBox="0 0 30 12" aria-hidden="true"><line x1="2" y1="6" x2="28" y2="6" stroke="${C.selection}" stroke-width="4" stroke-linecap="round"/></svg><span>Liaison où un poste a enquêté</span><span class="n">${fmt(LIAISONS_POSTES.size)}</span></div>
       <p class="sous" style="margin-top:8px">Couleur du cercle : part des camions enquêtés au poste qui roulaient vides</p>
@@ -1052,15 +1134,51 @@ function rendreLecture() {
   }
   if (k === 4) {
     const q = M.qualite_bouts, us = (q.comte || 0) + (q.etat || 0);
-    h += tete("Ramassages et livraisons → nœuds du graphe", "Chaque camion enquêté a déclaré la municipalité où il charge et celle où il livre. Chacune est posée sur le nœud du graphe le plus proche : le camion part et arrive ainsi à des nœuds, et peut rouler sur le graphe à l'étape suivante.");
-    h += `<div class="tuiles">${tuile(fmt(M.n_points), "municipalités et comtés où des camions chargent ou livrent")}${PUBLIQUE ? "" : tuile(fmt(NOEUDS.filter(n => n.n3 > 0).length), "nœuds du graphe où des camions partent ou arrivent")}
-      ${tuile(pct(q.sdr, 0), "des ramassages et livraisons retrouvent leur municipalité exacte")}${tuile(fmt(M.n_local), "trajets exclus : même nœud aux deux bouts")}</div>`;
-    if (!PUBLIQUE) h += `<div class="legende"><h3>Lire la carte</h3>
-      <div class="leg"><svg viewBox="0 0 30 12" aria-hidden="true"><circle cx="15" cy="6" r="3" fill="${C.qual.sdr}" stroke="${C.contour}" stroke-width=".6"/></svg><span>Municipalité (ou comté) de ramassage ou de livraison</span><span class="n"></span></div>
-      <div class="leg"><svg viewBox="0 0 30 12" aria-hidden="true"><line x1="2" y1="6" x2="28" y2="6" stroke="${C.rattache}" stroke-width="1.4"/></svg><span>Rattachement au nœud le plus proche</span><span class="n"></span></div>
-      <div class="leg"><svg viewBox="0 0 30 12" aria-hidden="true"><circle cx="15" cy="6" r="5" fill="${C.noeud_transparent}" stroke="${C.noeud_bord}" stroke-width="1.2"/></svg><span>Nœud : aire proportionnelle aux trajets par an qui y partent ou y arrivent</span><span class="n"></span></div></div>`;
-    h += `<p class="note"><b>Pourquoi ces municipalités ?</b> Le poste dit seulement où le camion a été arrêté. Sa municipalité de départ et sa municipalité d'arrivée disent d'où il vient et où il va : c'est ce qui permet de savoir sur quelles liaisons son chargement compte.</p>`;
-    h += `<p class="note">Hors Québec, le camion entre au Québec ou en sort par le point frontière qui lui donne le trajet le plus court. ${pct(us, 0)} des ramassages et livraisons sont aux États-Unis, localisés au comté ou à l'État.</p>`;
+    const global = `${tuile(fmt(M.n_points), "municipalités et comtés où des camions chargent ou livrent")}${PUBLIQUE ? "" : tuile(fmt(NOEUDS.filter(n => n.n3 > 0).length), "nœuds du graphe où des camions partent ou arrivent")}
+      ${tuile(pct(q.sdr, 0), "des ramassages et livraisons retrouvent leur municipalité exacte")}${tuile(fmt(M.n_local), "trajets exclus : même nœud aux deux bouts")}`;
+    const pasFusion = `<p class="note"><b>Les camions ne sont pas fusionnés.</b> Chacun garde sa paire de nœuds, départ et arrivée : c'est elle qui est routée sur le graphe à l'étape suivante.</p>`;
+    const pourquoi = `<p class="note"><b>Pourquoi ces municipalités ?</b> Le poste dit seulement où le camion a été arrêté. Sa municipalité de départ et sa municipalité d'arrivée disent d'où il vient et où il va : c'est ce qui permet de savoir sur quelles liaisons son chargement compte.</p>`;
+    const frontiere = `<p class="note">Hors Québec, le camion entre au Québec ou en sort par le point frontière qui lui donne le trajet le plus court. ${pct(us, 0)} des ramassages et livraisons sont aux États-Unis, localisés au comté ou à l'État.</p>`;
+    if (SUIVI_DISPO) {
+      const code = posteSuivi(), p = POSTES.find(x => x.code === code), s = suivrePoste(code);
+      const tri = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]);
+      const top = (m) => tri(m).slice(0, 5).map(([i, v]) => ({ nom: P.nom[i], v, lib: compact(v) }));
+      const maxTop = Math.max(1, ...[...s.dep.values(), ...s.arr.values()]);
+      const ou = [p.route, p.sens].filter(Boolean).join(" ");
+      h += tete(`Les camions du poste ${esc(p.localite)}`, `Chaque camion arrêté à ce poste${ou ? ` (${esc(ou)})` : ""} a déclaré où il charge et où il livre. Chacun de ces lieux est rattaché au nœud du graphe le plus proche : le camion part et arrive ainsi à des nœuds, et peut rouler sur le graphe à l'étape suivante.`);
+      h += `<div class="bloc"><h3>Poste suivi</h3><p class="sous">Choisir dans la liste, ou cliquer sur un poste à l'étape 3. Par défaut : le plus enquêté des postes dont les camions restent surtout au Québec.</p>
+        <select id="suivi-poste" class="suivi-choix" aria-label="Poste suivi">${[...POSTES].sort((a, b) => b.nobs - a.nobs).filter(x => PP[x.code]).map(x =>
+          `<option value="${esc(x.code)}"${x.code === code ? " selected" : ""}>${esc(x.localite)} · ${esc(x.route)} ${esc(x.sens)} (${fmt(x.nobs)} enquêtés)</option>`).join("")}</select></div>`;
+      h += `<div class="tuiles">${tuile(fmt(s.nobs), "camions enquêtés ici, routés sur le graphe")}${tuile(compact(s.n3), "trajets par an qu'ils représentent")}
+        ${tuile(fmt(s.dep.size), "lieux de chargement")}${tuile(fmt(s.arr.size), "lieux de livraison")}</div>`;
+      // Légende : une forme par objet (losange = poste, cercle plein = lieu, point blanc = nœud, trait = rattachement)
+      const deux = [...s.dep.keys()].filter(i => s.arr.has(i)).length;
+      const svg = (inner) => `<svg viewBox="0 0 30 14" aria-hidden="true">${inner}</svg>`;
+      const disque = (c, r) => `<circle cx="15" cy="7" r="${r}" fill="${c}" stroke="${C.contour}" stroke-width="1.2"/>`;
+      const refs = [1000, 10000, 100000].filter(n => n <= NLIEU_MAX);
+      h += `<div class="legende"><h3>Lire la carte</h3>
+        <div class="leg">${svg(`<rect x="10" y="2" width="10" height="10" rx="1.5" transform="rotate(45 15 7)" fill="${C.selection}" stroke="${C.contour}" stroke-width="1.5"/>`)}<span>Le poste : où ces camions ont été arrêtés</span><span class="n"></span></div>
+        <div class="leg">${svg(disque(C.cat[0], 5))}<span>Lieu de chargement : des camions en partent</span><span class="n">${fmt(s.dep.size)}</span></div>
+        <div class="leg">${svg(disque(C.cat[1], 5))}<span>Lieu de livraison : des camions y arrivent</span><span class="n">${fmt(s.arr.size)}</span></div>
+        <div class="leg">${svg(disque(C.cat[1], 6) + disque(C.cat[0], 3.4))}<span>Les deux, pour des camions différents : deux cercles superposés, le plus petit devant</span><span class="n">${fmt(deux)}</span></div>
+        <p class="sous" style="margin-top:8px">Taille d'un cercle : trajets par an, même échelle pour tous les postes</p>
+        <svg viewBox="0 0 230 34" style="width:230px;max-width:100%;height:auto" role="img" aria-label="Cercles de référence : ${refs.map(fmt).join(", ")} trajets par an">${refs.map((n, j) => {
+          const r = rayonLieu(n), x = 16 + j * 72;
+          return `<circle cx="${x}" cy="${31 - r}" r="${r}" fill="none" stroke="${C.encre2}" stroke-width="1.2"/><text x="${x + r + 4}" y="30" style="font-size:10px;fill:var(--muted)">${fmt(n)}</text>`;
+        }).join("")}</svg>
+        <div class="leg" style="margin-top:6px">${svg(`<line x1="2" y1="7" x2="28" y2="7" stroke="${C.encre2}" stroke-width="1.2"/>`)}<span>Rattachement du lieu au nœud le plus proche (trait pâle hors Québec : vers la frontière où le camion entre ou sort)</span><span class="n"></span></div>
+        <div class="leg">${svg(`<circle cx="15" cy="7" r="3" fill="${C.encre2}" stroke="${C.contour}" stroke-width="1"/>`)}<span>Nœud du graphe où ces camions partent ou arrivent</span><span class="n">${fmt(s.nd.size)}</span></div>
+        <p class="sous" style="margin-top:8px">Aucun camion ne part et n'arrive au même endroit : ces trajets sont exclus (même nœud aux deux bouts).</p></div>`;
+      h += `<div class="bloc"><h3>D'où ils viennent (lieux de chargement)</h3>${listeBarres(top(s.dep), C.cat[0], maxTop)}</div>`;
+      h += `<div class="bloc"><h3>Où ils vont (lieux de livraison)</h3>${listeBarres(top(s.arr), C.cat[1], maxTop)}</div>`;
+      h += pasFusion + pourquoi;
+      h += `<div class="bloc"><h3>Sur l'ensemble de l'enquête</h3><div class="tuiles">${global}</div></div>`;
+      h += frontiere;
+    } else {
+      h += tete("Ramassages et livraisons → nœuds du graphe", "Chaque camion enquêté a déclaré la municipalité où il charge et celle où il livre. Chacune est posée sur le nœud du graphe le plus proche : le camion part et arrive ainsi à des nœuds, et peut rouler sur le graphe à l'étape suivante.");
+      h += `<div class="tuiles">${global}</div>`;
+      h += pasFusion + pourquoi + frontiere;
+    }
   }
   if (k === 5) {
     h += tete("Chaque camion roule sur le graphe", "Plus court chemin entre ses deux nœuds (longueur des tracés routiers du Module 1). Son trajet compte sur toutes les liaisons du chemin, pas seulement sur celle du poste où il a été arrêté.");
@@ -1184,6 +1302,7 @@ function brancherLecture() {
   prix?.addEventListener("change", () => { const v = parseFloat(prix.value); if (isFinite(v) && v >= 0) { S.prixTonne = v; toutRafraichir(); } });
   fac?.addEventListener("change", () => { const v = parseFloat(fac.value); if (isFinite(v) && v > 0) { S.facteur = v; toutRafraichir(); } });
   zone.querySelectorAll("[data-poste]").forEach(el => el.addEventListener("click", () => choisirPoste(el.dataset.poste)));
+  zone.querySelector("#suivi-poste")?.addEventListener("change", e => choisirPoste(e.target.value));
   zone.querySelectorAll("[data-arc]").forEach(el => el.addEventListener("click", () => choisirArc(+el.dataset.arc, true)));
   zone.querySelectorAll("[data-fermer]").forEach(el => el.addEventListener("click", () => { S.selection = null; S.selPoste = null; toutRafraichir(); }));
 }
@@ -1196,7 +1315,8 @@ function majGroupes() {
 function choisirPoste(code) {
   S.selPoste = code; const p = POSTES.find(x => x.code === code);
   S.selection = p.arc;
-  carteB.flyTo({ center: [p.lon_g, p.lat_g], zoom: Math.max(carteB.getZoom(), 7), duration: 700 });
+  // À l'étape 4, la vue reste large : les camions du poste viennent parfois de loin
+  if (S.etape !== 4) carteB.flyTo({ center: [p.lon_g, p.lat_g], zoom: Math.max(carteB.getZoom(), 7), duration: 700 });
   toutRafraichir();
 }
 function choisirArc(id, voler) {
@@ -1236,9 +1356,14 @@ function contenuBulle(map, f, k) {
     if (PUBLIQUE) return `<strong>${esc(n.nom)}</strong>${l("Type", esc(types[n.type] || n.type))}`;
     return `<strong>${esc(n.nom)}</strong>${l("Type", esc(types[n.type] || n.type))}${l("Ramassages + livraisons/an", fmt(n.n3))}${l("dont vides", fmt(n.n3_vides))}${l("Lieux rattachés", fmt(n.npts))}${n.n3_local ? l("Trajets locaux exclus/an", fmt(n.n3_local)) : ""}`;
   }
-  if (L === "points") {
-    const i = f.properties.i, n = P.noeud[i] && noeudParId.get(P.noeud[i]);
-    return `<strong>${esc(P.nom[i])}</strong>${l("Localisation", esc(QUAL.find(q => q[0] === P.qual[i])[1]))}${l("Bouts de trajet/an", fmt(P.n3[i]))}${n ? l("Nœud", esc(n.nom)) : ""}${P.dist[i] != null ? l("Distance au nœud", P.dist[i] + " km") : ""}`;
+  if (L === "suivi-lieux") {
+    const i = f.properties.i, q = QUAL.find(x => x[0] === P.qual[i]);
+    const n = P.noeud[i] && noeudParId.get(P.noeud[i]);
+    return `<strong>${esc(P.nom[i])}</strong>${f.properties.dep ? l("Chargements par an (camions qui en partent)", fmt(f.properties.dep)) : ""}${f.properties.arr ? l("Livraisons par an (camions qui y arrivent)", fmt(f.properties.arr)) : ""}${q ? l("Localisation", esc(q[1])) : ""}${n && P.prov[i] === "CA-QC" ? l("Nœud", esc(n.nom)) : ""}${P.dist[i] != null && P.prov[i] === "CA-QC" ? l("Distance au nœud", P.dist[i] + " km") : ""}`;
+  }
+  if (L === "suivi-noeuds") {
+    const n = noeudParId.get(f.properties.id);
+    return `<strong>${esc(n.nom)}</strong>${l("Trajets par an de ce poste", fmt(f.properties.n))}<div class="note">Départs et arrivées rattachés à ce nœud</div>`;
   }
   if (L === "postes") {
     const p = POSTES.find(x => x.code === f.properties.code);
@@ -1247,12 +1372,12 @@ function contenuBulle(map, f, k) {
   return "";
 }
 function brancherSouris(map, quelleEtape) {
-  const couches = ["flux", "arcs-hit", "noeuds", "points", "postes"];
+  const couches = ["flux", "arcs-hit", "noeuds", "suivi-lieux", "suivi-noeuds", "postes"];
   map.on("mousemove", e => {
     const k = quelleEtape();
     const actives = couches.filter(c => map.getLayer(c) && (c === "arcs-hit" ? [0, 5, 6, 7, 8].includes(k) : map.getLayoutProperty(c, "visibility") === "visible"));
     const f = actives.length ? map.queryRenderedFeatures(e.point, { layers: actives }) : [];
-    const ordre = ["postes", "points", "noeuds", "arcs-hit", "flux"];
+    const ordre = ["postes", "suivi-lieux", "suivi-noeuds", "noeuds", "arcs-hit", "flux"];
     f.sort((a, b) => ordre.indexOf(a.layer.id) - ordre.indexOf(b.layer.id) || (b.properties.n || 0) - (a.properties.n || 0));
     if (!f.length) { bulle.hidden = true; map.getCanvas().style.cursor = ""; return; }
     bulle.innerHTML = contenuBulle(map, f[0], k);
@@ -1290,7 +1415,7 @@ function allerA(k) {
   if (k < 0 || k > 8) return;
   const ancien = ETAPES[S.etape].vue;
   S.etape = k;
-  if (k !== 3 && k !== 5) S.selPoste = null;
+  if (k < 3 || k > 5) S.selPoste = null;          // le poste choisi à l'étape 3 est suivi aux étapes 4 et 5
   try { history.replaceState(null, "", "#etape=" + k); } catch (e) {}
   toutRafraichir();
   if (carteB && ETAPES[k].vue !== ancien) carteB.fitBounds(VUES[ETAPES[k].vue], { padding: 24, duration: 800 });

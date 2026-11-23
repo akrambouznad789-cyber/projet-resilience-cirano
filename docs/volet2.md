@@ -25,8 +25,8 @@ valeur annuelle d'une liaison = camions par jour (Module 1) × $ moyen par camio
 | 0 | Réseau du Module 1 | Point de départ : le graphe du Module 1, des lignes droites entre les nœuds, et ses camions par jour (méthode m4). | 307 liaisons |
 | 1 | Enquête brute | Toutes les fiches de l'enquête, partout au Canada. Aucune ne contient de montant en dollars. | 114 734 camions |
 | 2 | Cibler le Québec | On garde les camions qui chargent ou livrent au Québec, où qu'ils aient été arrêtés, et ceux dont le trajet traverse le Québec. | 37 603 camions, dont 9 057 vides |
-| 3 | Postes d'enquête | Les lieux où les camions ont été arrêtés au Québec. | 49 postes |
-| 4 | Localiser | L'enquête ne donne qu'un code de municipalité, celui de 2001. Chaque lieu est rattaché au nœud le plus proche du réseau ; hors Québec, à un point frontière. | 100 % des lieux canadiens au code exact |
+| 3 | Postes d'enquête | Les lieux où les camions ont été arrêtés au Québec. Le poste sert seulement à vérifier le routage (étape 5) : la valeur d'une liaison vient des camions qui y passent. | 49 postes |
+| 4 | Localiser | Chaque camion arrêté a déclaré où il charge et où il livre, par un code de municipalité de 2001. Chaque lieu est rattaché au nœud le plus proche du réseau ; hors Québec, à un point frontière. Les camions ne sont pas fusionnés : chacun garde sa paire de nœuds. La version locale suit un poste à la fois (par défaut Saint-Augustin-de-Desmaures, A-40 Est) pour montrer d'où viennent ses camions et où ils vont. | 100 % des lieux canadiens au code exact |
 | 5 | Faire rouler | Chaque camion suit le plus court chemin sur le réseau. Il compte sur toutes les liaisons de son trajet, pas seulement là où on l'a arrêté. | 36 879 camions routés |
 | 6 | Donner un prix | Un prix par tonne transforme le tonnage en dollars. En attendant les prix par groupe de marchandises de Statistique Canada (Cadre de données sur le transport de marchandises), le même prix vaut pour toutes. | provisoire : 3 000 $/t |
 | 7 | Actualiser | Les prix sont ramenés en dollars de 2026 avec l'indice des prix des produits industriels. | provisoire |
