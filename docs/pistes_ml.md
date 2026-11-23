@@ -13,7 +13,7 @@ Les données et leurs pièges sont décrits dans l'[atlas](donnees_ml.md). Les c
 | Rang | Piste | Ce qu'elle apporte | Coût | Risque principal |
 |---|---|---|---|---|
 | 1 | Ablations du Module 3 | savoir ce qui porte la vraisemblance du modèle | faible | écarts plus petits que la variation entre plis |
-| 2 | Localisation des postes de l'ENR | le levier désigné par ε ≈ 0,27 | moyen | circularité entre modèle et localisation |
+| 2 | Localisation des postes de l'ENR | le levier désigné par ε ≈ 0,32 | moyen | circularité entre modèle et localisation |
 | 3 | Demande régionale (matrice origine–destination) | défaire la confusion entre g et le fond local | moyen | sur-ajustement sur 88 blocs |
 | 4 | Où compter ensuite | un plan de comptage utile au ministère | moyen | dépend d'un modèle imparfait |
 | 5 | Hétérogénéité du choix d'itinéraire | des camionneurs qui ne pèsent pas le temps de la même façon | moyen à élevé | identification avec 49 postes |
@@ -37,7 +37,7 @@ Critères, dans l'ordre : l'apport à la crédibilité du Module 3, la faisabili
 - **Risque :** l'écart type du R² log entre plis vaut 0,09 à 0,11 ; une moyenne ne suffit pas, il faut l'écart apparié et sa dispersion.
 
 ### 2. Localisation des postes de l'ENR
-- **Question :** la règle qui place chaque poste d'interception sur une route (la route voisine qui couvre le plus de camions interceptés) explique-t-elle une part du taux d'erreur ε ≈ 0,27 ?
+- **Question :** la règle qui place chaque poste d'interception sur une route (la route voisine qui couvre le plus de camions interceptés) explique-t-elle une part du taux d'erreur ε ≈ 0,32 ?
 - **Données :** artefact ; pour chaque poste, les routes candidates à moins de 15 km.
 - **Cible :** vraisemblance de l'enquête et part des camions dont le poste est sur l'itinéraire le plus probable.
 - **Validation sans fuite :** postes entiers mis de côté ; la localisation d'un poste n'est jamais choisie avec ses propres camions de validation.
@@ -70,7 +70,7 @@ Critères, dans l'ordre : l'apport à la crédibilité du Module 3, la faisabili
 - **Validation sans fuite :** postes entiers mis de côté, comme aujourd'hui ; classes définies par des attributs connus avant le trajet (distance de la paire), jamais par le poste franchi.
 - **Base de comparaison :** le logit actuel, B0, B1.
 - **Coût :** deux à cinq fois une évaluation actuelle par classe ou par point d'intégration ; quelques calages complets.
-- **Risque :** 49 postes localisés et ε ≈ 0,27 : l'hétérogénéité peut absorber des erreurs de localisation plutôt que des préférences.
+- **Risque :** 49 postes localisés et ε ≈ 0,32 : l'hétérogénéité peut absorber des erreurs de localisation plutôt que des préférences.
 
 ### 6. Sensibilité structurelle du classement de criticité
 - **Question :** le classement des liaisons critiques survit-il à d'autres ensembles de chemins (k, détour maximal), à d'autres vitesses par classe et à d'autres localisations de postes ? La robustesse publiée (τ de Kendall 0,994) ne couvre que l'échantillonnage.
@@ -119,8 +119,8 @@ Critères, dans l'ordre : l'apport à la crédibilité du Module 3, la faisabili
 
 ## Trois pistes recommandées
 
-1. **Les ablations du Module 3, d'abord.** Le modèle calé ne bat pas le routage simple sur les comptages (R² log 0,53 contre 0,55) et gagne sur l'enquête : il faut savoir quels éléments justifient sa complexité avant d'en ajouter. C'est la piste la moins coûteuse depuis l'accélération du calage, et chacune des autres pistes du Module 3 aura besoin de ses variantes comme référence.
-2. **La localisation des postes, ensuite.** Le journal la désigne depuis la calibration comme le levier principal : ε ≈ 0,27, une couverture des postes de 69 %, et Lacolle mal placé, faute de plus d'un nœud frontière par État dans le graphe. C'est un problème à variable latente (quelle route pour chaque poste ?), qui améliore directement la vraisemblance du choix d'itinéraire.
+1. **Les ablations du Module 3, d'abord.** Le modèle calé ne bat pas le routage simple sur les comptages (R² log 0,54 contre 0,55) et gagne sur l'enquête : il faut savoir quels éléments justifient sa complexité avant d'en ajouter. C'est la piste la moins coûteuse depuis l'accélération du calage, et chacune des autres pistes du Module 3 aura besoin de ses variantes comme référence.
+2. **La localisation des postes, ensuite.** Le journal la désigne depuis la calibration comme le levier principal : ε ≈ 0,32, une couverture des postes de 67 %, et Lacolle mal placé, faute de plus d'un nœud frontière par État dans le graphe. C'est un problème à variable latente (quelle route pour chaque poste ?), qui améliore directement la vraisemblance du choix d'itinéraire.
 3. **La demande régionale, enfin.** Elle s'attaque à la plus vieille limite du jumeau : une demande de 2006-2007 mise à l'échelle par un seul facteur, confondu avec le fond local. Son estimation passe par le même modèle différentiable, donc par le même code, et c'est elle qui rendrait les reports de trafic crédibles pour 2025.
 
 La quatrième, « où compter ensuite », a le plus de valeur pour le ministère ; elle gagne à venir après les trois premières, qui rendront le modèle sur lequel elle s'appuie plus sûr.

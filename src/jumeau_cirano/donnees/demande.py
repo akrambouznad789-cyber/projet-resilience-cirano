@@ -58,7 +58,7 @@ def construire_demande() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     v2 = volet2()
     df = v2.classer_population(v2.charger_enr())
-    df, points, _ = v2.localiser_points(df)
+    df, points = v2.localiser_points(df)      # 2 valeurs depuis la simplification du Module 2 (2026-11-17)
     _, _, noeuds = v2.charger_graphe()
     points = v2.rattacher_noeuds(points, noeuds)
     lieux = points.reset_index(names="pt")[["pt", "prov", "noeud", "candidats", "lon", "lat"]]

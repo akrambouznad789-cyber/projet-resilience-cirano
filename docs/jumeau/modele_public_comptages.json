@@ -1,41 +1,41 @@
 {
-  "genere_le": "2026-10-28",
+  "genere_le": "2026-11-23",
   "objectif": {
     "nom": "comptages",
     "poids_comptages": 1.0,
     "poids_enquete": 0.0
   },
   "parametres": {
-    "mu": 0.05971578248502214,
-    "beta_hors_autoroute": 4.447482035489765,
-    "beta_estime": -2.223004202187829,
-    "croissance": 0.7298595354871533,
+    "mu": 0.06049020125876947,
+    "beta_hors_autoroute": 4.200970604120826,
+    "beta_estime": -2.8260620494225033,
+    "croissance": 0.6982771689633451,
     "erreur_postes": 0.05000000000000001,
-    "fond_10": 3250.9419210051365,
-    "fond_20": 494.411468436267,
-    "fond_30": 402.3945510887885,
-    "fond_40": 104.07374120108767,
-    "fond_autre": 30.02513900776326,
-    "beta_frontiere_F1": -3.859933177289674e-09,
-    "beta_frontiere_F10": -0.03370624160444044,
-    "beta_frontiere_F11": -0.054242578648900135,
-    "beta_frontiere_F2": 3.4789028998638137e-07,
-    "beta_frontiere_F3": -3.4789028998902237e-07,
-    "beta_frontiere_F7": 0.015549976560837793,
-    "beta_frontiere_F9": 0.0722389439935779
+    "fond_10": 3352.3721914363273,
+    "fond_20": 479.1384728456818,
+    "fond_30": 394.3638616120842,
+    "fond_40": 105.78880154994968,
+    "fond_autre": 30.025192761044178,
+    "beta_frontiere_F1": -1.3024420892037868e-05,
+    "beta_frontiere_F10": -0.03934288037201969,
+    "beta_frontiere_F11": -0.04372567343725926,
+    "beta_frontiere_F2": -2.6899560761183546e-06,
+    "beta_frontiere_F3": 2.6899560761152193e-06,
+    "beta_frontiere_F7": 0.0070788410128347305,
+    "beta_frontiere_F9": 0.07578988979717592
   },
   "ic95": {},
   "metriques_finales": {
-    "r2_log": 0.6013519451059517,
-    "erreur_mediane": 0.4225102752567008,
-    "part_30": 0.36911764705882355,
-    "nll_enquete": 3.8612086862608765,
-    "poste_retrouve": 0.49321933962264153
+    "r2_log": 0.6022436939218445,
+    "erreur_mediane": 0.4305209493784209,
+    "part_30": 0.3588235294117647,
+    "nll_enquete": 3.874623964454037,
+    "poste_retrouve": 0.4420695754716981
   },
   "validation_croisee": null,
   "observations": {
     "sections_mesurees": 680,
     "camions_enquetes": 37235,
-    "itineraires": 257952
+    "itineraires": 259166
   }
 }

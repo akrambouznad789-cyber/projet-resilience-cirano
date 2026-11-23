@@ -6,7 +6,7 @@ Modèle d'affectation des camions sur le réseau routier québécois, calé sur 
 
 | | |
 |---|---|
-| Version | `jumeau-cirano` 0.1.0, objectif « équilibre », calé le 2026-10-28 |
+| Version | `jumeau-cirano` 0.1.0, objectif « équilibre », calé le 2026-11-23 |
 | Type | Logit à taille de chemin (*path-size logit*), non congestionné, 10 paramètres libres et 7 β de points frontières |
 | Cadre | PyTorch (calibration différentiable), JavaScript (même calcul dans la page), FastAPI (service) |
 | Auteur | Akram Bouznad, Polytechnique Montréal / CIRANO |
@@ -21,9 +21,9 @@ Modèle d'affectation des camions sur le réseau routier québécois, calé sur 
 
 | Source | Rôle | Volume |
 |---|---|---|
-| Réseau routier RTSS (MTMD) | graphe routier noué, plusieurs routes par liaison | 459 routes pour 307 liaisons, dont 111 à deux ou trois routes |
+| Réseau routier RTSS (MTMD) | graphe routier noué, plusieurs routes par liaison | 459 routes pour 307 liaisons, dont 111 à deux ou trois routes ; 55 liaisons gardent leur tracé OSRM, avec le temps et la part d'autoroute du Module 1 |
 | Débits de circulation 2025 (MTMD) | **cibles** : camions par jour mesurés | 680 sections mesurées en 2025, sur 3 648 portées par une route |
-| Enquête nationale en bordure de route 2006-2007 (MTQ, Transports Canada) | demande (origine, destination, marchandise) et **cibles** : postes franchis par chaque camion | 37 235 camions enquêtés, 20 484 paires de lieux, 257 952 itinéraires |
+| Enquête nationale en bordure de route 2006-2007 (MTQ, Transports Canada) | demande (origine, destination, marchandise) et **cibles** : postes franchis par chaque camion | 37 235 camions enquêtés, 20 484 paires de lieux, 259 166 itinéraires |
 
 Les valeurs imputées par le Module 1 (RandomForest) ne servent jamais de cibles : on n'apprend pas nos propres estimations. Les données de l'ENR sont confidentielles (voir plus bas).
 
@@ -48,12 +48,12 @@ flux_r   = g · Σ_p trajets ENR_i(p) · P(p | i) · δ_rp / 365                
 
 | Paramètre | Calé | IC 95 % | Lecture |
 |---|---|---|---|
-| μ | 0,078 /min | 0,069 ; 0,085 | sensibilité au coût |
-| β hors autoroute | −0,27 min/km | −0,28 ; −0,25 | corrige surtout les vitesses supposées hors autoroute |
-| β km estimés | 6,7 min/km | 6,2 ; 7,0 | raccords et accès absents du RTSS |
-| g | 0,60 | 0,50 ; 0,83 | confondu avec le fond local : ne pas l'interpréter seul |
-| ε | 0,27 | 0,26 ; 0,28 | plus d'un quart des postes notés seraient mal notés ou mal localisés |
-| fond (autoroutes) | 3 760 camions/j | 3 131 ; 4 239 | camions absents de l'enquête |
+| μ | 0,078 /min | 0,071 ; 0,085 | sensibilité au coût |
+| β hors autoroute | −0,28 min/km | −0,29 ; −0,16 | corrige surtout les vitesses supposées hors autoroute |
+| β km estimés | 6,7 min/km | 6,1 ; 7,4 | raccords et accès absents du RTSS |
+| g | 0,58 | 0,48 ; 0,76 | confondu avec le fond local : ne pas l'interpréter seul |
+| ε | 0,32 | 0,31 ; 0,33 | près d'un tiers des postes notés seraient mal notés ou mal localisés |
+| fond (autoroutes) | 3 810 camions/j | 3 270 ; 4 295 | camions absents de l'enquête |
 
 ## Évaluation sur des données mises de côté
 
@@ -61,28 +61,28 @@ Validation croisée à 5 plis : blocs de sections de 50 km × postes d'enquête 
 
 | | R² en log | erreur médiane | part à ±30 % | NLL de l'enquête | poste retrouvé |
 |---|---|---|---|---|---|
-| B0 : routage du Module 2 (plus court, une route) | **0,552** ± 0,09 | **0,442** | 0,344 | 2,183 | 0,491 |
-| B1 : plus rapide sur le réseau à plusieurs routes | 0,544 ± 0,09 | 0,450 | 0,353 | 2,215 | **0,539** |
-| Modèle calé | 0,531 ± 0,11 | **0,442** | **0,354** | **2,032** | 0,468 |
+| B0 : routage du Module 2 (plus court, une route) | **0,552** ± 0,09 | 0,443 | 0,357 | 2,239 | 0,481 |
+| B1 : plus rapide sur le réseau à plusieurs routes | **0,552** ± 0,09 | 0,450 | 0,352 | 2,264 | **0,519** |
+| Modèle calé | 0,538 ± 0,11 | **0,438** | **0,359** | **2,136** | 0,448 |
 
-**Le modèle calé ne bat pas le routage du Module 2 sur les comptages** (l'écart est inférieur à un écart type). Il gagne nettement sur la vraisemblance de l'enquête (−0,15 nat par camion). Son apport n'est pas de mieux prédire les débits : c'est une répartition calée entre itinéraires, sans laquelle aucun report de trafic ne peut être simulé (B0 et B1 envoient tout sur un seul chemin).
+**Le modèle calé ne bat pas le routage du Module 2 sur les comptages** (l'écart est inférieur à un écart type). Il gagne sur la vraisemblance de l'enquête (−0,10 nat par camion). Son apport n'est pas de mieux prédire les débits : c'est une répartition calée entre itinéraires, sans laquelle aucun report de trafic ne peut être simulé (B0 et B1 envoient tout sur un seul chemin).
 
 ## Scénarios de résilience
 
 Chaque liaison est fermée à tour de rôle (307 scénarios), puis chaque route d'une liaison qui en a plusieurs (263). Les camions se reportent selon le logit ; une paire privée de tout itinéraire prend le plus court détour du réseau dégradé ; sans détour, ses trajets ne sont pas desservis.
 
 - **Classement** sur les heures équivalentes perdues (coût composite du logit, « logsum »), qui ne peut que monter quand une option disparaît. Le temps moyen, qui peut baisser à tort, reste descriptif.
-- **Seconde mesure** : la perte sur le meilleur itinéraire seulement. Pour les liaisons, les deux concordent (τ de Kendall 0,925, rapport médian 1,04). Pour une seule route, le logsum vaut en médiane 2,1 fois la perte du meilleur itinéraire : les chiffres par route se lisent avec cette seconde mesure.
-- **Liaisons les plus critiques** : Gatineau–Ontario-Sud (2,05 M heures équivalentes par an de fermeture), Saint-Zotique–Ontario-Sud par l'A-20 (2,03 M), Cabano–Nouveau-Brunswick (1,87 M).
-- **Robustesse** : sur 10 tirages du bootstrap, τ de Kendall moyen 0,994 (minimum 0,980), top 20 retrouvé à 99,5 %.
+- **Seconde mesure** : la perte sur le meilleur itinéraire seulement. Pour les liaisons, les deux concordent (τ de Kendall 0,929, rapport médian 1,04). Pour une seule route, le logsum vaut en médiane 2,1 fois la perte du meilleur itinéraire : les chiffres par route se lisent avec cette seconde mesure.
+- **Liaisons les plus critiques** : Gatineau–Ontario-Sud (2,09 M heures équivalentes par an de fermeture), Cabano–Nouveau-Brunswick (1,97 M), Rivière-du-Loup–Cabano (1,96 M), Saint-Zotique–Ontario-Sud par l'A-20 (1,88 M).
+- **Robustesse** : sur 10 tirages du bootstrap, τ de Kendall moyen 0,989 (minimum 0,967), top 20 retrouvé à 100 %.
 
 ## Hypothèses et limites
 
 - **Pas de congestion** : faute de capacités, le temps d'une route ne dépend pas de son trafic. Une fonction de type BPR pourra s'ajouter.
 - **Demande de 2006-2007**, mise à l'échelle par un facteur g confondu avec le fond local. La structure des échanges a pu changer depuis.
 - **Ensembles d'itinéraires fixés** : les résultats dépendent de leur construction (au plus 20 par paire, détour limité).
-- **Vitesses par classe de route supposées**, non mesurées.
-- **Postes d'enquête mal localisés** : 69 % de couverture, un seul nœud frontière par État (Lacolle notamment). C'est le premier levier d'amélioration, avant tout raffinement du modèle.
+- **Vitesses par classe de route supposées**, non mesurées. Les 55 routes de repli (tracé OSRM) reprennent le temps de parcours du Module 1, mesuré avec les mêmes vitesses (40 km/h dans les rues, 70 km/h hors RTSS loin des villes, 80 km/h hors du Québec) ; elles roulaient à 70 km/h fixes jusqu'au 2026-11-23.
+- **Postes d'enquête mal localisés** : 67 % de couverture, un seul nœud frontière par État (Lacolle notamment). C'est le premier levier d'amélioration, avant tout raffinement du modèle.
 - **Coupures** (27 liaisons) : surtout des artefacts du graphe à 307 liaisons (Bas-Saint-Laurent : l'A-20 et la R-132 sur les mêmes liaisons, ni R-204 ni traversiers).
 - **Les intervalles et la robustesse** ne couvrent que l'incertitude d'échantillonnage, pas celle de la structure du modèle. Un classement stable n'est pas un classement exact.
 - **Montants provisoires** : 90 $/h par camion et 3 000 $/t, à remplacer par le guide avantages-coûts du MTMD et les $/t du Module 2. Une fermeture réelle dure des jours : les montants sont donnés par an de fermeture et par jour.

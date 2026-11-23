@@ -44,6 +44,21 @@ def charger_liaisons(cfg: ConfigReseau) -> pd.DataFrame:
     return arcs
 
 
+def charger_temps_module1(cfg: ConfigReseau) -> pd.DataFrame:
+    """Temps de parcours du Module 1, indexé par ID_ARC : temps_min et part_autoroute de chaque tracé OSRM.
+
+    Mesurés par scripts/temps_parcours_liaisons.py sur le même tracé que la route de repli, avec les
+    vitesses camion de ce module (configs/reseau.yaml), puis reportés dans le fichier DJMA.
+    """
+    fichier = chemin_absolu(cfg.entrees.djma)
+    temps = gpd.read_file(fichier, ignore_geometry=True)
+    manquantes = [c for c in ("temps_min", "part_autoroute") if c not in temps.columns]
+    if manquantes:
+        raise ValueError(f"{fichier.name} : colonnes {manquantes} absentes ; lancer "
+                         "scripts/temps_parcours_liaisons.py, puis scripts/calcul_djma_methodes.py")
+    return temps.set_index("ID_ARC")[["temps_min", "part_autoroute"]]
+
+
 def charger_traces_osrm(cfg: ConfigReseau) -> gpd.GeoSeries:
     """Tracé OSRM actuel de chaque liaison (une route par liaison), indexé par ID_ARC."""
     traces = gpd.read_file(chemin_absolu(cfg.entrees.traces_osrm), layer="trace_osrm")

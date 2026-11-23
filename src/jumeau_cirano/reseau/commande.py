@@ -25,7 +25,7 @@ import pyogrio
 import shapely
 
 from jumeau_cirano.config import DIR_CONFIGS, ConfigReseau, charger, chemin_absolu
-from jumeau_cirano.donnees.liaisons import charger_liaisons, charger_noeuds, charger_traces_osrm
+from jumeau_cirano.donnees.liaisons import charger_liaisons, charger_noeuds, charger_temps_module1, charger_traces_osrm
 from jumeau_cirano.donnees.observations import charger_sections
 from jumeau_cirano.reseau.alternatives import decrire_routes, noeuds_tiers_de, routes_alternatives
 from jumeau_cirano.reseau.controle import controler, synthese
@@ -39,6 +39,8 @@ from jumeau_cirano.reseau.rtss import (
     raccorder_traversees,
 )
 from jumeau_cirano.reseau.sections import djma_par_route, paires_section_lien, rattacher_sections
+
+VITESSE_REPLI_KMH = 70.0     # route OSRM sans temps du Module 1 (règle d'avant le 2026-11-23)
 
 
 def suffixer(chemin: Path, echantillon: bool) -> Path:
@@ -94,7 +96,11 @@ def executer(args: argparse.Namespace) -> None:
 
     print("[4/6] routes alternatives")
     debut = time.time()
-    routes, routes_liens = calculer_routes(g, liens, resultat, nl, charger_traces_osrm(cfg), cfg)
+    routes, routes_liens = calculer_routes(g, liens, resultat, nl, charger_traces_osrm(cfg),
+                                           charger_temps_module1(cfg), cfg)
+    repli = routes[routes["source"] == "osrm"]
+    print(f"      routes de repli OSRM : {len(repli)}, dont {(repli['temps_source'] == 'module1').sum()} avec le temps "
+          f"et la part d'autoroute du Module 1 (les autres à {VITESSE_REPLI_KMH:g} km/h)")
     n_par = routes[routes["source"] == "rtss"].groupby("ID_ARC").size()
     print(f"      {len(routes)} routes pour {routes['ID_ARC'].nunique()} liaisons ({time.time() - debut:.0f} s) ; "
           f"routes par liaison RTSS : {n_par.value_counts().sort_index().to_dict()}")
@@ -141,12 +147,13 @@ def executer(args: argparse.Namespace) -> None:
 
 
 def calculer_routes(g, liens: gpd.GeoDataFrame, resultat: pd.DataFrame, nl: gpd.GeoDataFrame,
-                    traces: gpd.GeoSeries, cfg: ConfigReseau) -> tuple[gpd.GeoDataFrame, pd.DataFrame]:
+                    traces: gpd.GeoSeries, temps_m1: pd.DataFrame,
+                    cfg: ConfigReseau) -> tuple[gpd.GeoDataFrame, pd.DataFrame]:
     """Routes de chaque liaison : alternatives RTSS (routage = rtss) ou tracé OSRM unique (routage = osrm).
 
     La recherche se fait dans une fenêtre du graphe autour des deux villes (marge = la moitié de leur
     distance, 20 km au moins) : même résultat en pratique, beaucoup plus rapide. Les minutes d'une
-    route OSRM sont estimées à 70 km/h (hypothèse, à remplacer par la durée OSRM si on la conserve).
+    route OSRM (route de repli) viennent du Module 1 : voir `route_osrm`.
     """
     geom_lien = liens.set_index("id_lien").geometry
     points = nl.set_index("ID").geometry
@@ -170,16 +177,30 @@ def calculer_routes(g, liens: gpd.GeoDataFrame, resultat: pd.DataFrame, nl: gpd.
                 lignes.append({"ID_ROUTE": id_route, "ID_ARC": r.ID_ARC, "rang": rang, "source": "rtss",
                                "km": rt["km"], "minutes": rt["minutes"],
                                "minutes_relatives": rt["minutes"] / trouvees[0]["minutes"],
-                               **decrire_routes(rt["aretes"], g), "geometry": rt["geometry"]})
+                               **decrire_routes(rt["aretes"], g), "temps_source": "rtss", "geometry": rt["geometry"]})
                 incidences += [{"ID_ROUTE": id_route, "id_lien": int(k)} for _, _, k in rt["aretes"]
                                if not isinstance(k, str)]
         elif r.ID_ARC in traces.index:
-            km = traces[r.ID_ARC].length / 1000
-            lignes.append({"ID_ROUTE": f"{r.ID_ARC}-1", "ID_ARC": r.ID_ARC, "rang": 1, "source": "osrm",
-                           "km": km, "minutes": km / 70 * 60, "minutes_relatives": 1.0,
-                           "km_autoroute": np.nan, "km_estime": np.nan, "routes": "",
-                           "geometry": traces[r.ID_ARC]})
+            lignes.append(route_osrm(r.ID_ARC, traces[r.ID_ARC], temps_m1))
     return gpd.GeoDataFrame(lignes, geometry="geometry", crs=liens.crs), pd.DataFrame(incidences)
+
+
+def route_osrm(id_arc: int, trace: shapely.Geometry, temps_m1: pd.DataFrame) -> dict:
+    """Route unique d'une liaison hors RTSS : son tracé OSRM, avec le temps et la part d'autoroute du Module 1.
+
+    Le Module 1 les mesure sur ce même tracé, tranche par tranche, avec les vitesses camion de ce module : le
+    coût de la route (minutes, km hors autoroute) se lit donc comme celui d'une route du RTSS. Sans temps du
+    Module 1 pour la liaison, repli à 70 km/h et aucun km d'autoroute (règle d'avant le 2026-11-23).
+    """
+    km = trace.length / 1000
+    t = temps_m1.loc[id_arc] if id_arc in temps_m1.index else None
+    if t is not None and pd.notna(t["temps_min"]):
+        minutes, km_auto, source = float(t["temps_min"]), float(t["part_autoroute"]) * km, "module1"
+    else:
+        minutes, km_auto, source = km / VITESSE_REPLI_KMH * 60, np.nan, f"{VITESSE_REPLI_KMH:g} km/h"
+    return {"ID_ROUTE": f"{id_arc}-1", "ID_ARC": id_arc, "rang": 1, "source": "osrm", "km": km, "minutes": minutes,
+            "minutes_relatives": 1.0, "km_autoroute": km_auto, "km_estime": np.nan, "routes": "",
+            "temps_source": source, "geometry": trace}
 
 
 def ecrire_rapport(cfg: ConfigReseau, echantillon: bool, n_lignes: int, liens: gpd.GeoDataFrame, g,
@@ -236,7 +257,9 @@ def ecrire_rapport(cfg: ConfigReseau, echantillon: bool, n_lignes: int, liens: g
         f"- **{(resultat['routage'] == 'osrm').sum()} liaisons** gardent leur route OSRM actuelle "
         "comme route "
         "unique (`routage` = osrm) : routes hors du réseau du MTQ (Baie-James, traversiers), parties hors "
-        "Québec, rangs et rues municipales.",
+        "Québec, rangs et rues municipales. Leur temps et leurs km d'autoroute viennent du Module 1 "
+        f"(`temps_parcours_liaisons.py`) pour {(routes['temps_source'] == 'module1').sum()} d'entre elles "
+        f"(colonne `temps_source`), les autres à {VITESSE_REPLI_KMH:g} km/h.",
         "",
     ]
     rt = routes[routes["source"] == "rtss"]
