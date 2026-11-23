@@ -619,3 +619,6 @@ Branche `feature/temps-parcours`, partie de `main` (`5aae53a`). Demande du direc
 - Les traversiers comptent comme des routes ; le contour à 1:50 M ne permet pas de repérer la mer de façon fiable (des tronçons de la 138 y tombaient). Seules les deux liaisons vers Terre-Neuve-et-Labrador sont vraiment concernées.
 - La colonne `longueur_qc_km` du routage (le « dont au Québec » de l'étape 3) garde la règle des 2 km et sous-estime la part québécoise au centre de Montréal ; elle n'est pas corrigée ici (les comptages n'en dépendent pas : aucune section loin du RTSS).
 - Le Module 3 n'est pas modifié : remplacer ses 55 temps à 70 km/h changerait les entrées du modèle calé (recalage, scénarios et pages à refaire). À décider.
+
+**Décision d'Akram (2026-11-23)**
+- Fusion de `feature/temps-parcours` dans `main`, sans envoi sur GitHub. Le Module 3 n'utilise pas encore ces temps.
