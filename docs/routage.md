@@ -33,6 +33,32 @@ def filtre_proximite_ab(segs, pt_a, pt_b, buffer_ab_m):
 
 Un clip préalable au territoire québécois (buffer 2 km autour du réseau RTSS) supprime aussi les détours par d'autres provinces avant la recherche de segments DJMA.
 
+### Temps de parcours
+
+Chaque tracé reçoit aussi un temps de parcours, calculé par `temps_parcours_liaisons.py` sans refaire le routage. Le tracé est découpé en tranches de 100 m, et chaque tranche prend la vitesse de la route sur laquelle elle roule :
+
+| Où roule la tranche | Vitesse camion |
+|---|---|
+| Sur le RTSS (segment à 50 m ou moins) : autoroute | 90 km/h |
+| Nationale | 80 km/h |
+| Régionale, collectrice | 70 km/h |
+| Accès aux ressources | 60 km/h |
+| Sans classe (bretelles, raccords) | 50 km/h |
+| Hors RTSS, à 8 km ou moins d'une municipalité du graphe : rues | 40 km/h |
+| Hors RTSS, plus loin : routes non gérées par le ministère, comme celles de la Baie-James | 70 km/h |
+| Dans une autre province ou un État américain | 80 km/h |
+
+Ce sont les vitesses du Module 3 (`configs/reseau.yaml` et `configs/modele.yaml`) : le projet n'a qu'une définition du temps. Le temps d'un arc est la somme, sur ses tranches, de la longueur divisée par la vitesse. Les 307 arcs en ont un, y compris les 3 tracés hors du Québec, qui n'ont pas de trafic. Sur les 285 arcs routés avec succès, le temps médian est de 21 min (longueur médiane : 25,8 km). Les colonnes `temps_min`, `vitesse_moy_kmh`, `part_autoroute` et `part_hors_rtss` sont dans `graphe_routier.gpkg` et `graphe_routier_djma.gpkg`.
+
+Le Module 3 calcule déjà un temps pour la route la plus rapide de chaque liaison. Sur les 252 liaisons qu'il trace sur le RTSS, les deux temps concordent : rapport médian 0,99, 73 % des liaisons à ±10 %. Sur les 55 autres, le Module 3 roule à 70 km/h faute de route sur le RTSS ; le temps du tracé y est plus long de 13 % en médiane, surtout parce que les rues des villes y roulent à 40 km/h.
+
+Limites :
+
+- C'est un temps sans congestion, sans arrêt ni heure de pointe. Le RTSS ne donne pas les limites de vitesse : les vitesses par classe sont une hypothèse.
+- Le tracé OSRM (profil voiture) n'est pas toujours le plus rapide pour un camion. Nicolet – Drummondville emprunte des routes hors RTSS : 53 min, contre 47 min pour la route la plus rapide du Module 3.
+- Les traversiers comptent comme des routes (liaisons vers Terre-Neuve-et-Labrador).
+- « Hors du Québec » se lit dans les contours des autres provinces et des États (Natural Earth, 1:50 M), et non à 2 km du RTSS comme pour le clip ci-dessus : au centre de Montréal, des rues sont à plus de 2 km du RTSS, et le clip les compte hors du Québec.
+
 ### Vérification
 
 Le filtrage en cascade a fait l'objet d'une vérification manuelle sommaire, pas d'une validation statistique sur l'ensemble du réseau. Dans QGIS, un arc à la fois est isolé (couches « tracé routé » et « segments retenus » filtrées sur son identifiant), puis le trajet, les segments retenus et l'arc lui-même sont comparés visuellement.
