@@ -516,3 +516,75 @@ Branche `feature/module2-simplifie`, partie de `main` (`68a79e6`). Retours d'Akr
 
 **Décision d'Akram (2026-11-17)**
 - Publication : fusion de `feature/module2-simplifie` dans `main`, puis envoi.
+
+## Module 2 : l'étape 4 suit un poste (2026-11-23)
+
+Branche `feature/module2-suivre-poste`, partie de `main` (`107fab7`). Retour d'Akram : le passage de l'étape 3 (postes) à l'étape 4 (lieux → nœuds) se comprend mal. L'étape 4 affichait d'un coup les 4 317 lieux et leurs rattachements, sans montrer le fil : un camion, c'est un poste où il est arrêté, plus un lieu d'où il vient et un lieu où il va. Option choisie parmi trois (suivre un poste, schéma dans le panneau, texte seul) : suivre un poste.
+
+**Fait**
+- `visualisation_volet2.py` : `agreger_par_poste()` regroupe les camions routés de chaque poste québécois par (lieu de départ, lieu d'arrivée, nœud de départ, nœud d'arrivée), avec leur nombre et leurs trajets par an. Clé `par_poste`, vidée par `version_publique()`.
+- Gabarit, étape 4 (version locale) : la carte suit un poste, avec une forme par type d'objet :
+  - le poste suivi est un losange plein (marqueur HTML), seul objet de cette forme ;
+  - les lieux de chargement sont des cercles bleus, ceux de livraison des cercles orange, d'aire proportionnelle aux trajets par an, sur une échelle commune à tous les postes ; un lieu qui a les deux rôles reçoit deux cercles superposés, le plus petit devant ;
+  - le seul type de trait est le rattachement d'un lieu à son nœud (pâle hors Québec, vers la frontière où le camion entre ou sort) ;
+  - les nœuds touchés sont des points gris pleins, de taille fixe ; les liaisons du graphe sont estompées.
+  On change de poste avec le menu « Poste suivi » ou d'un clic à l'étape 3. Panneau : 4 tuiles du poste, la légende avec trois cercles de référence, d'où viennent et où vont ses camions (5 premiers lieux), les chiffres globaux dans un bloc « Sur l'ensemble de l'enquête ».
+- Le poste choisi à l'étape 3 est gardé aux étapes 4 et 5 (il était remis à zéro à l'étape 4). Par défaut : le plus enquêté des postes dont au moins 80 % des trajets par an restent au Québec, soit Saint-Augustin-de-Desmaures (A-40 Est). Le plus enquêté, Les Cèdres (A-20 Est), n'en garde que 34 % au Québec : sa carte montrait surtout l'Ontario et les États-Unis.
+- Texte, aussi dans la page publique : à l'étape 3, « À quoi sert le poste ? » (le lien entre un poste et sa liaison sert à vérifier le routage, pas à valoriser la liaison) ; à l'étape 4, « Les camions ne sont pas fusionnés » (chacun garde sa paire de nœuds, routée à l'étape suivante).
+- Couches retirées : `points` et `rattache` (tous les lieux), qui ne servaient qu'à l'ancienne étape 4.
+- Symbologie revue après une première version regardée par Akram dans Firefox. Le point vert (un lieu de chargement pour certains camions, de livraison pour d'autres) se lisait comme « il part de là et y revient ». Les anneaux des autres postes, des nœuds et du poste suivi se confondaient avec les cercles des lieux. Retirés : le vert, les autres postes à l'étape 4, les anneaux, et le trait pâle de chaque lieu vers le poste, un schéma qui chargeait la carte.
+- `docs/volet2.md` : lignes des étapes 3 et 4.
+
+**Chiffres**
+- 49 postes québécois, tous suivis. Pour chacun, la somme des camions de `par_poste` égale `nobs_route` (0 écart).
+- Trajets par an suivis sur l'ensemble des postes : 13 070 859, sur 17 114 672 routés (le reste : camions arrêtés hors Québec ou en transit sans poste québécois).
+- Poste par défaut : 1 454 camions enquêtés, 1 446 routés, 396 k trajets par an, 251 lieux de chargement et 213 de livraison, dont 37 des deux à la fois (214 de chargement seulement, 176 de livraison seulement).
+- Aucun camion suivi ne part et n'arrive au même lieu, ni au même nœud (0 sur les 49 postes) : ces trajets sont exclus avant le routage.
+- Échelle des cercles : maximum de 322 199 trajets par an pour un lieu et un rôle, tous postes confondus ; rayon = 2,5 + 14 × √(n / 322 199) px.
+- Page publique : 1,0 Mo, `par_poste` vide, ni lieux ni flux. Sur 3 762 noms de lieux de l'ENR testés, 24 apparaissent dans la page publique ; tous y étaient déjà, comme parties de noms de nœuds ou de liaisons publics.
+- 72 tests réussis.
+
+**Revue critique**
+- Les lieux hors Québec (Ontario, États-Unis, Maritimes) restent visibles même pour un poste central : leurs traits vers la frontière sont pâlis, pas retirés.
+- L'échelle commune rend petits les cercles des postes peu enquêtés ; elle permet en revanche de comparer les postes entre eux, et la légende ne change pas.
+- Deux cercles superposés demandent une lecture apprise : la légende l'explique, mais l'effet sur un lecteur non averti n'est pas mesuré.
+- Vérifié en captures sans affichage (moteur Canvas forcé, sombre, clair, largeur 900 px, vue rapprochée sur Québec), étapes 3 à 5. Pas encore vérifié : le rendu MapLibre dans un vrai navigateur (dont l'ordre de dessin des cercles superposés, réglé par `circle-sort-key`) et le mode « Comparer deux étapes ».
+
+## Module 2 : une seule symbologie d'une étape à l'autre (2026-11-23)
+
+Même branche, après le commit `1550a4e` (l'étape 4 suit un poste, validée par Akram). Deux demandes d'Akram : l'étape 4 doit partir de tous les postes, puis laisser choisir sur la carte celui qu'on suit ; et la symbologie du Module 2 doit être la même d'une étape à l'autre (« si le poste c'est des losanges mauves, la symbologie doit être conservée au fil des couches »). Le Module 1 est jugé assez cohérent ; ses couleurs restent à revoir plus tard.
+
+**Ce qui était incohérent**
+- Le poste était un cercle bleu (dégradé selon la part de vides) à l'étape 3, un losange violet à l'étape 4.
+- Le bleu, l'orange et le vert désignaient des catégories de camions à l'étape 2, le chargement et la livraison à l'étape 4.
+- Le nœud était un point blanc aux étapes 0 et 5 à 8, un petit point gris à l'étape 3, un point gris clair à l'étape 4.
+- Des barres du panneau reprenaient le bleu ou l'orange pour des listes sans rapport.
+
+**Choix d'Akram** (deux questions) : le bleu et l'orange sont réservés au chargement et à la livraison ; la part de vides quitte la carte de l'étape 3 (elle reste dans le tableau, la fiche du poste, l'info-bulle et la tuile).
+
+**Fait**
+- Jeton `poste` dans `jetons.json` (#b866b0 en sombre, #a8489e en clair) ; `palette.js` régénéré par `theme_pages.py`.
+- Gabarit :
+  - les postes sont des losanges mauves (un marqueur HTML par poste, aire selon les camions enquêtés) aux étapes 3 et 4 ; une couche invisible porte le survol et le clic ; les liaisons des postes sont mauves à l'étape 3 ;
+  - les nœuds prennent le symbole du Module 1 (point blanc cerclé, plus petit au zoom) à toutes les étapes, estompés (opacité 0,35) quand ils ne servent que de repère : étapes 1 à 4. Le moteur Canvas de la page gère maintenant `circle-stroke-opacity` ;
+  - les lignes de désir des étapes 1 et 2 sont grises (gris clair : arrêtés au Québec ; gris moyen : arrêtés hors Québec ; vert : transit ; pâle : écartés), au-dessus du graphe estompé ; la barre et la légende de l'étape 2 suivent ;
+  - étape 4 locale : sans poste choisi, tous les losanges, un menu (« — Choisir un poste — ») et un exemple à cliquer (Saint-Augustin-de-Desmaures, A-40 Est) ; avec un poste suivi, les autres losanges sont estompés et restent cliquables, et un bouton ramène à tous les postes. Le poste choisi à l'étape 3 est repris à l'étape 4 ;
+  - les barres « arrêtés hors Québec » et celles des fiches passent en gris ;
+  - légendes communes : le même losange, le même nœud et les mêmes cercles qu'à la carte.
+- `docs/volet2.md` : ligne de l'étape 4 et tableau « Lire les cartes du Module 2 ».
+
+**Chiffres**
+- Mauve validé au script du skill dataviz, toutes paires, contre le bleu et l'orange des lieux. Sombre : écart daltonien 8,6, vision normale 18,0, contraste ≥ 3:1, bande de luminosité respectée. Clair : écart daltonien 10,5, vision normale 20,2. Le violet précédent (#bd93f9) échouait : trop clair pour la bande, et 7,7 d'écart avec le bleu pour un œil protanope.
+- Page publique : 1,05 Mo, toujours sans lieux, flux ni camions par poste.
+- 72 tests réussis.
+
+**Revue critique**
+- Les deux gris des retenus (arrêtés au Québec, arrêtés hors Québec) se distinguent mal sur la carte ; la distinction est surtout portée par la barre et la tuile « 22,2 % du poids : arrêtés hors Québec ».
+- Les nœuds blancs cerclés ressemblent à des anneaux en thème clair, comme au Module 1 ; c'est le prix de l'alignement sur le Module 1.
+- Le Module 1 colore encore ses nœuds frontières en orange et ses nœuds intermédiaires en vert : entre les deux modules, l'orange et le vert n'ont pas le même sens. À traiter avec les couleurs du Module 1.
+- En capture sans affichage, l'étape 1 sort vide (artefact du temps virtuel déjà connu, couche de plus de 4 000 lignes) ; elle s'affiche avec un minuteur actif.
+- Pas encore vérifié : le rendu MapLibre dans un vrai navigateur (survol et clic des losanges, ordre des cercles superposés) et le mode « Comparer deux étapes ».
+
+**Décision d'Akram (2026-11-23)**
+- Fusion de `feature/module2-suivre-poste` dans `main` (suivi d'un poste à l'étape 4, symbologie commune du Module 2), sans envoi sur GitHub.
+- Prochaine modification : un temps de parcours sur chaque arc du Module 1 (demande du directeur de recherche), calculé au routage avec les vitesses camion du Module 3.

@@ -631,6 +631,27 @@ def agreger_flux(df: pd.DataFrame) -> dict:
     }
 
 
+def agreger_par_poste(df: pd.DataFrame) -> dict[str, dict[str, list]]:
+    """Camions routés de chaque poste québécois : lieu de départ → lieu d'arrivée, avec leurs nœuds.
+
+    Sert à l'étape 4 de la page, qui suit un poste : d'où viennent et où vont les camions
+    arrêtés à ce poste, et à quels nœuds leurs lieux sont rattachés. Mêmes camions que ceux
+    routés (`route`) : les trajets dont les deux bouts tombent sur le même nœud en sont exclus.
+    Données tirées de l'ENR : version locale seulement (retirées par `version_publique`).
+    """
+    ici = df[df["dcs_code"].str.startswith("QC") & df["route"]]
+    agg = (ici.groupby(["dcs_code", "o_pt", "d_pt", "noeud_o", "noeud_d"])
+              .agg(nobs=("id", "size"), n3=("n3", "sum")).reset_index())
+    sortie = {}
+    for code, g in agg.groupby("dcs_code"):
+        sortie[code] = {
+            "o": g["o_pt"].astype(int).tolist(), "d": g["d_pt"].astype(int).tolist(),
+            "no": g["noeud_o"].tolist(), "nd": g["noeud_d"].tolist(),
+            "nobs": g["nobs"].astype(int).tolist(), "n3": g["n3"].round().astype(int).tolist(),
+        }
+    return sortie
+
+
 def agreger_noeuds(df: pd.DataFrame, points: pd.DataFrame, noeuds: gpd.GeoDataFrame) -> tuple[list, list]:
     """Bouts de trajet (ramassages + livraisons) par nœud, et nœud retenu pour chaque point."""
     routes = df[df["garde"] & df["noeud_o"].notna()]
@@ -742,13 +763,14 @@ def extraits_code() -> dict[str, str]:
 
 
 def version_publique(donnees: dict) -> dict:
-    """Retire les données ENR détaillées (flux entre lieux, lieux, bouts par nœud).
+    """Retire les données ENR détaillées (flux entre lieux, lieux, bouts par nœud, camions par poste).
 
     Restent les chiffres globaux, les résultats par arc et par poste, et le code.
     """
     publique = dict(donnees)
     publique["flux"] = {k: [] for k in donnees["flux"]}
     publique["points"] = {k: [] for k in donnees["points"]}
+    publique["par_poste"] = {}
     publique["noeuds"] = [{**n, "n3": 0, "t3": 0, "n3_vides": 0, "n3_local": 0, "npts": 0} for n in donnees["noeuds"]]
     publique["meta"] = {**donnees["meta"], "publique": True}
     return publique
@@ -829,6 +851,7 @@ def main(publique: bool = False) -> None:
             "dist": [None if pd.isna(v) else round(float(v), 1) for v in points["dist_noeud_km"]],
         },
         "flux": agreger_flux(df),
+        "par_poste": agreger_par_poste(df),
         "postes": postes,
         "code": extraits_code(),
     }
