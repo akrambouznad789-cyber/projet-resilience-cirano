@@ -48,7 +48,7 @@ ETAPES_V1: list[tuple[str, str, str, str]] = [
     ("completion.md", "Complétion", "combler les trous",
      "Comment les années et les parts de camions manquantes sont comblées : interpolation, forêts aléatoires, stations voisines."),
     ("routage.md", "Routage", "tracer les liaisons",
-     "Comment chaque liaison est tracée sur le vrai réseau routier, puis reçoit les bons comptages grâce à 3 filtres géométriques."),
+     "Comment chaque liaison est tracée sur le vrai réseau routier, reçoit un temps de parcours, puis les bons comptages grâce à 3 filtres géométriques."),
     ("methodes.md", "Méthodes DJMA", "4 façons de résumer",
      "Les 4 façons de résumer le trafic d'une liaison à partir de ses tronçons, et leurs écarts."),
     ("resultats.md", "Résultats", "304 liaisons sur 307",

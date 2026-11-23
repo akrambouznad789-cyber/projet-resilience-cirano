@@ -21,6 +21,7 @@ Concrètement, 19 arcs n'ont aucun segment propre après filtrage. Ce ne sont pa
 | Arcs avec mesure MTQ directe | 285 / 307 (92,8 %) |
 | Segments DJMA mobilisés | 3 306 rattachements segment–arc (2 648 segments distincts), médiane 8 par arc |
 | Longueur de tracé médiane | 25,8 km (couverte à 24,9 km par le RTSS québécois) |
+| Temps de parcours médian | 21 min (camion, sans congestion ; les 307 arcs ont un temps, voir [Routage](routage.md#temps-de-parcours)) |
 | Échecs de routage — aucun segment retenu par les filtres | 19 — complétés par emprunt au plus proche voisin |
 | Échecs de routage — hors territoire québécois | 3 — sans valeur |
 | **Couverture globale** | **304 / 307 (99 %)** |

@@ -32,6 +32,7 @@ Chercheur principal : Akram Bouznad.
 Volets 1 et 2 (venv `~/.venvs/portfolio`) :
 - Complétion des comptages : `python scripts/completion_donnees_randomforest.py` (`--echantillon` d'abord : `outputs/module1/echantillon/`) ; contrôles intégrés, la sortie est refusée si une règle est violée
 - Routage et rattachement des sections : `python scripts/algo_jointure_routes_liens.py` (OSRM)
+- Temps de parcours de chaque liaison, sans refaire le routage : `python scripts/temps_parcours_liaisons.py` (`--echantillon` d'abord : `outputs/module1/echantillon/`), puis `calcul_djma_methodes.py` pour reporter les colonnes ; vitesses camion du Module 3 (`configs/reseau.yaml`)
 - Après une nouvelle complétion, sans refaire le routage : `python scripts/actualiser_valeurs_liaisons.py --reference <ancien debits_completes.gpkg>`
 - Trafic par liaison (m1 à m4) : `python scripts/calcul_djma_methodes.py`, puis `comparaison_methodes_djma.py`
 - Pages : `python scripts/visualisation_volet1.py` ; `ENR_DIR=… python scripts/visualisation_volet2.py --publique`

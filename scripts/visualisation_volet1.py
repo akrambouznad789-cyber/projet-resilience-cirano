@@ -123,6 +123,7 @@ def couche_traces(arcs: gpd.GeoDataFrame) -> dict:
         "id": sortie["ID_ARC"].astype(int), "a": sortie["VILLE_A"], "b": sortie["VILLE_B"],
         "ida": sortie["ID_A"], "idb": sortie["ID_B"],
         "km": sortie["longueur_trace_km"].round(1), "kmqc": sortie["longueur_qc_km"].round(1),
+        "min": sortie["temps_min"].round(1), "vkm": sortie["vitesse_moy_kmh"].round(1),   # temps_parcours_liaisons.py
         "vol": sortie["DIST_KM"].round(1), "src": sortie["SOURCE"].fillna(""), "statut": sortie["statut"],
         "nseg": sortie["n_segs_djma"].fillna(0).astype(int),
         "comp": sortie["djma_complete"].fillna(False).astype(bool),
@@ -278,6 +279,7 @@ def main() -> None:
         "n_rattachements": int(arcs["n_segs_djma"].fillna(0).sum()),
         "mediane_segs": float(arcs.loc[arcs["statut"] == "ok", "n_segs_djma"].median()),
         "mediane_km": float(arcs.loc[arcs["statut"] == "ok", "longueur_trace_km"].median()),
+        "mediane_min": float(arcs.loc[arcs["statut"] == "ok", "temps_min"].median()),
         "etapes": [{"court": court, "sur": sur, "intro": intro} for _, court, sur, intro in ETAPES_V1],
     }
     donnees = {

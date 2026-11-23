@@ -588,3 +588,37 @@ Même branche, après le commit `1550a4e` (l'étape 4 suit un poste, validée pa
 **Décision d'Akram (2026-11-23)**
 - Fusion de `feature/module2-suivre-poste` dans `main` (suivi d'un poste à l'étape 4, symbologie commune du Module 2), sans envoi sur GitHub.
 - Prochaine modification : un temps de parcours sur chaque arc du Module 1 (demande du directeur de recherche), calculé au routage avec les vitesses camion du Module 3.
+
+## Module 1 : un temps de parcours sur chaque arc (2026-11-23)
+
+Branche `feature/temps-parcours`, partie de `main` (`5aae53a`). Demande du directeur de recherche : une valeur de temps sur chaque arc du graphe. Décision d'Akram : le temps se calcule à l'étape du routage et se lit aux résultats, avec les vitesses camion du Module 3, pour que le projet n'ait qu'une définition du temps.
+
+**Méthode** (`scripts/temps_parcours_liaisons.py`)
+- Le tracé OSRM de chaque liaison est découpé en tranches de 100 m. Chaque tranche prend la classe du segment RTSS le plus proche à 50 m ou moins, avec sa vitesse : autoroute 90, nationale 80, régionale et collectrice 70, accès 60, sans classe 50 km/h.
+- Hors RTSS : 80 km/h dans une autre province ou un État américain (Natural Earth 1:50 M), 40 km/h à 8 km ou moins d'une municipalité du graphe (la règle d'accès du Module 3), 70 km/h au-delà (la vitesse que le Module 3 donne à ses liaisons sans RTSS).
+- Temps = Σ longueur de la tranche / vitesse. Colonnes `temps_min`, `vitesse_moy_kmh`, `part_autoroute`, `part_hors_rtss` dans `arcs_enrichis` (graphe_routier.gpkg), reportées dans `graphe_routier_djma.gpkg` par `calcul_djma_methodes.py`.
+- Contrôles (sortie refusée sinon) : un temps pour chaque tracé, aucun temps nul, vitesse moyenne entre 40 et 90 km/h, tranches qui refont le tracé à 1 % près.
+
+**Ce que les essais ont changé**
+- Les segments RTSS déjà rattachés par le routage (`ids_segs_rtss_*`) ne servent pas : ce sont tous les segments qui touchent une zone de 1,5 km autour du tracé, routes transversales comprises.
+- « Hors Québec » : la règle du routage (à plus de 2 km du RTSS) comptait des rues du centre de Montréal hors du Québec (Montréal – Ville de Mont-Royal : 52 % de son tracé, à 80 km/h) ; le contour du Québec à 1:50 M mettait des rues de Québec dans le fleuve (Québec – L'Ancienne-Lorette : 27 %). Retenu : les contours des autres provinces et des États.
+- Les routes de la Baie-James ne sont pas dans le RTSS : à 40 km/h, nœud Baie-James – Matagami (311 km) prenait 7 h 47. D'où la vitesse de 70 km/h hors RTSS loin des villes (4 h 33, contre 4 h 27 au Module 3). Sur l'échantillon, cette règle ne touche que 0,7 % de la longueur.
+
+**Chiffres**
+- Échantillon (couloir Montréal–Québec, 182 liaisons) d'abord, puis tout le Québec : 307 arcs, 187 478 tranches, 19 s.
+- Temps médian 21 min (285 arcs routés ; 10e centile 6,7 min, 90e 97 min sur les 307). Maximum : Sept-Îles – Terre-Neuve-et-Labrador, 1 842 km, 23 h 53. Vitesse moyenne médiane 72 km/h.
+- Longueur des tracés : nationale 37 %, hors Québec 21 % (liaisons interprovinciales et frontalières), autoroute 12 %, hors RTSS loin des villes 11 %, régionale 9 %, rues 5 %.
+- Comparaison au Module 3 : sur les 252 liaisons qu'il trace sur le RTSS, rapport médian 0,99, 73 % à ±10 %, corrélation des log 0,989. Sur ses 55 liaisons à 70 km/h fixes, le temps du tracé est plus long de 13 % en médiane (rues à 40 km/h).
+- `calcul_djma_methodes.py` relancé : 0 écart sur toutes les colonnes existantes de `graphe_routier_djma.gpkg` (m1 à m4 compris), 4 colonnes nouvelles.
+- Page du Module 1 : temps et vitesse dans la fiche de l'étape 3, tuile « longueur et temps médians », temps dans la fiche et l'info-bulle de l'étape 5. `docs/routage.md` (section « Temps de parcours ») et `docs/resultats.md` ; ligne du pipeline dans `CLAUDE.md`.
+- 78 tests réussis (72 + 6 du temps de parcours) ; `ruff` propre.
+
+**Revue critique**
+- Temps sans congestion ni arrêt ; vitesses par classe supposées (le RTSS n'a pas de limites de vitesse).
+- Le tracé OSRM suit un profil voiture : il n'est pas toujours le plus rapide pour un camion (Nicolet – Drummondville : 53 min par des routes hors RTSS, 47 min par la route la plus rapide du Module 3).
+- Les traversiers comptent comme des routes ; le contour à 1:50 M ne permet pas de repérer la mer de façon fiable (des tronçons de la 138 y tombaient). Seules les deux liaisons vers Terre-Neuve-et-Labrador sont vraiment concernées.
+- La colonne `longueur_qc_km` du routage (le « dont au Québec » de l'étape 3) garde la règle des 2 km et sous-estime la part québécoise au centre de Montréal ; elle n'est pas corrigée ici (les comptages n'en dépendent pas : aucune section loin du RTSS).
+- Le Module 3 n'est pas modifié : remplacer ses 55 temps à 70 km/h changerait les entrées du modèle calé (recalage, scénarios et pages à refaire). À décider.
+
+**Décision d'Akram (2026-11-23)**
+- Fusion de `feature/temps-parcours` dans `main`, sans envoi sur GitHub. Le Module 3 n'utilise pas encore ces temps.

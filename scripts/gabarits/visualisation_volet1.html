@@ -310,6 +310,12 @@ const VILLES = ["Montréal", "Québec", "Gatineau", "Sherbrooke", "Trois-Rivièr
 const nf = new Intl.NumberFormat("fr-CA");
 const fmt = v => (v == null || !isFinite(v)) ? "–" : nf.format(Math.round(v));
 const fmt1 = v => (v == null || !isFinite(v)) ? "–" : v.toLocaleString("fr-CA", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+// Durée en minutes → « 14 min » ou « 4 h 33 » (temps de parcours, scripts/temps_parcours_liaisons.py)
+function duree(m) {
+  if (m == null || !isFinite(m)) return "–";
+  const t = Math.round(m);
+  return t < 60 ? `${t} min` : `${Math.floor(t / 60)} h ${String(t % 60).padStart(2, "0")}`;
+}
 const pctv = v => (v == null || !isFinite(v)) ? "–" : fmt1(v) + " %";              // valeur déjà en %
 const pct = (x, d = 0) => (x == null || !isFinite(x)) ? "–" : (100 * x).toLocaleString("fr-CA", { minimumFractionDigits: d, maximumFractionDigits: d }) + " %";
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -965,6 +971,7 @@ function carteArc3(a) {
   let h = `<div class="selection"><h3>${esc(nomArc(a))}</h3>
     <div class="kv"><span>Statut</span><span>${esc((STATUTS.find(s => s[0] === a.statut) || [, a.statut])[1])}</span>
       <span>Tracé OSRM</span><span>${fmt1(a.km)} km</span><span>dont au Québec</span><span>${fmt1(a.kmqc)} km</span>
+      <span>Temps de parcours (camion, sans congestion)</span><span>${duree(a.min)}</span><span>Vitesse moyenne</span><span>${fmt1(a.vkm)} km/h</span>
       <span>Vol d'oiseau (ligne du graphe)</span><span>${fmt1(a.vol)} km</span><span>Segments retenus</span><span>${fmt(a.nseg)}</span></div>`;
   if (lignes.length) h += listeBarres(lignes.slice().sort((x, y) => (y[1] || 0) - (x[1] || 0)).slice(0, 12).map(([sid, v, p, annee]) => ({
     nom: `Section ${sid}`, v, lib: `${fmt(v)} · ${pctv(p)}`, couleur: C.bleu[Math.max(0, classeDe(v, BORNES.d))] })), C.bleu[2]) +
@@ -978,7 +985,7 @@ function contenu3() {
   const st = M.statuts;
   let h = `<div class="tuiles">${tuile(fmt(st.ok || 0), "arcs avec au moins un segment retenu")}${tuile(fmt(st.aucun_djma || 0), "aucun segment retenu : complétés à l'étape 4")}
     ${tuile(fmt(M.mediane_segs), "segments retenus par arc (médiane)")}${tuile(fmt(M.n_rattachements), "rattachements segment–arc")}
-    ${tuile(fmt1(M.mediane_km) + " km", "longueur médiane d'un tracé (arcs routés)")}${tuile(fmt(st.hors_quebec || 0), "tracés hors du territoire québécois")}</div>`;
+    ${tuile(`${fmt1(M.mediane_km)} km · ${duree(M.mediane_min)}`, "longueur et temps médians d'un tracé (arcs routés)")}${tuile(fmt(st.hors_quebec || 0), "tracés hors du territoire québécois")}</div>`;
   h += bloc("Couleur des arcs", segment("vue3", [["statut", "Statut du routage"], ["nseg", "Segments retenus"]], S.vue3));
   if (S.arc != null) h += carteArc3(parId.get(S.arc));
   else h += note("<b>Sélectionner un arc.</b> La carte montre son tracé OSRM, la ligne droite du graphe, les sections retenues (colorées selon leur DJMA) et, s'il fait 6 km ou plus, les zones de 3 km exclues autour de A et B.");
@@ -999,7 +1006,10 @@ function carteArc45(a, k) {
   const v = S[k === 4 ? "var4" : "var5"] === "cam" ? "c" : "d";
   const lib = v === "c" ? "camions par jour" : "véhicules par jour";
   let h = `<div class="selection"><h3>${esc(nomArc(a))}</h3>`;
-  if (a.statut === "hors_quebec") return h + note("Tracé hors du Québec : aucune valeur.", "attention") + `<button type="button" class="ferme" data-fermer="arc">Retirer la sélection</button></div>`;
+  const temps = k === 5 ? `<div class="kv"><span>Temps de parcours (camion, sans congestion)</span><span>${duree(a.min)}</span>
+    <span>Vitesse moyenne · longueur</span><span>${fmt1(a.vkm)} km/h · ${fmt1(a.km)} km</span></div>` : "";
+  if (a.statut === "hors_quebec") return h + temps + note("Tracé hors du Québec : aucune valeur de trafic.", "attention") + `<button type="button" class="ferme" data-fermer="arc">Retirer la sélection</button></div>`;
+  h += temps;
   h += listeBarres([1, 2, 3, 4].map(m => ({ nom: `m${m} · ${DEF_METHODES[m][1]}`, v: a[v + m], lib: fmt(a[v + m]), couleur: m === 4 ? C.bleu[3] : C.bleu[1] })), C.bleu[2]);
   h += `<p class="sous">En ${lib}.</p><div class="kv"><span>Segments retenus</span><span>${fmt(a.nseg)}</span>
     <span>Écart entre les 4 méthodes</span><span>${a.ecart == null ? "–" : fmt1(a.ecart) + " %"}</span>
@@ -1038,7 +1048,7 @@ function contenu5() {
     ${tuile(fmt(st.hors_quebec || 0), "sans valeur : tracé hors du Québec")}</div>`;
   h += bloc("Afficher", segment("vue5", [["trafic", "Trafic final (m4)"], ["cas", "Les 22 cas particuliers"]], S.vue5) +
     segment("rep5", [["graphe", "Graphe (résultat)"], ["trace", "Tracés routiers"]], S.rep5));
-  if (S.rep5 === "graphe") h += note("<b>Le résultat du module.</b> Chaque liaison du graphe, une ligne droite entre deux nœuds, porte son trafic. " +
+  if (S.rep5 === "graphe") h += note("<b>Le résultat du module.</b> Chaque liaison du graphe, une ligne droite entre deux nœuds, porte son trafic et son temps de parcours. " +
     "Les Modules 2 et 3 partent de ce graphe ; le tracé routier n'a servi qu'à rattacher les sections de comptage (étape 3).");
   if (S.vue5 === "trafic") {
     h += bloc("Variable", segment("var5", [["djma", "DJMA (véh./jour)"], ["cam", "Camions par jour"]], S.var5));
@@ -1103,12 +1113,13 @@ function contenuBulle(f) {
   // arcs-hit
   const a = parId.get(p.id), k = S.etape;
   let h = `<strong>${esc(nomArc(a))}</strong>`;
-  if (k === 3) h += l("Tracé", fmt1(a.km) + " km") + l("Segments retenus", fmt(a.nseg)) + l("Statut", esc((STATUTS.find(s => s[0] === a.statut) || [, a.statut])[1]));
-  else if (a.statut === "hors_quebec") h += `<div class="note">Tracé hors du Québec : aucune valeur.</div>`;
+  if (k === 3) h += l("Tracé", fmt1(a.km) + " km") + l("Temps de parcours", duree(a.min)) + l("Segments retenus", fmt(a.nseg)) + l("Statut", esc((STATUTS.find(s => s[0] === a.statut) || [, a.statut])[1]));
+  else if (a.statut === "hors_quebec") h += (k === 5 ? l("Temps de parcours", duree(a.min)) : "") + `<div class="note">Tracé hors du Québec : aucune valeur de trafic.</div>`;
   else {
     const champ = champTrafic(k);
     if (k === 4 && S.vue4 === "ecart") h += l("Écart m1-m4", a.ecart == null ? "–" : fmt1(a.ecart) + " %") + l("Segments retenus", fmt(a.nseg));
     else h += l(`${champ[0] === "c" ? "Camions/jour" : "DJMA"} · m${champ[1]}`, fmt(a[champ])) + l("Segments retenus", fmt(a.nseg));
+    if (k === 5) h += l("Temps de parcours", duree(a.min));
     if (a.comp) h += `<div class="note">Emprunté à ${esc(nomArc(parId.get(a.don)))}.</div>`;
   }
   return h + `<div class="note">Cliquer pour le détail.</div>`;
